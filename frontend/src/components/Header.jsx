@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import Logo from "./primitives/Logo";
+import Logo from "../primitives/Logo";
 import {
   Dialog,
   DialogPanel,
@@ -23,7 +23,7 @@ import {
   SquaresPlusIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import {cx} from "./util";
+import {cx} from "../util";
 
 const products = [
   {name: 'Analytics', description: 'Get a better understanding of your traffic', href: '#', icon: ChartPieIcon},
