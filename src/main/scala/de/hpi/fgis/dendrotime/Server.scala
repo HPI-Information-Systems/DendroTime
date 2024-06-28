@@ -20,17 +20,7 @@ import scala.io.StdIn
 
 object Server {
   def start(host: String, port: Int)(using system: ActorSystem[Any], ctx: ExecutionContextExecutor): Unit =
-    val route =
-      pathPrefix("api") {
-        Route.seal(concat(
-          path("hello") {
-            get {
-              complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Hello World!</h1>"))
-            }
-          })
-        )
-      } ~ assets
-
+    val route = api ~ assets
     val bindingFuture = Http().newServerAt(host, port).bind(route)
 
     println(s"Server is now online. Open http://$host:$port/ to view.\n Press RETURN to stop ...")
@@ -38,6 +28,17 @@ object Server {
 //    bindingFuture
 //      .flatMap(_.unbind())
 //      .onComplete(_ => system.terminate())
+
+  private val api =
+    pathPrefix("api") {
+      Route.seal(concat(
+        path("hello") {
+          get {
+            complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Hello World!</h1>"))
+          }
+        })
+      )
+    }
 
   private val assets =
     getFromResourceDirectory("frontend") ~
