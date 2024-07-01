@@ -1,137 +1,73 @@
 package fftw3
 
-//
-// A simple Scala interface to FFTWLibrary.java for real transforms of arbitrary dimension.
-// The object FFTReal demonstrates example usage.
-// Author: Kipton Barros
-//
-
 import com.sun.jna.*
+
 import java.nio.IntBuffer
-import fftw3.{FFTW3Library => FFTW}
-import FFTW.{INSTANCE => fftw}
+import fftw3.FFTW3Library as FFTW
+import FFTW.INSTANCE as fftw
+
+import scala.util.Using
+
 
 object FFTWReal {
 
-  def test(): Unit = {
-    val dim = Array(3, 3)
-    val a = Array[Double](0, 0, 1, 0, 0, 0, 0, 0, 0)
-    val b = Array[Double](1, 2, 3, 4, 5, 6, 7, 8, 9)
-    val dst = new Array[Double](dim.product)
-    val fft = new FFTWReal(dim)
-    fft.convolve(a, b, dst)
-    dst.foreach(println)
-  }
+  private val SIZE_OF_DOUBLE: Int = 8
 
-  def test2(): Unit = {
-    val dim = Array(4, 4)
-    val a = Array[Double](0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val fft = new FFTWReal(dim)
-    val ap = fft.allocFourierArray()
-    fft.forwardTransform(a, ap)
+  /** Convolve array `b` over array `b` using the FFTW native library.
+   *
+   * @param a First array (length n)
+   *          The first array to convolve.
+   * @param b Second array (length m)
+   *          The second array to convolve.
+   * @return The convolution of a and b of length n + m - 1.
+   */
+  final def fftwConvolve(a: Array[Double], b: Array[Double]): Array[Double] = {
+    if a.length == 0 || b.length == 0 then
+      return Array.empty
 
-    val bp = fft.allocFourierArray()
-    fft.tabulateFourierArray(bp) { (k: Array[Double]) =>
-      math.cos(-k(1)) -> math.sin(-k(1))
-    }
+    val na = a.length
+    val nb = b.length
+    val n = nextFastLength(na + nb - 1)
 
-    for (i <- ap.indices) {
-      println(ap(i) - bp(i))
-    }
-  }
+    val aPad = Array.ofDim[Double](n)
+    val bPad = Array.ofDim[Double](n)
+    Array.copy(a, 0, aPad, 0, a.length)
 
-  def test3(): Unit = {
-    val dim = Array(4, 4)
-    val a = Array[Double](0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val fft = new FFTWReal(dim)
-    val ap = fft.allocFourierArray()
-    fft.forwardTransform(a, ap)
+    // compute reverse conjugate of b and copy to padded array
+    for i <- b.indices do
+      bPad(i) = b(b.length - i - 1)
 
-    val bp = fft.allocFourierArray()
-    fft.tabulateFourierArray(bp) { (k: Array[Double]) =>
-      math.cos(-k(0)) -> math.sin(-k(0))
-    }
+    Using.resource(FFTWReal(Array(n))) { fft =>
+      // convert to Fourier space
+      val sp1 = fft.forwardTransform(aPad)
+      val sp2 = fft.forwardTransform(bPad)
 
-    for (i <- ap.indices) {
-      println(ap(i) - bp(i))
-    }
-  }
-}
+      // multiply in Fourier space
+      multiplyFourierArrays(sp1, sp2, sp1)
 
-
-// Note that arrays are packed in row major order, so the last index is the fastest varying.
-// Thus, if indices are computed as (i = Lx*y + x) then one should use dim(Ly, Lx)
-class FFTWReal(dim: Array[Int], lenOption: Option[Array[Double]] = None, flags: Int = FFTW.FFTW_ESTIMATE) {
-
-  val len = lenOption.getOrElse(dim.map(_.toDouble))
-  val rank = dim.length
-
-  // number of doubles in real-space array
-  val n = dim.product
-  // number of doubles in reciprocal space array
-  val nrecip = 2 * (dim.slice(0, rank - 1).product * (dim(rank - 1) / 2 + 1)) // fftw compresses last index
-
-  val sizeofDouble = 8;
-  val inBytes = sizeofDouble * n
-  val outBytes = sizeofDouble * nrecip
-
-  val in = fftw.fftw_malloc(new NativeLong(inBytes))
-  val out = fftw.fftw_malloc(new NativeLong(outBytes))
-  val inbuf = in.getByteBuffer(0, inBytes).asDoubleBuffer()
-  val outbuf = out.getByteBuffer(0, outBytes).asDoubleBuffer()
-
-  val planForward = fftw.fftw_plan_dft_r2c(dim.size, IntBuffer.wrap(dim), inbuf, outbuf, flags)
-  val planBackward = fftw.fftw_plan_dft_c2r(dim.size, IntBuffer.wrap(dim), outbuf, inbuf, flags)
-
-  def forwardTransform(src: Array[Double], dst: Array[Double]): Unit = {
-    require(src.size == n)
-    require(dst.size == nrecip)
-
-    inbuf.clear()
-    inbuf.put(src)
-    fftw.fftw_execute(planForward)
-    outbuf.rewind()
-    outbuf.get(dst)
-
-    // continuum normalization: f(k) = \int dx^d f(x) e^(i k x)
-    val scale = len.product / dim.product
-    for (i <- dst.indices) dst(i) *= scale
-  }
-
-  def backwardTransform(src: Array[Double], dst: Array[Double]): Unit = {
-    require(src.size == nrecip)
-    require(dst.size == n)
-
-    outbuf.clear()
-    outbuf.put(src)
-    fftw.fftw_execute(planBackward)
-    inbuf.rewind()
-    inbuf.get(dst)
-
-    // continuum normalization: f(x) = (2 Pi)^(-d) \int dk^d f(k) e^(- i k x)
-    val scale = 1 / len.product
-    for (i <- dst.indices) dst(i) *= scale
-  }
-
-  def allocFourierArray(): Array[Double] = {
-    new Array[Double](nrecip)
-  }
-
-  def tabulateFourierArray(dst: Array[Double])(f: Array[Double] => (Double, Double)): Unit = {
-    require(dst.size == nrecip)
-    for (i <- 0 until dst.size / 2) {
-      val k = fourierVector(i)
-      val (re, im) = f(k)
-      dst(2 * i + 0) = re
-      dst(2 * i + 1) = im
+      // convert back to real space and remove padding
+      val result = fft.backwardTransform(sp1)
+      result.slice(0, na + nb - 1)
     }
   }
 
-  def multiplyFourierArrays(src1: Array[Double], src2: Array[Double], dst: Array[Double]): Unit = {
-    require(src1.size == nrecip)
-    require(src2.size == nrecip)
-    require(dst.size == nrecip)
-    for (i <- 0 until src1.size / 2) {
+  private final def nextFastLength(n: Int): Int = {
+    val FACTORS = Array(2, 3, 5)
+    var m = n
+    while true do
+      var r = m
+      for f <- FACTORS do
+        while r > 1 && r % f == 0 do
+          r /= f
+      if r == 1 then
+        return m
+      else
+        m += 1
+    m
+  }
+
+  private final def multiplyFourierArrays(src1: Array[Double], src2: Array[Double], dst: Array[Double]): Unit = {
+    for (i <- 0 until src1.length / 2) {
       // src and dst arrays might be aliased; create temporary variables
       val re = src1(2 * i + 0) * src2(2 * i + 0) - src1(2 * i + 1) * src2(2 * i + 1)
       val im = src1(2 * i + 0) * src2(2 * i + 1) + src1(2 * i + 1) * src2(2 * i + 0)
@@ -139,75 +75,103 @@ class FFTWReal(dim: Array[Int], lenOption: Option[Array[Double]] = None, flags: 
       dst(2 * i + 1) = im
     }
   }
+}
 
-  def conjugateFourierArray(src: Array[Double], dst: Array[Double]): Unit = {
-    require(src.size == nrecip)
-    require(dst.size == nrecip)
-    for (i <- 0 until src.size / 2) {
-      dst(2 * i + 0) = src(2 * i + 0)
-      dst(2 * i + 1) = -src(2 * i + 1)
-    }
+
+// Note that arrays are packed in row major order, so the last index is the fastest varying.
+// Thus, if indices are computed as (i = Lx*y + x) then one should use dim(Ly, Lx)
+final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends AutoCloseable {
+  // optimization ideas:
+  // - store wisdom to disk on close and load from disk on open (if exists) (survives JVM restarts):
+  //   int fftw_export_wisdom_to_filename(const char *filename);
+  //   int fftw_import_wisdom_from_filename(const char *filename);
+
+  import FFTWReal.*
+
+  /** Number of dimensions. */
+  val rank: Int = dims.length
+
+  /** Number of doubles in real-space array */
+  val n: Int = dims.product
+
+  /** number of doubles in reciprocal space array */
+  val nRecip: Int = 2 * (dims.slice(0, rank - 1).product * (dims(rank - 1) / 2 + 1)) // fftw compresses last index
+
+  private val dimensions = dims.map(_.toDouble)
+  private val inBytes = SIZE_OF_DOUBLE * n
+  private val outBytes = SIZE_OF_DOUBLE * nRecip
+
+  private val in = fftw.fftw_malloc(new NativeLong(inBytes))
+  private val out = fftw.fftw_malloc(new NativeLong(outBytes))
+  private val inbuf = in.getByteBuffer(0, inBytes).asDoubleBuffer()
+  private val outbuf = out.getByteBuffer(0, outBytes).asDoubleBuffer()
+
+  private val planForward = fftw.fftw_plan_dft_r2c(dims.length, IntBuffer.wrap(dims), inbuf, outbuf, flags | FFTW.FFTW_DESTROY_INPUT)
+  private val planBackward = fftw.fftw_plan_dft_c2r(dims.length, IntBuffer.wrap(dims), outbuf, inbuf, flags | FFTW.FFTW_DESTROY_INPUT)
+
+  def forwardTransform(a: Array[Double]): Array[Double] = {
+    require(a.length == n)
+
+    val ap = Array.ofDim[Double](nRecip)
+    forward(a, ap)
+    ap
   }
 
-  // Returns the list of all fourier vectors
-  def fourierVectors: Array[Array[Double]] = {
-    Array.tabulate(nrecip / 2) {
-      fourierVector
-    }
+  def backwardTransform(a: Array[Double]): Array[Double] = {
+    require(a.length == nRecip, s"Expected length $nRecip, got ${a.length}")
+
+    val ap = Array.ofDim[Double](n)
+    backward(a, ap)
+    ap
   }
 
-  // for each indexed complex number in fourier array, return corresponding vector k
-  // where component k(r) = n (2 pi / L_r) for integer n in range [-N/2, +N/2)
-  def fourierVector(i: Int): Array[Double] = {
-    require(0 <= i && i < nrecip / 2)
-    val k = new Array[Double](rank)
-    var ip = i
-    for (r <- rank - 1 to 0 by -1) {
-      val d = if (r == rank - 1) (dim(r) / 2 + 1) else dim(r) // fftw compresses last index
-      k(r) = ip % d
-      if (k(r) >= dim(r) / 2)
-        k(r) -= dim(r)
-      val dk = 2 * math.Pi / len(r)
-      k(r) *= dk
-      ip /= d
-    }
-    k
+  def convolve(a: Array[Double], b: Array[Double]): Array[Double] = {
+    require(a.length == n && b.length == n)
+
+    val ap = Array.ofDim[Double](nRecip)
+    val bp = Array.ofDim[Double](nRecip)
+    forward(a, ap)
+    forward(b, bp)
+    // conjugateFourierArray(bp, bp) // affects sign: c(j) = \sum_i a(i) b(i-j)
+    multiplyFourierArrays(ap, bp, ap)
+    val dst = Array.ofDim[Double](n)
+    backward(ap, dst)
+    dst
   }
 
-  def destroy: Unit = {
+  def close(): Unit =
+    destroy()
+
+  @inline
+  private def forward(src: Array[Double], dst: Array[Double]): Unit = {
+    inbuf.clear()
+    inbuf.put(src)
+    fftw.fftw_execute(planForward)
+    outbuf.rewind()
+    outbuf.get(dst)
+
+    // continuum normalization: f(k) = \int dx^d f(x) e^(i k x)
+    val scale = dimensions.product / dims.product
+    for (i <- dst.indices) dst(i) *= scale
+  }
+
+  @inline
+  private def backward(src: Array[Double], dst: Array[Double]): Unit = {
+    outbuf.clear()
+    outbuf.put(src)
+    fftw.fftw_execute(planBackward)
+    inbuf.rewind()
+    inbuf.get(dst)
+
+    // continuum normalization: f(x) = (2 Pi)^(-d) \int dk^d f(k) e^(- i k x)
+    val scale = 1 / dimensions.product
+    for (i <- dst.indices) dst(i) *= scale
+  }
+
+  private def destroy(): Unit = {
     fftw.fftw_destroy_plan(planForward)
     fftw.fftw_destroy_plan(planBackward)
     fftw.fftw_free(in)
     fftw.fftw_free(out)
-  }
-
-
-  def convolve(a: Array[Double], b: Array[Double], dst: Array[Double]): Unit = {
-    require(a.size == n && b.size == n && dst.size == n)
-    val ap = allocFourierArray()
-    val bp = allocFourierArray()
-    forwardTransform(a, ap)
-    forwardTransform(b, bp)
-    // conjugateFourierArray(bp, bp) // affects sign: c(j) = \sum_i a(i) b(i-j)
-    multiplyFourierArrays(ap, bp, ap)
-    backwardTransform(ap, dst)
-  }
-
-  def convolveWithRecip(a: Array[Double], dst: Array[Double])(bp: Array[Double]): Unit = {
-    require(a.size == n && bp.size == nrecip && dst.size == n)
-    val ap = allocFourierArray()
-    forwardTransform(a, ap)
-    multiplyFourierArrays(ap, bp, ap)
-    backwardTransform(ap, dst)
-  }
-
-  def convolveWithRecipFn(a: Array[Double], dst: Array[Double])(fn: Array[Double] => (Double, Double)): Unit = {
-    require(a.size == n && dst.size == n)
-    val ap = allocFourierArray()
-    val bp = allocFourierArray()
-    forwardTransform(a, ap)
-    tabulateFourierArray(bp)(fn)
-    multiplyFourierArrays(ap, bp, ap)
-    backwardTransform(ap, dst)
   }
 }

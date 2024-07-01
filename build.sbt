@@ -36,7 +36,8 @@ lazy val `DendroTime` = project
       // test
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.2.18" % Test
-    )
+    ),
+    javacOptions += "-Xlint:deprecation",
   )
 
 `DendroTime`/ Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
