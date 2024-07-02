@@ -40,7 +40,7 @@ function D3BarChart({data}) {
 
     const target = svg.selectAll("rect").data(data);
 
-    target.exit().remove();
+    target.exit().transition().remove();
 
     const newData = target.enter()
       .append("rect")
@@ -71,7 +71,7 @@ function D3BarChart({data}) {
         <p>{selected ? "Selected bar at index " + data.indexOf(selected.value) + ": " + selected.value : "Nothing selected"}</p>
       </div>
     </div>
-  )
+  );
 }
 
 export default D3BarChart;
