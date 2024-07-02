@@ -11,6 +11,10 @@ import scala.util.Using
 
 object FFTWReal {
 
+  final type FFTWProvider = Array[Int] => FFTWReal
+
+  given defaultFfftwProvider: FFTWProvider = FFTWReal.apply(_)
+
   private val SIZE_OF_DOUBLE: Int = 8
 
   /** Convolve array `b` over array `b` using the FFTW native library.
@@ -21,7 +25,7 @@ object FFTWReal {
    *          The second array to convolve.
    * @return The convolution of a and b of length n + m - 1.
    */
-  final def fftwConvolve(a: Array[Double], b: Array[Double]): Array[Double] = {
+  final def fftwConvolve(a: Array[Double], b: Array[Double])(using fftProvider: FFTWProvider): Array[Double] = {
     if a.length == 0 || b.length == 0 then
       return Array.empty
 
@@ -37,7 +41,7 @@ object FFTWReal {
     for i <- b.indices do
       bPad(i) = b(b.length - i - 1)
 
-    Using.resource(FFTWReal(Array(n))) { fft =>
+    Using.resource(fftProvider(Array(n))) { fft =>
       // convert to Fourier space
       val sp1 = fft.forwardTransform(aPad)
       val sp2 = fft.forwardTransform(bPad)
@@ -85,6 +89,7 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
   // - store wisdom to disk on close and load from disk on open (if exists) (survives JVM restarts):
   //   int fftw_export_wisdom_to_filename(const char *filename);
   //   int fftw_import_wisdom_from_filename(const char *filename);
+  // - store transformed result in the input array (if possible) to avoid copying
 
   import FFTWReal.*
 

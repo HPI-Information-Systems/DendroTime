@@ -2,6 +2,11 @@ package de.hpi.fgis.dendrotime.distances
 
 object MSM {
   extension (d: Double) {
+    /** Round a double to a given number of decimal places.
+     *
+     * @param decimals Number of decimal places to round to.
+     * @return The rounded double.
+     */
     @inline
     private def roundTo(decimals: Int): Double = {
       val factor = Math.pow(10, decimals)
@@ -29,7 +34,7 @@ object MSM {
   private final def sakoeChibaBounding(n: Int, m: Int, window: Double): Array[Array[Boolean]] = {
     val onePercent = Math.min(n, m) / 100.0
     val radius = (window * onePercent * 100).floor.toInt
-    val boundingMatrix = Array.tabulate(n, m)((_, _) => false)
+    val boundingMatrix = Array.ofDim[Boolean](n, m)
 
     val smallest = Math.min(n, m)
     val largest = Math.max(n, m)
@@ -51,25 +56,21 @@ object MSM {
     maxSlope *= n.toDouble / m
     minSlope *= n.toDouble / m
 
-    val lowerBound1 = Array.tabulate(m)(i => i * minSlope)
-    val lowerBound2 = Array.tabulate(m)(i => (n - 1) - maxSlope * (m - 1) + maxSlope * i)
+    @inline
+    def computeBound(i: Int, upper: Boolean): Int = {
+      val slope = if upper then minSlope else maxSlope
+      val bound = Math.max(
+        (i * minSlope).roundTo(2),
+        ((n - 1) - maxSlope * (m - 1) + maxSlope * i).roundTo(2)
+      ).ceil.toInt
+      if upper then bound + 1 else bound
+    }
 
-    val lowerBound = Array.ofDim[Int](m)
+    val boundingMatrix = Array.ofDim[Boolean](n, m)
     for i <- 0 until m do
-      val bound = Math.max(lowerBound1(i).roundTo(2), lowerBound2(i).roundTo(2))
-      lowerBound(i) = bound.ceil.toInt
-
-    val upperBound1 = Array.tabulate(m)(i => i * maxSlope)
-    val upperBound2 = Array.tabulate(m)(i => (n - 1) - minSlope * (m - 1) + minSlope * i)
-
-    val upperBound = Array.ofDim[Int](m)
-    for i <- 0 until m do
-      val bound = Math.min(upperBound1(i).roundTo(2), upperBound2(i).roundTo(2))
-      upperBound(i) = (bound + 1).ceil.toInt
-
-    val boundingMatrix = Array.tabulate(n, m)((_, _) => false)
-    for i <- 0 until m do
-      for x <- boundingMatrix.slice(lowerBound(i), upperBound(i)) do
+      val lowerBound = computeBound(i, upper = false)
+      val upperBound = computeBound(i, upper = true)
+      for x <- boundingMatrix.slice(lowerBound, upperBound) do
         x(i) = true
     boundingMatrix
   }
