@@ -1,32 +1,58 @@
 package de.hpi.fgis.dendrotime.api
 
+import akka.actor.typed.scaladsl.AskPattern.*
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directives, Route}
+import akka.util.Timeout
+import de.hpi.fgis.dendrotime.actors.DatasetRegistry
 import de.hpi.fgis.dendrotime.model.DatasetModel
+import de.hpi.fgis.dendrotime.{Main, Settings}
 
-object DatasetService extends Directives with DatasetModel.JsonSupport {
+import java.io.File
+import scala.concurrent.duration.given
+
+class DatasetService(datasetRegistry: ActorRef[DatasetRegistry.Command])(using system: ActorSystem[_])
+  extends Directives with DatasetModel.JsonSupport {
 
   import DatasetModel.*
+
+  given timeout: Timeout = Settings(system).askTimeout
 
   lazy val route: Route = pathPrefix("datasets") {
     concat(
       pathEnd {
         concat(
           get {
-            // load list of all datasets
-            complete(Datasets(Seq.empty))
+            onSuccess(datasetRegistry.ask(DatasetRegistry.GetDatasets.apply)) { response =>
+              complete(Datasets(response.datasets))
+            }
           },
           post {
             entity(as[Dataset]) { dataset =>
-              // store dataset
-              complete(dataset)
+              onSuccess(datasetRegistry.ask(DatasetRegistry.AddDataset(dataset, _))) {
+                case DatasetRegistry.DatasetAdded(d) => complete(StatusCodes.Created, d)
+                case DatasetRegistry.DatasetNotAdded(reason) => complete(StatusCodes.BadRequest, reason)
+              }
             }
           }
-          // delete?
         )
       },
-      (get & path(LongNumber)) { id =>
-        complete(Dataset(id, "Dataset " + id, "/path/to/dataset/" + id))
-      },
+      path(LongNumber) { id =>
+        concat(
+          get {
+            onSuccess(datasetRegistry.ask(DatasetRegistry.GetDataset(id, _))) {
+              case DatasetRegistry.GetDatasetResponse(Some(dataset)) => complete(dataset)
+              case DatasetRegistry.GetDatasetResponse(None) => complete(StatusCodes.NotFound)
+            }
+          },
+          delete {
+            onSuccess(datasetRegistry.ask[DatasetRegistry.DatasetRemoved](DatasetRegistry.RemoveDataset(id, _))) { response =>
+              complete(StatusCodes.OK, response.id.toString)
+            }
+          }
+        )
+      }
     )
   }
 }

@@ -5,11 +5,13 @@ import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives.*
 import akka.http.scaladsl.server.Route
+import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.api.ApiRoutesProvider
 
 import scala.util.{Failure, Success}
 
 
-object Server {
+object Server extends ApiRoutesProvider {
 
   // Actor message protocol
   sealed trait Message
@@ -19,10 +21,23 @@ object Server {
   private case object Stopped extends Message
 
   // behavior
-  def apply(host: String, port: Int, routes: Route): Behavior[Message] = Behaviors.setup { ctx =>
+  def apply(assets: Route): Behavior[Message] = Behaviors.setup { ctx =>
     given system: ActorSystem[?] = ctx.system
 
-    val bindingFuture = Http().newServerAt(host, port).bind(routes)
+    val settings = Settings(system)
+
+    // start actors
+    val scheduler = ctx.spawn(Scheduler(), "scheduler")
+    ctx.watch(scheduler)
+    val datasetRegistry = ctx.spawn(DatasetRegistry(), "dataset-registry")
+    ctx.watch(datasetRegistry)
+
+    // start server
+    val routes = createApiRoutes(
+      datasetServiceRoutes(datasetRegistry),
+      jobServiceRoutes(scheduler)
+    ) ~ assets
+    val bindingFuture = Http().newServerAt(settings.host, settings.port).bind(routes)
     ctx.pipeToSelf(bindingFuture) {
       case Success(binding) => Started(binding)
       case Failure(ex) => StartFailed(ex)
