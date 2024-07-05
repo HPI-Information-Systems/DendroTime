@@ -67,7 +67,11 @@ private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]
   }
 
   private def loadExistingDatasets: Map[Long, Dataset] = {
-    Paths.get(dataPath).toFile.listFiles(_.isDirectory).sorted.zipWithIndex.flatMap { (file, i) =>
+    val localDatasetsFolder = Paths.get(dataPath).toFile
+    if !localDatasetsFolder.exists() then
+      localDatasetsFolder.mkdir()
+
+    localDatasetsFolder.listFiles(_.isDirectory).sorted.zipWithIndex.flatMap { (file, i) =>
       val id = i.toLong
       for {
         datasetFile <- file.listFiles().find(_.getName.endsWith(".ts"))
