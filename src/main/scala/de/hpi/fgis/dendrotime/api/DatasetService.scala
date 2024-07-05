@@ -7,10 +7,7 @@ import akka.http.scaladsl.server.{Directives, Route}
 import akka.util.Timeout
 import de.hpi.fgis.dendrotime.actors.DatasetRegistry
 import de.hpi.fgis.dendrotime.model.DatasetModel
-import de.hpi.fgis.dendrotime.{Main, Settings}
-
-import java.io.File
-import scala.concurrent.duration.given
+import de.hpi.fgis.dendrotime.Settings
 
 class DatasetService(datasetRegistry: ActorRef[DatasetRegistry.Command])(using system: ActorSystem[_])
   extends Directives with DatasetModel.JsonSupport {
@@ -38,7 +35,7 @@ class DatasetService(datasetRegistry: ActorRef[DatasetRegistry.Command])(using s
           }
         )
       },
-      path(LongNumber) { id =>
+      path(IntNumber) { id =>
         concat(
           get {
             onSuccess(datasetRegistry.ask(DatasetRegistry.GetDataset(id, _))) {

@@ -8,7 +8,7 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat, NullOptions}
  */
 object DatasetModel {
 
-  final case class Dataset(id: Long, name: String, path: String)
+  final case class Dataset(id: Int, name: String, path: String)
   final case class Datasets(datasets: Seq[Dataset])
 
   given Ordering[Dataset] = Ordering.by(_.id)

@@ -12,16 +12,16 @@ object DatasetRegistry {
   
   sealed trait Command
   case class GetDatasets(replyTo: ActorRef[GetDatasetsResponse]) extends Command
-  case class GetDataset(id: Long, replyTo: ActorRef[GetDatasetResponse]) extends Command
+  case class GetDataset(id: Int, replyTo: ActorRef[GetDatasetResponse]) extends Command
   case class AddDataset(dataset: Dataset, replyTo: ActorRef[AddDatasetResponse]) extends Command
-  case class RemoveDataset(id: Long, replyTo: ActorRef[DatasetRemoved]) extends Command
+  case class RemoveDataset(id: Int, replyTo: ActorRef[DatasetRemoved]) extends Command
   
   final case class GetDatasetsResponse(datasets: Seq[Dataset])
   final case class GetDatasetResponse(dataset: Option[Dataset])
   sealed trait AddDatasetResponse
   final case class DatasetAdded(dataset: Dataset) extends AddDatasetResponse
   final case class DatasetNotAdded(reason: String) extends AddDatasetResponse
-  final case class DatasetRemoved(id: Long)
+  final case class DatasetRemoved(id: Int)
   
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetRegistry(ctx).start()
@@ -38,7 +38,7 @@ private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]
     running(datasets)
   }
   
-  private def running(datasets: Map[Long, Dataset]): Behavior[Command] = Behaviors.receiveMessage{
+  private def running(datasets: Map[Int, Dataset]): Behavior[Command] = Behaviors.receiveMessage{
     case GetDatasets(replyTo) =>
       replyTo ! GetDatasetsResponse(datasets.values.toSeq.sorted)
       Behaviors.same
@@ -66,22 +66,21 @@ private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]
       running(datasets - id)
   }
 
-  private def loadExistingDatasets: Map[Long, Dataset] = {
+  private def loadExistingDatasets: Map[Int, Dataset] = {
     val localDatasetsFolder = Paths.get(dataPath).toFile
     if !localDatasetsFolder.exists() then
       localDatasetsFolder.mkdir()
 
     localDatasetsFolder.listFiles(_.isDirectory).sorted.zipWithIndex.flatMap { (file, i) =>
-      val id = i.toLong
       for {
         datasetFile <- file.listFiles().find(_.getName.endsWith(".ts"))
         if datasetFile.isFile
       } yield
-        id -> Dataset(id, datasetFile.getName, datasetFile.getCanonicalPath)
+        i -> Dataset(i, datasetFile.getName, datasetFile.getCanonicalPath)
     }.toMap
   }
 
-  private def cacheNewDataset(dataset: Dataset, newId: Long): Try[Dataset] = Try {
+  private def cacheNewDataset(dataset: Dataset, newId: Int): Try[Dataset] = Try {
     val file = Paths.get(dataset.path).toRealPath()
     val target = Paths.get(dataPath, newId.toString, file.getFileName.toString)
     target.getParent.toFile.mkdir()

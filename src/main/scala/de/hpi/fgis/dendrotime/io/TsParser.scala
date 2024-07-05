@@ -1,12 +1,14 @@
 package de.hpi.fgis.dendrotime.io
 
 import java.io.*
+import java.nio.charset.Charset
 import scala.collection.mutable
 import scala.util.Using
 
 
 @main def testParser(): Unit = {
-  val parser = TsParser(TsParser.TsParserSettings(), new TsParser.TsProcessor {
+  val parser = TsParser(TsParser.TsParserSettings())
+  val processor = new TsParser.TsProcessor {
     private var count = 0
     override def processMetadata(metadata: TsMetadata): Unit = {
       println(s"Metadata: $metadata")
@@ -17,8 +19,7 @@ import scala.util.Using
       println(s"Univariate TS $count with ${data.length} values and label '$label'")
     }
   }
-  )
-  parser.parse(File("data/ACSF1/ACSF1_TEST.ts"))
+  parser.parse(File("data/ACSF1/ACSF1_TEST.ts"), processor)
 }
 
 object TsParser {
@@ -31,8 +32,16 @@ object TsParser {
                        commentIdentifier: Char = '#'
                      )
 
-  case class TsParserSettings(format: TsFormat = TsFormat(), parseMetadata: Boolean = true)
+  case class TsParserSettings(
+                               format: TsFormat = TsFormat(),
+                               parseMetadata: Boolean = true,
+                               encoding: String = "UTF-8"
+                             )
 
+  object TsProcessor {
+    val default: TsProcessor = new TsProcessor {}
+  }
+  
   trait TsProcessor {
     def processMetadata(metadata: TsMetadata): Unit = {}
 
@@ -40,39 +49,43 @@ object TsParser {
   }
 
 
-  def apply(settings: TsParserSettings): TsParser = new TsParser(settings, new TsProcessor {})
-
-  def apply(settings: TsParserSettings, processor: TsProcessor): TsParser = new TsParser(settings, processor)
+  def apply(settings: TsParserSettings): TsParser = new TsParser(settings)
 }
 
-class TsParser(settings: TsParser.TsParserSettings, processor: TsParser.TsProcessor) {
+class TsParser(settings: TsParser.TsParserSettings) {
 
+  private final val EOF = (-1).toChar
+  private val charset = Charset.forName(settings.encoding)
   private val newLine = settings.format.newLine
   private val valueDelimiter = settings.format.valueDelimiter
   private val channelDelimiter = settings.format.channelDelimiter
   private val metadataIdentifier = settings.format.metadataIdentifier
   private val commentIdentifier = settings.format.commentIdentifier
 
-  private val metadata: mutable.Map[String, String] = mutable.Map.empty
-  private var parsingData = false
-
-  def parse(file: File): Unit = {
-    //    println(s"Starting parsing file ${file.getName}")
+  def parse(file: File, processor: TsParser.TsProcessor = TsParser.TsProcessor.default): Unit = {
+    var parsingData = false
+    val metadata: mutable.Map[String, String] = mutable.Map.empty
+    
+//    println(s"Starting parsing file ${file.getName}")
     Using.resource(new BufferedReader(new FileReader(file))) { input =>
       var ch: Char = input.read().toChar
-      while ch != -1 && !parsingData do
+      while ch != EOF && !parsingData do
         if ch == commentIdentifier then
           // skip comment
-          //          println("Skipping comment")
+//          println("Skipping comment")
           input.readLine()
         else if ch == metadataIdentifier then
           // parse metadata
-          parseMetadata(input)
+          val (key, value) = parseMetadata(input)
+          if key.toLowerCase == "data" then
+            parsingData = true
+          else if settings.parseMetadata then
+            metadata(key) = value.strip()
         else if ch > ' ' then
           throw new IOException(s"Unexpected character '$ch' in header!")
-        //        else
+//        else
         // skip whitespace
-        //          println("Skipping whitespace")
+//          println("Skipping whitespace")
         ch = input.read().toChar
 
       if !parsingData then
@@ -82,19 +95,20 @@ class TsParser(settings: TsParser.TsParserSettings, processor: TsParser.TsProces
         if settings.parseMetadata then
           processor.processMetadata(TsMetadata(metadata.toMap))
         // parse data
-        parseData(input)
+        parseData(input, processor)
       else
         throw new IOException("Whitespace after @data annotation is not allowed!")
     }
   }
 
-  private def parseMetadata(input: BufferedReader): Unit = {
+  private def parseMetadata(input: BufferedReader): (String, String) = {
     val key = StringBuilder()
     val value = StringBuilder()
     var parsingKey = true
+    var parsingData = false
 
     var ch = input.read().toChar
-    while ch != newLine && ch != -1 do
+    while ch != newLine && ch != EOF do
       if ch == ' ' then
         parsingKey = false
       else if parsingKey then
@@ -102,20 +116,16 @@ class TsParser(settings: TsParser.TsParserSettings, processor: TsParser.TsProces
       else
         value.append(ch)
       ch = input.read().toChar
-    val keyName = key.toString()
-    if keyName.toLowerCase == "data" then
-      parsingData = true
-    else if settings.parseMetadata then
-      metadata(keyName) = value.toString().strip()
+    (key.toString(), value.toString())
   }
 
-  private def parseData(input: BufferedReader): Unit = {
+  private def parseData(input: BufferedReader, processor: TsParser.TsProcessor): Unit = {
     val ts = mutable.ListBuffer.empty[Double]
     var ch = input.read().toChar
-    while ch != -1 do
+    while ch != EOF do
       if ch != newLine && ch != ' ' then
         val value = StringBuilder()
-        while ch != valueDelimiter && ch != channelDelimiter && ch != newLine && ch != -1 do
+        while ch != valueDelimiter && ch != channelDelimiter && ch != newLine do
           value.append(ch)
           ch = input.read().toChar
         if ch == valueDelimiter then
