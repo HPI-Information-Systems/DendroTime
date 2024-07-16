@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
@@ -32,7 +33,11 @@ private class DatasetLoader private (
   import DatasetLoader.*
   
   private var idGen = 0L
-  private val parser = TsParser(TsParser.TsParserSettings(parseMetadata = false))
+  private val settings = Settings(ctx.system)
+  private val parser = TsParser(TsParser.TsParserSettings(
+    parseMetadata = false,
+    tsLimit = settings.maxTimeseries,
+  ))
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial {
     case LoadDataset(id, path, replyTo) =>

@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors
 
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
@@ -14,17 +15,13 @@ object TimeSeriesManager {
   sealed trait Command
   case class AddTimeSeries(datasetId: Int, timeseries: LabeledTimeSeries) extends Command
   case class GetTimeSeries(timeseriesId: Long, replyTo: ActorRef[GetTimeSeriesResponse]) extends Command
-  case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[GetTimeSeriesIdsResponse]) extends Command
+  case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
   case class EvictDataset(datasetId: Int) extends Command
   private case object StatusTick extends Command
 
   sealed trait GetTimeSeriesResponse
   case class TimeSeriesFound(timeseries: LabeledTimeSeries) extends GetTimeSeriesResponse
   case class TimeSeriesNotFound(id: Long) extends GetTimeSeriesResponse
-
-  sealed trait GetTimeSeriesIdsResponse
-  case class TimeSeriesIdsFound(datasetId: Int, ids: Set[Long]) extends GetTimeSeriesIdsResponse
-  case class FailedToLoadTimeSeriesIds(datasetId: Int, cause: String) extends GetTimeSeriesIdsResponse
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
@@ -33,22 +30,22 @@ object TimeSeriesManager {
     }
   }
 
-  private final case class AddReceiver(replyTo: ActorRef[GetTimeSeriesIdsResponse])
-  private def DatasetLoadingHandler(receivers: Set[ActorRef[GetTimeSeriesIdsResponse]]): Behavior[DatasetLoader.Response | AddReceiver] =
+  private final case class AddReceiver(replyTo: ActorRef[Coordinator.TsLoadingCommand])
+  private def DatasetLoadingHandler(receivers: Set[ActorRef[Coordinator.TsLoadingCommand]]): Behavior[DatasetLoader.Response | AddReceiver] =
     Behaviors.setup(ctx => Behaviors.receiveMessage {
       case AddReceiver(replyTo) =>
         DatasetLoadingHandler(receivers + replyTo)
       case DatasetLoader.DatasetLoaded(id, tsIds) =>
         ctx.log.debug("Received dataset loaded message for dataset d-{}, forwarding", id)
-        receivers.foreach(_ ! TimeSeriesIdsFound(id, tsIds.toSet))
+        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(id, tsIds.toSet))
         Behaviors.stopped
       case DatasetLoader.DatasetNotLoaded(id, reason) =>
         ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
-        receivers.foreach(_ ! FailedToLoadTimeSeriesIds(id, reason))
+        receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(id, reason))
         Behaviors.stopped
       case DatasetLoader.NewTimeSeries(datasetId, tsId) =>
-        // FIXME: forward notifications to coordinator and start distance calculation early
-        ctx.log.debug("Received new time series message: currently unhandled")
+        ctx.log.debug("Received new time series message: forwarding message.")
+        receivers.foreach(_ ! Coordinator.NewTimeSeries(datasetId, tsId))
         Behaviors.same
     })
 }
@@ -92,7 +89,8 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
     case GetTimeSeriesIds(Right(d), replyTo) =>
       datasetMapping.get(d.id) match {
         case Some(ids) =>
-          replyTo ! TimeSeriesIdsFound(d.id, ids)
+          ids.foreach(replyTo ! Coordinator.NewTimeSeries(d.id, _))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(d.id, ids)
           Behaviors.same
         case None =>
           handlers.get(d.id) match {
@@ -110,13 +108,15 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
       }
     case GetTimeSeriesIds(Left(datasetId), replyTo) =>
       datasetMapping.get(datasetId) match {
-        case Some(ids) => replyTo ! TimeSeriesIdsFound(datasetId, ids)
+        case Some(ids) =>
+          ids.foreach(replyTo ! Coordinator.NewTimeSeries(datasetId, _))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(datasetId, ids)
         case None => handlers.get(datasetId) match {
           case Some(handler) =>
             ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
             handler ! AddReceiver(replyTo)
           case None =>
-            replyTo ! FailedToLoadTimeSeriesIds(datasetId, "Not found")
+            replyTo ! Coordinator.FailedToLoadAllTimeSeries(datasetId, "Not found")
         }
       }
       Behaviors.same

@@ -32,4 +32,11 @@ class Settings private (config: Config) extends Extension {
   private val cores = Runtime.getRuntime.availableProcessors()
   
   val numberOfWorkers: Int = Seq(maxWorkers, cores).min
+  
+  val maxTimeseries: Option[Int] =
+    if config.hasPath(s"$namespace.max-timeseries") then
+      Some(config.getInt(s"$namespace.max-timeseries"))
+    else
+      None
+  
 }

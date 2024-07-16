@@ -1,9 +1,9 @@
 package de.hpi.fgis.dendrotime.actors.coordinator
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, SupervisorStrategy}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
+import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 
@@ -13,9 +13,14 @@ object Coordinator {
   sealed trait Command
   case class GetStatus(replyTo: ActorRef[ProcessingStatus]) extends Command
   case object CancelProcessing extends Command
-  case class NewTimeSeries(datasetId: Int, tsId: Long) extends Command
+
+  sealed trait TsLoadingCommand extends Command
+  case class NewTimeSeries(datasetId: Int, tsId: Long) extends TsLoadingCommand
+  case class AllTimeSeriesLoaded(datasetId: Int, ids: Set[Long]) extends TsLoadingCommand
+  case class FailedToLoadAllTimeSeries(datasetId: Int, cause: String) extends TsLoadingCommand
+
   case class DispatchWork(worker: ActorRef[Worker.Command]) extends Command
-  private case class GetTimeSeriesIdsResponse(msg: TimeSeriesManager.GetTimeSeriesIdsResponse) extends Command
+  case class ApproximationResult(t1: Long, t2: Long, dist: Double) extends Command
 
   sealed trait Response
   case class ProcessingEnded(id: Long) extends Response
@@ -53,8 +58,20 @@ private class Coordinator private (
 
   import Coordinator.*
 
+  private val settings = Settings(ctx.system)
+  private val communicator = ctx.spawn(Communicator(), s"communicator-$id")
+  private val workers = {
+    val supervisedWorkerBehavior = Behaviors.supervise(Worker(tsManager, ctx.self, communicator, dataset.id))
+      .onFailure[Exception](SupervisorStrategy.restart)
+    val router = Routers.pool(settings.numberOfWorkers)(supervisedWorkerBehavior)
+      .withRouteeProps(DispatcherSelector.blocking())
+      .withRoundRobinRouting()
+    ctx.spawn(router, s"worker-pool-$id")
+  }
+
+
   private def start(): Behavior[Command] = {
-    tsManager ! TimeSeriesManager.GetTimeSeriesIds(Right(dataset), ctx.messageAdapter(GetTimeSeriesIdsResponse.apply))
+    tsManager ! TimeSeriesManager.GetTimeSeriesIds(Right(dataset), ctx.self)
 
     initializing(Seq.empty, WorkQueue.empty)
   }
@@ -63,40 +80,78 @@ private class Coordinator private (
     case GetStatus(replyTo) =>
       replyTo ! ProcessingStatus(id, Initializing)
       Behaviors.same
+
     case CancelProcessing =>
       ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
+
     case NewTimeSeries(datasetId, tsId) =>
       ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, datasetId)
-//      if !tsIds.empty then
-        // TODO: send out approximation messages early
-      initializing(tsIds :+ tsId, workQueue.enqueueAll(tsIds.map((_, tsId))))
+      if tsIds.isEmpty then
+        initializing(tsIds :+ tsId, workQueue)
+      else
+        stash.unstashAll(
+          initializing(tsIds :+ tsId, workQueue.enqueueAll(tsIds.map((_, tsId))))
+        )
 
-    case GetTimeSeriesIdsResponse(TimeSeriesManager.TimeSeriesIdsFound(_, tsIds)) =>
-      ctx.log.info("All {} time series loaded for dataset d-{}", tsIds.size, dataset.id)
+    case AllTimeSeriesLoaded(_, allTsIds) =>
+      ctx.log.info("All {} time series loaded for dataset d-{}", allTsIds.size, dataset.id)
+      if allTsIds.size != tsIds.size then
+        throw new IllegalStateException("Not all time series were loaded")
+
       // switch to approximating state
       stash.unstashAll(approximating(workQueue))
-    case GetTimeSeriesIdsResponse(TimeSeriesManager.FailedToLoadTimeSeriesIds(_, reason)) =>
+
+    case FailedToLoadAllTimeSeries(_, reason) =>
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
-    case m =>
+    case DispatchWork(worker) if workQueue.hasWork =>
+      val (work, newQueue) = workQueue.dequeue()
+      ctx.log.debug("Dispatching job ({}) to worker {}", work, worker)
+      worker ! Worker.CheckApproximate(work._1, work._2)
+      initializing(tsIds, newQueue)
+
+    case m: DispatchWork =>
+      ctx.log.debug("Worker {} asked for work but there is none", m.worker)
       stash.stash(m)
       Behaviors.same
+
+    case ApproximationResult(t1, t2, dist) =>
+      ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+      val newQueue = workQueue.removePending((t1, t2))
+      initializing(tsIds, newQueue)
   }
 
   private def approximating(workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessagePartial {
     case GetStatus(replyTo) =>
       replyTo ! ProcessingStatus(id, Approximating)
       Behaviors.same
+
     case CancelProcessing =>
       ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
-    case DispatchWork(replyTo) =>
+
+    case DispatchWork(worker) if workQueue.hasWork =>
       val (work, newQueue) = workQueue.dequeue()
-      replyTo ! Worker.CheckApproximate(work._1, work._2)
+      ctx.log.debug("Dispatching job ({}) to worker {}", work, worker)
+      worker ! Worker.CheckApproximate(work._1, work._2)
+      approximating(newQueue)
+
+    case m: DispatchWork =>
+      stash.stash(m)
+      if workQueue.isEmpty then
+        ctx.log.info("No more work to do, temporarily finished!")
+        reportTo ! ProcessingEnded(id)
+        Behaviors.stopped
+      else
+        Behaviors.same
+
+    case ApproximationResult(t1, t2, dist) =>
+      ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+      val newQueue = workQueue.removePending((t1, t2))
       approximating(newQueue)
   }
 }

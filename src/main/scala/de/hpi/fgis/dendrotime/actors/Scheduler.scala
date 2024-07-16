@@ -41,7 +41,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
 
   private def start(): Behavior[Command] = idle(0)
 
-  private def idle(jobId: Long): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def idle(jobId: Long): Behavior[Command] = Behaviors.receiveMessagePartial[Command] {
     case StartProcessing(d, replyTo) =>
       ctx.log.info("Start processing dataset {}", d)
       val newJobId = jobId + 1
@@ -80,6 +80,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       case ProcessingResponse(Coordinator.ProcessingEnded(id), replyTo) =>
         ctx.log.info("Successfully processed dataset job={}", id)
 //        replyTo ! ProcessingFinished(d)
+        ctx.unwatch(coordinator)
         idle(jobId)
       case ProcessingResponse(Coordinator.ProcessingFailed(id), replyTo) =>
         ctx.log.error("Failed to process dataset job={}", id)

@@ -39,11 +39,12 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
       waitingForTs(Map.empty, t1, t2)
   }
   
-  private def waitingForTs(tsMap: Map[Long, LabeledTimeSeries], t1: Long, t2: Long): Behavior[Command] = Behaviors.receiveMessage {
+  private def waitingForTs(tsMap: Map[Long, LabeledTimeSeries], t1: Long, t2: Long): Behavior[Command] = Behaviors.receiveMessagePartial {
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesFound(ts)) =>
         val newTs = tsMap + (ts.id -> ts)
         if (newTs.size == 2)
           checkApproximate(newTs(t1), newTs(t2))
+          ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
           idle
         else
           waitingForTs(newTs, t1, t2)
@@ -54,7 +55,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   }
   
   private def checkApproximate(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
-    val dist = msm(ts1.data, ts2.data)
+    val dist = msm(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, dist)
   }
 }

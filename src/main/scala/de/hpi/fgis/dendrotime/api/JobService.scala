@@ -50,14 +50,19 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
         )
       },
       path(LongNumber) { id =>
-//        concat(
-//          get {},
+        concat(
+          get {
+            onSuccess(scheduler.ask[Scheduler.ProcessingStatus](Scheduler.GetStatus.apply)) { response =>
+              given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
+              complete(StatusCodes.OK, response)
+            }
+          },
           delete {
             onSuccess(scheduler.ask[Scheduler.ProcessingCancelled](Scheduler.CancelProcessing(id, _))) { response =>
               complete(StatusCodes.OK, response.cause)
             }
           }
-//        )
+        )
       },
     )
   }

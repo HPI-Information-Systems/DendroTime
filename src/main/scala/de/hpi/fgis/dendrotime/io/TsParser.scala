@@ -35,7 +35,8 @@ object TsParser {
   case class TsParserSettings(
                                format: TsFormat = TsFormat(),
                                parseMetadata: Boolean = true,
-                               encoding: String = "UTF-8"
+                               encoding: String = "UTF-8",
+                               tsLimit: Option[Int] = None
                              )
 
   object TsProcessor {
@@ -122,6 +123,7 @@ class TsParser(settings: TsParser.TsParserSettings) {
   private def parseData(input: BufferedReader, processor: TsParser.TsProcessor): Unit = {
     val ts = mutable.ListBuffer.empty[Double]
     var ch = input.read().toChar
+    var nTimeseries = 0
     while ch != EOF do
       if ch != newLine && ch != ' ' then
         val value = StringBuilder()
@@ -134,11 +136,16 @@ class TsParser(settings: TsParser.TsParserSettings) {
           // FIXME: only supports univariate TS at the moment
           val label = input.readLine()
           processor.processUnivariate(ts.toArray, label)
+          nTimeseries += 1
           ts.clear()
         else
           if ts.nonEmpty then
             processor.processUnivariate(ts.toArray, "")
+            nTimeseries += 1
             ts.clear()
+            
+      if settings.tsLimit.exists(nTimeseries >= _) then
+        return
       ch = input.read().toChar
   }
 }
