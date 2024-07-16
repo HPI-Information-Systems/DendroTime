@@ -14,21 +14,21 @@ object DatasetRegistry {
   case class GetDatasets(replyTo: ActorRef[GetDatasetsResponse]) extends Command
   case class GetDataset(id: Int, replyTo: ActorRef[GetDatasetResponse]) extends Command
   case class AddDataset(dataset: Dataset, replyTo: ActorRef[AddDatasetResponse]) extends Command
-  case class RemoveDataset(id: Int, replyTo: ActorRef[DatasetRemoved]) extends Command
+  case class RemoveDataset(id: Int, replyTo: ActorRef[RemoveDatasetResponse]) extends Command
   
   final case class GetDatasetsResponse(datasets: Seq[Dataset])
   final case class GetDatasetResponse(dataset: Option[Dataset])
   sealed trait AddDatasetResponse
   final case class DatasetAdded(dataset: Dataset) extends AddDatasetResponse
   final case class DatasetNotAdded(reason: String) extends AddDatasetResponse
-  final case class DatasetRemoved(id: Int)
+  final case class RemoveDatasetResponse(id: Int)
   
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetRegistry(ctx).start()
   }
 }
 
-private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]) {
+private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command]) {
   import DatasetRegistry.*
   
   private val dataPath = Settings(ctx.system).dataPath
@@ -49,7 +49,7 @@ private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]
       
     case AddDataset(dataset, replyTo) =>
       if datasets.contains(dataset.id) then
-        replyTo ! DatasetNotAdded("Dataset with id ${dataset.id} already exists")
+        replyTo ! DatasetNotAdded("Dataset with id d-${dataset.id} already exists")
         Behaviors.same
       else
         val nextId = datasets.keys.max + 1
@@ -62,7 +62,7 @@ private class DatasetRegistry private(ctx: ActorContext[DatasetRegistry.Command]
             Behaviors.same
       
     case RemoveDataset(id, replyTo) =>
-      replyTo ! DatasetRemoved(id)
+      replyTo ! RemoveDatasetResponse(id)
       running(datasets - id)
   }
 

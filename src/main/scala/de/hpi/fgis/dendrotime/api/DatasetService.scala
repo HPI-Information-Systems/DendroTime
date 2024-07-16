@@ -44,7 +44,7 @@ class DatasetService(datasetRegistry: ActorRef[DatasetRegistry.Command])(using s
             }
           },
           delete {
-            onSuccess(datasetRegistry.ask[DatasetRegistry.DatasetRemoved](DatasetRegistry.RemoveDataset(id, _))) { response =>
+            onSuccess(datasetRegistry.ask[DatasetRegistry.RemoveDatasetResponse](DatasetRegistry.RemoveDataset(id, _))) { response =>
               complete(StatusCodes.OK, response.id.toString)
             }
           }

@@ -26,4 +26,10 @@ class Settings private (config: Config) extends Extension {
     val duration = config.getDuration(s"$namespace.ask-timeout")
     FiniteDuration(duration.toMillis, "milliseconds")
   }
+
+  private val maxWorkers: Int = config.getInt(s"$namespace.max-workers")
+  
+  private val cores = Runtime.getRuntime.availableProcessors()
+  
+  val numberOfWorkers: Int = Seq(maxWorkers, cores).min
 }

@@ -61,17 +61,17 @@ object Server extends ApiRoutesProvider {
   }
 
   private def running(binding: Http.ServerBinding): Behavior[Message] = Behaviors.receivePartial[Message] {
-    case (ctx, Stop) =>
-      ctx.log.info("Stopping server ...")
-      Behaviors.same
     case (ctx, Stopped) =>
       ctx.log.info("... done. Terminating system!")
+      Behaviors.stopped
+    case (ctx, Stop) =>
+      ctx.log.info("Stopping server ...")
       val unbindingFuture = binding.unbind()
       ctx.pipeToSelf(unbindingFuture)(_ => Stopped)
-      Behaviors.stopped
+      Behaviors.same
   }.receiveSignal {
     case (ctx, PostStop) =>
-      ctx.log.info("... done. Terminating system!")
+      ctx.log.info("Stopping server ...")
       val unbindingFuture = binding.unbind()
       ctx.pipeToSelf(unbindingFuture)(_ => Stopped)
       Behaviors.same
