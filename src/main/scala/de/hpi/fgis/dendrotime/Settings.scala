@@ -1,9 +1,10 @@
 package de.hpi.fgis.dendrotime
 
-import akka.actor
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import akka.util.Timeout
 import com.typesafe.config.Config
+import de.hpi.fgis.dendrotime.clustering.distances.Distance
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -39,4 +40,6 @@ class Settings private (config: Config) extends Extension {
     else
       None
   
+  val linkage: Linkage = Linkage(config.getString(s"$namespace.linkage"))
+  val distance: Distance = Distance(config.getString(s"$namespace.distance"))
 }

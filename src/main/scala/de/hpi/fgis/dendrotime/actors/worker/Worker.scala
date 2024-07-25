@@ -1,10 +1,10 @@
 package de.hpi.fgis.dendrotime.actors.worker
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
-import de.hpi.fgis.dendrotime.clustering.distances.{MSM, SBD}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 object Worker {
@@ -25,8 +25,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   import Worker.*
   
   private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
-  private val msm = MSM()
-  private val sbd = SBD()
+  private val distance = Settings(ctx.context.system).distance
 
   private def start(): Behavior[Command] =
     ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
@@ -55,7 +54,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   }
   
   private def checkApproximate(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
-    val dist = msm(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
+    val dist = distance(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, dist)
   }
 }
