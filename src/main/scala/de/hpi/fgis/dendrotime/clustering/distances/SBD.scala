@@ -1,4 +1,4 @@
-package de.hpi.fgis.dendrotime.distances
+package de.hpi.fgis.dendrotime.clustering.distances
 
 import fftw3.FFTWReal
 

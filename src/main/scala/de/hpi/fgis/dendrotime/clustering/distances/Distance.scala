@@ -1,4 +1,4 @@
-package de.hpi.fgis.dendrotime.distances
+package de.hpi.fgis.dendrotime.clustering.distances
 
 trait Distance {
   def apply(x: Array[Double], y: Array[Double]): Double

@@ -1,4 +1,4 @@
-package de.hpi.fgis.dendrotime.distances
+package de.hpi.fgis.dendrotime.clustering.distances
 
 import org.scalatest.matchers.*
 import org.scalatest.wordspec.AnyWordSpec
