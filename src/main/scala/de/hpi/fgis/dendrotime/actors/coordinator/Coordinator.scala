@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.coordinator
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, SupervisorStrategy}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
+import de.hpi.fgis.dendrotime.actors.{Clusterer, Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 
@@ -60,8 +60,10 @@ private class Coordinator private (
 
   private val settings = Settings(ctx.system)
   private val communicator = ctx.spawn(Communicator(), s"communicator-$id")
+  private val clusterer = ctx.spawn(Clusterer(communicator), s"clusterer-$id")
   private val workers = {
-    val supervisedWorkerBehavior = Behaviors.supervise(Worker(tsManager, ctx.self, communicator, dataset.id))
+    val supervisedWorkerBehavior = Behaviors
+      .supervise(Worker(tsManager, ctx.self, communicator, dataset.id))
       .onFailure[Exception](SupervisorStrategy.restart)
     val router = Routers.pool(settings.numberOfWorkers)(supervisedWorkerBehavior)
       .withRouteeProps(DispatcherSelector.blocking())
@@ -101,6 +103,7 @@ private class Coordinator private (
         throw new IllegalStateException("Not all time series were loaded")
 
       // switch to approximating state
+      clusterer ! Clusterer.Initialize(allTsIds.size)
       stash.unstashAll(approximating(workQueue))
 
     case FailedToLoadAllTimeSeries(_, reason) =>
@@ -120,6 +123,7 @@ private class Coordinator private (
 
     case ApproximationResult(t1, t2, dist) =>
       ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+      clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
       val newQueue = workQueue.removePending((t1, t2))
       initializing(tsIds, newQueue)
   }
@@ -151,7 +155,40 @@ private class Coordinator private (
 
     case ApproximationResult(t1, t2, dist) =>
       ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+      clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
       val newQueue = workQueue.removePending((t1, t2))
       approximating(newQueue)
+  }
+
+  private def computingFullDistances(workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessagePartial {
+    case GetStatus(replyTo) =>
+      replyTo ! ProcessingStatus(id, ComputingFullDistances)
+      Behaviors.same
+
+    case CancelProcessing =>
+      ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
+      reportTo ! ProcessingFailed(id)
+      Behaviors.stopped
+
+//    case DispatchWork(worker) if workQueue.hasWork =>
+//      val (work, newQueue) = workQueue.dequeue()
+//      ctx.log.debug("Dispatching job ({}) to worker {}", work, worker)
+//      worker ! Worker.CheckFull(work._1, work._2)
+//      computingFullDistances(newQueue)
+
+    case m: DispatchWork =>
+      stash.stash(m)
+      if workQueue.isEmpty then
+        ctx.log.info("No more work to do, temporarily finished!")
+        reportTo ! ProcessingEnded(id)
+        Behaviors.stopped
+      else
+        Behaviors.same
+
+    case ApproximationResult(t1, t2, dist) =>
+      ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+      clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
+      val newQueue = workQueue.removePending((t1, t2))
+      computingFullDistances(newQueue)
   }
 }
