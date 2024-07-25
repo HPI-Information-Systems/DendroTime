@@ -51,7 +51,9 @@ lazy val `frontend` = project
 
 lazy val buildFrontend = taskKey[Seq[File]]("Generate UI resources") := {
   // build frontend
-  Process("npm run build", baseDirectory.value).!
+  val exitCode = Process("npm run build", baseDirectory.value).!
+  if (exitCode != 0)
+    throw new RuntimeException("Failed to build frontend")
 
   // copy frontend resources to target folder
   val webapp = baseDirectory.value / "dist"
