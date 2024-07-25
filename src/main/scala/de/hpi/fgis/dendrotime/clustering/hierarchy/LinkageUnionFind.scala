@@ -14,13 +14,13 @@ private[hierarchy] object LinkageUnionFind {
 
     for i <- 0 until n - 1 do
       val node = z(i)
-      val x = uf.find(node.elem1)
-      val y = uf.find(node.elem2)
+      val x = uf.find(node.cId1)
+      val y = uf.find(node.cId2)
       val size = uf.merge(x, y)
       if x < y then
-        z.update(i, node.copy(elem1 = x, elem2 = y, cardinality = size))
+        z.update(i, node.copy(cId1 = x, cId2 = y, cardinality = size))
       else
-        z.update(i, node.copy(elem1 = y, elem2 = x, cardinality = size))
+        z.update(i, node.copy(cId1 = y, cId2 = x, cardinality = size))
   }
 }
 

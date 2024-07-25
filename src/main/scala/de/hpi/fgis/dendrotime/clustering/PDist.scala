@@ -78,7 +78,7 @@ object PDist {
    * @param distances list of n*(n-1)/2 pairwise distances
    * @return pairwise distance vector of size n*(n-1)/2
    */
-  def apply(n: Int)(distances: Double*): PDist = {
+  private[clustering] def apply(n: Int)(distances: Double*): PDist = {
     if distances.length != n * (n - 1) / 2 then
       throw new IllegalArgumentException("Number of distances does not match n.")
     PDistImpl(distances.toArray, n)
