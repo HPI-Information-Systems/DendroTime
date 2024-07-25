@@ -109,7 +109,7 @@ class PDistSpec extends AnyWordSpec with should.Matchers {
           dists(0, 0) = 1.0
         }
         ex shouldBe a[IllegalArgumentException]
-        ex.getMessage should contain("Cannot set self-distance")
+        ex.getMessage should include ("Cannot set self-distance")
       }
     }
   }

@@ -4,7 +4,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
-import de.hpi.fgis.dendrotime.distances.{MSM, SBD}
+import de.hpi.fgis.dendrotime.clustering.distances.{MSM, SBD}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 object Worker {

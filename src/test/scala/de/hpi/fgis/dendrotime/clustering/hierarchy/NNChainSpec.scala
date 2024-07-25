@@ -16,36 +16,36 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
         val h = NNChain(distances, Linkage.SingleLinkage, adjustLabels = true)
         h.size shouldEqual n - 1
         h.toList shouldEqual List(
-          Hierarchy.Node(0, 0, 1, 1.0),
-          Hierarchy.Node(1, 2, 4, 2.0),
-          Hierarchy.Node(2, 3, 5, 3.0)
+          Hierarchy.Node(0, 0, 1, 1.0, 2),
+          Hierarchy.Node(1, 2, 4, 2.0, 3),
+          Hierarchy.Node(2, 3, 5, 3.0, 4)
         )
       }
       "using CentroidLinkage" in {
         val h = NNChain(distances, Linkage.CentroidLinkage, adjustLabels = true)
         h.size shouldEqual n - 1
         h.toList shouldEqual List(
-          Hierarchy.Node(0, 0, 1, 1.0),
-          Hierarchy.Node(1, 2, 4, 2.5),
-          Hierarchy.Node(2, 3, 5, 3.8873012632302006)
+          Hierarchy.Node(0, 0, 1, 1.0, 2),
+          Hierarchy.Node(1, 2, 4, 2.5, 3),
+          Hierarchy.Node(2, 3, 5, 3.8873012632302006, 4)
         )
       }
       "using MedianLinkage" in {
         val h = NNChain(distances, Linkage.MedianLinkage, adjustLabels = true)
         h.size shouldEqual n - 1
         h.toList shouldEqual List(
-          Hierarchy.Node(0, 0, 1, 1.0),
-          Hierarchy.Node(1, 2, 4, 2.5),
-          Hierarchy.Node(2, 3, 5, 3.61420807370024)
+          Hierarchy.Node(0, 0, 1, 1.0, 2),
+          Hierarchy.Node(1, 2, 4, 2.5, 3),
+          Hierarchy.Node(2, 3, 5, 3.61420807370024, 4)
         )
       }
       "using WeightedLinkage" in {
         val h = NNChain(distances, Linkage.WeightedLinkage, adjustLabels = true)
         h.size shouldEqual n - 1
         h.toList shouldEqual List(
-          Hierarchy.Node(0, 0, 1, 1.0),
-          Hierarchy.Node(1, 2, 4, 2.5),
-          Hierarchy.Node(2, 3, 5, 3.75)
+          Hierarchy.Node(0, 0, 1, 1.0, 2),
+          Hierarchy.Node(1, 2, 4, 2.5, 3),
+          Hierarchy.Node(2, 3, 5, 3.75, 4)
         )
       }
     }
@@ -59,10 +59,10 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
       val h = NNChain(distances, Linkage.CompleteLinkage, adjustLabels = true)
       h.size shouldEqual n-1
       h.toList shouldEqual List(
-        Hierarchy.Node(0, 1, 4, 0.00637809),
-        Hierarchy.Node(1, 0, 5, 0.2277884),
-        Hierarchy.Node(2, 2, 3, 0.91118529),
-        Hierarchy.Node(3, 6, 7, 0.91302758)
+        Hierarchy.Node(0, 1, 4, 0.00637809, 2),
+        Hierarchy.Node(1, 0, 5, 0.2277884, 3),
+        Hierarchy.Node(2, 2, 3, 0.91118529, 2),
+        Hierarchy.Node(3, 6, 7, 0.91302758, 5)
       )
     }
     "compute the hierarchy for 6 TS correctly using AverageLinkage" in {
@@ -76,11 +76,11 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
       val h = NNChain(distances, Linkage.AverageLinkage, adjustLabels = true)
       h.size shouldEqual n-1
       h.toList shouldEqual List(
-        Hierarchy.Node(0, 0, 5, 0.09417735),
-        Hierarchy.Node(1, 2, 4, 0.37079802),
-        Hierarchy.Node(2, 1, 6, 0.45103484),
-        Hierarchy.Node(3, 3, 7, 0.54712553),
-        Hierarchy.Node(4, 8, 9, 0.7456235055555555)
+        Hierarchy.Node(0, 0, 5, 0.09417735, 2),
+        Hierarchy.Node(1, 2, 4, 0.37079802, 2),
+        Hierarchy.Node(2, 1, 6, 0.45103484, 3),
+        Hierarchy.Node(3, 3, 7, 0.54712553, 3),
+        Hierarchy.Node(4, 8, 9, 0.7456235055555555, 6)
       )
     }
     "compute the hierarchy for 7 TS correctly using WardLinkage" in {
@@ -95,40 +95,13 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
       val h = NNChain(distances, Linkage.WardLinkage, adjustLabels = true)
       h.size shouldEqual n-1
       h.toList shouldEqual List(
-        Hierarchy.Node(0, 3, 6, 0.06381726),
-        Hierarchy.Node(1, 0, 5, 0.09417735),
-        Hierarchy.Node(2, 1, 4, 0.12811363),
-        Hierarchy.Node(3, 2, 8, 0.7594367497736352),
-        Hierarchy.Node(4, 7, 9, 0.7699155396277603),
-        Hierarchy.Node(5, 10, 11, 1.1342381287202643)
+        Hierarchy.Node(0, 3, 6, 0.06381726, 2),
+        Hierarchy.Node(1, 0, 5, 0.09417735, 2),
+        Hierarchy.Node(2, 1, 4, 0.12811363, 2),
+        Hierarchy.Node(3, 2, 8, 0.7594367497736352, 3),
+        Hierarchy.Node(4, 7, 9, 0.7699155396277603, 4),
+        Hierarchy.Node(5, 10, 11, 1.1342381287202643, 7)
       )
     }
   }
-}
-
-
-@main
-def testNNChain(): Unit = {
-  import de.hpi.fgis.dendrotime.clustering.distances.MSM
-  import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage.CompleteLinkage
-
-  val ts1 = Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0)
-  val ts2 = Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 4.0, 3.0, 2.0)
-  val ts3 = Array(1.0, 2.0, 3.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0)
-  val ts4 = Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0)
-  val distances = MSM().pairwise(Array(ts1, ts2, ts3, ts4))
-
-  println("Pairwise distance matrix")
-  println(distances.indices.mkString("    ", ",   ", ""))
-  for i <- distances.indices do
-    println(distances(i).mkString(s"$i ", ", ", ""))
-  println()
-
-  val dists = PDist(distances, distances.length)
-  println(dists)
-  println()
-
-  val linkage = CompleteLinkage
-  val h = apply(dists, linkage)
-  println(h)
 }
