@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.actors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist, hierarchy}
 
@@ -48,18 +49,19 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
     case ApproximateDistance(t1, t2, dist) =>
       ctx.log.debug("Received new approx distance between {} and {}", t1, t2)
       distances(t1, t2) = dist
-//      computeHierarchy()
+      computeHierarchy()
       Behaviors.same
     case FullDistance(t1, t2, dist) =>
       ctx.log.debug("Received new full distance between {} and {}", t1, t2)
       distances(t1, t2) = dist
-//      computeHierarchy()
+      computeHierarchy()
       Behaviors.same
   }
 
   private def computeHierarchy(): Hierarchy = {
     val h = hierarchy.computeHierarchy(distances, linkage)
-    ctx.log.debug("Computed new hierarchy:\n{}", h)
+//    ctx.log.debug("Computed new hierarchy:\n{}", h)
+    communicator ! NewHierarchy(h)
     h
   }
 }

@@ -10,6 +10,8 @@ object Hierarchy {
   private final def nodeFromArray(idx: Int, arr: Array[Double]): Node =
     Node(idx, arr(0).toInt, arr(1).toInt, arr(2), arr(3).toInt)
 
+  def empty: Hierarchy = Hierarchy(Array.empty, 0)
+
   /** Create a new hierarchy using the builder pattern. */
   def newBuilder(n: Int): HierarchyBuilder = new HierarchyBuilder(n)
 

@@ -58,6 +58,7 @@ function D3BarChart({data}) {
     target.filter((d, i) => selected && d !== selected.value)
       .attr("stroke", "green");
   }
+
   useEffect(() => {
     drawChart("d3-canvas");
   }, [data, selected]);

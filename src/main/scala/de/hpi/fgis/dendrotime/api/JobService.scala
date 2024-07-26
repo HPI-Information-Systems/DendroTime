@@ -10,13 +10,16 @@ import de.hpi.fgis.dendrotime.Settings
 
 import scala.concurrent.duration.given
 import de.hpi.fgis.dendrotime.actors.Scheduler
-import de.hpi.fgis.dendrotime.model.DatasetModel
+import de.hpi.fgis.dendrotime.model.{DatasetModel, StateModel}
+import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
 object JobService {
   final case class Job(id: Long, dataset: DatasetModel.Dataset)
 
-  trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol with DatasetModel.JsonSupport {
+  trait JsonSupport
+    extends SprayJsonSupport
+      with DefaultJsonProtocol with DatasetModel.JsonSupport with StateModel.JsonSupport {
     given RootJsonFormat[Job] = jsonFormat2(Job.apply)
   }
 }
@@ -49,17 +52,29 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
           }
         )
       },
-      path(LongNumber) { id =>
+      pathPrefix(LongNumber) { id =>
         concat(
-          get {
-            onSuccess(scheduler.ask[Scheduler.ProcessingStatus](Scheduler.GetStatus.apply)) { response =>
-              given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
-              complete(StatusCodes.OK, response)
-            }
+          pathEnd {
+            concat(
+              get {
+                onSuccess(scheduler.ask[Scheduler.ProcessingStatus](Scheduler.GetStatus.apply)) { response =>
+                  given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
+                  complete(StatusCodes.OK, response)
+                }
+              },
+              delete {
+                onSuccess(scheduler.ask[Scheduler.ProcessingCancelled](Scheduler.CancelProcessing(id, _))) { response =>
+                  complete(StatusCodes.OK, response.cause)
+                }
+              }
+            )
           },
-          delete {
-            onSuccess(scheduler.ask[Scheduler.ProcessingCancelled](Scheduler.CancelProcessing(id, _))) { response =>
-              complete(StatusCodes.OK, response.cause)
+          path("progress") {
+            get {
+              onSuccess(scheduler.ask[ProgressMessage](Scheduler.GetProgress(id, _))) {
+                case ProgressMessage.Unchanged => complete(StatusCodes.NoContent)
+                case response => complete(StatusCodes.OK, response)
+              }
             }
           }
         )

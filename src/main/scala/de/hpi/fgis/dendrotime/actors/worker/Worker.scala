@@ -55,6 +55,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   
   private def checkApproximate(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
     val dist = distance(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
+    Thread.sleep(100)
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, dist)
   }
 }
