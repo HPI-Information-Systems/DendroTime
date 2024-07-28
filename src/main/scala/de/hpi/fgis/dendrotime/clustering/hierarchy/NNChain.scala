@@ -94,7 +94,7 @@ private[hierarchy] object NNChain {
         for i <- sizes.indices do
           if sizes(i) != 0 && x != i then
             val dist = d(x, i)
-            if dist < currentMin then
+            if dist <= currentMin then
               currentMin = dist
               y = i
 
