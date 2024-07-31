@@ -5,6 +5,8 @@ import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, Linkage, computeHierarchy}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsArray, JsNumber, JsObject, JsString, JsValue, JsonFormat, RootJsonFormat}
 
+import scala.annotation.tailrec
+
 /**
  * All models related to the state of one clustering job and their marshalling.
  */
@@ -16,7 +18,7 @@ object StateModel {
     final case class CurrentProgress(
                                     state: Status,
                                     progress: Int,
-                                    hierarchy: DendrogramTree
+                                    hierarchy: Hierarchy
                                     ) extends ProgressMessage
 //    final case class StateUpdate(id: Long, newState: Status) extends ProgressMessage
 //    final case class ProgressUpdate(id: Long, progress: Int) extends ProgressMessage
@@ -89,21 +91,23 @@ object StateModel {
 //      h.sort()
 //      h.build()
 //    }, "hierarchy")
-//    given RootJsonFormat[Hierarchy] = new RootJsonFormat[Hierarchy] {
-//      override def write(obj: Hierarchy): JsValue = JsObject(
-//        "hierarchy" -> JsArray(obj.map(summon[RootJsonFormat[Hierarchy.Node]].write).toVector)
-//      )
-//
-//      override def read(json: JsValue): Hierarchy = json match {
-//        case JsObject(fields) if fields.contains("hierarchy") =>
-//          val nodes = fields("hierarchy").convertTo[Vector[Hierarchy.Node]]
-//          val h = Hierarchy.newBuilder(nodes.size)
-//          nodes.foreach(h.add)
-//          h.sort()
-//          h.build()
-//        case _ => throw DeserializationException("Invalid hierarchy")
-//      }
-//    }
+    given RootJsonFormat[Hierarchy] = new RootJsonFormat[Hierarchy] {
+      override def write(obj: Hierarchy): JsValue = JsObject(
+        "hierarchy" -> JsArray(obj.map(summon[RootJsonFormat[Hierarchy.Node]].write).toVector),
+        "n" -> JsNumber(obj.n)
+      )
+
+      override def read(json: JsValue): Hierarchy = json match {
+        case JsObject(fields) if fields.contains("hierarchy") =>
+          val n = fields("n").convertTo[Int]
+          val nodes = fields("hierarchy").convertTo[Vector[Hierarchy.Node]]
+          val h = Hierarchy.newBuilder(n)
+          nodes.foreach(h.add)
+          h.sort()
+          h.build()
+        case _ => throw DeserializationException("Invalid hierarchy")
+      }
+    }
 
     given RootJsonFormat[DendrogramTree] = new RootJsonFormat[DendrogramTree] {
       override def write(obj: DendrogramTree): JsValue = obj match {

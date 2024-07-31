@@ -35,7 +35,7 @@ private class Communicator private (ctx: ActorContext[Communicator.Command]) {
       case NewHierarchy(hierarchy) =>
         running(status, progress, hierarchy)
       case GetProgress(replyTo) =>
-        replyTo ! ProgressMessage.CurrentProgress(status, progress, DendrogramTree.fromHierarchy(hierarchy))
+        replyTo ! ProgressMessage.CurrentProgress(status, progress, hierarchy)
         Behaviors.same
       case Tick =>
         ctx.log.info("Current status: {}, progress: {}, hierarchy: {}", status, progress, hierarchy)
