@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from "react";
 import {SearchSelect, SearchSelectItem} from "@tremor/react";
+import {toast} from "react-toastify";
 
 function DatasetPicker({ onSelect }) {
   const [datasets, setDatasets] = useState([]);
@@ -7,8 +8,8 @@ function DatasetPicker({ onSelect }) {
     fetch("/api/datasets", {method: "GET", headers: {'Content-Type': 'application/json'}, mode: 'no-cors'})
       .then((res) => res.json())
       .catch((error) => {
-        console.error("Error fetching datasets:", error);
-        return [];
+        toast.error("Error fetching datasets:" + error.toString());
+        return {datasets: []};
       })
       .then((data) => setDatasets(data.datasets));
   }, []);
