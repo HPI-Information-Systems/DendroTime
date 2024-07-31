@@ -17,9 +17,10 @@ ThisBuild / resolvers += "Akka library repository".at("https://repo.akka.io/mave
 // sbt tasks, consider https://github.com/spray/sbt-revolver/
 ThisBuild / fork := true
 
-lazy val `DendroTime` = project
+lazy val `DendroTime` = project.dependsOn(`backend`, `frontend`)
+
+lazy val `backend` = project
   .in(file("."))
-  .dependsOn(`frontend`)
   .settings(
     name := "DendroTime",
     libraryDependencies ++= Seq(
@@ -42,6 +43,7 @@ lazy val `DendroTime` = project
   )
 
 `DendroTime`/ Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
+`backend`/ Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
 
 lazy val `frontend` = project
   .in(file("./frontend"))
