@@ -106,3 +106,11 @@ private[hierarchy] object NNChain {
       (x, y, currentMin, chainLength)
     }
 }
+
+@main
+def main(): Unit = {
+  val dists = PDist(4)(0.1, 0.2, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity)
+  val linkage = Linkage.CompleteLinkage
+  val hierarchy = NNChain(dists, linkage, adjustLabels = true)
+  println(hierarchy)
+}

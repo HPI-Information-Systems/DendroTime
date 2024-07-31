@@ -4,7 +4,7 @@ import scala.concurrent.duration.*
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
+import de.hpi.fgis.dendrotime.model.StateModel.{DendrogramTree, ProgressMessage, Status}
 
 import scala.language.postfixOps
 
@@ -35,7 +35,7 @@ private class Communicator private (ctx: ActorContext[Communicator.Command]) {
       case NewHierarchy(hierarchy) =>
         running(status, progress, hierarchy)
       case GetProgress(replyTo) =>
-        replyTo ! ProgressMessage.CurrentProgress(status, progress, hierarchy)
+        replyTo ! ProgressMessage.CurrentProgress(status, progress, DendrogramTree.fromHierarchy(hierarchy))
         Behaviors.same
       case Tick =>
         ctx.log.info("Current status: {}, progress: {}, hierarchy: {}", status, progress, hierarchy)
