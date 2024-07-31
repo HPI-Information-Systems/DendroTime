@@ -539,72 +539,149 @@ const demoData = {
   ]
 }
 
-function D3Dendrogram({data}) {
-  const width = 700;
-  const height = 800;
-  const margin = {top: 20, right: 20, bottom: 30, left: 40};
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-  const id = useId().replaceAll(":", "");
-  console.log(id);
-  data = demoData;
+function getHierarchyRoot(data) {
+  const {hierarchy: h, n: nLeafs} = data;
+  const nClusters = h.length;
+  console.log("nLeafs:", nLeafs, "nClusters:", nClusters);
+  const tree = Array(nLeafs + nClusters);
 
-  // try to create nested objects
-  const h = data.hierarchy;
-  console.log(h);
-  // const mapping = new Map();
-  // for (let i = 0; i < data.n; i++) {
-  //   mapping[i] = {id: i, distance: 0.0, children: []};
-  // }
-  // h.forEach((obj, i) => {
-  //   const idx = data.n + i;
-  //   mapping[idx] = {
-  //     id: idx,
-  //     distance: obj.distance,
-  //     children: [mapping[obj.cId1], mapping[obj.cId2]]
-  //   };
-  // });
-  // console.log("Mapping", mapping);
-  // const rootIdx = Math.max(...mapping.keys());
-  // const root = mapping[rootIdx];
-  // const queue = root.children.copy();
-  // let parent = root;
-  // while (queue.length > 0) {
-  //   const obj = h.pop();
-  // }
-  // console.log(root);
-  return (<></>);
-
-  function drawChart(id) {
-    const svg = d3.select("#" + id);
-    const root = d3.stratify()
-      .id(obj => obj.cId1)
-      .parentId(obj => obj.idx + data.n)
-      (data.hierarchy);
-    console.log(root);
-    const maxDistance = Math.max(...data.hierarchy.map(obj => obj.distance));
-    const xScale = d3.scaleLinear()
-      .domain([0, maxDistance])
-      .range([0, innerWidth]);
-    const yScale = d3.scaleLinear()
-      .domain([1, 0])
-      .range([0, innerHeight]);
-
-    // const yAxis = svg.call(d3.axisLeft(yScale))
-    const xAxis = svg.call(d3.axisBottom(xScale));
-    // svg.append("g").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(xScale));
-    const t = d3.transition().duration(100);
-    // functionseen");
+  // add leafs
+  for (let i = 0; i < nLeafs; i++) {
+    tree[i] = {id: i, distance: 0.0, size: 1, children: []};
   }
 
+  // add clusters
+  for (let i = 0; i < nClusters; i++) {
+    const node = h[i];
+    const idx = nLeafs + i;
+    tree[idx] = {
+      id: idx,
+      distance: node.distance,
+      size: node.cardinality,
+      children: [
+        tree[node.cId1],
+        tree[node.cId2]
+      ]
+    };
+  }
+  return tree[tree.length - 1];
+}
+
+function drawChart(id, maxDistance, tree, root, innerWidth, innerHeight, x0) {
+  const svg = d3.select("#" + id);
+
+  const xScale = d3.scaleLinear()
+    .domain([maxDistance, 0])
+    .range([0, innerWidth]);
+  const yScale = d3.scaleLinear()
+    .domain([1, 0])
+    .range([0, innerHeight]);
+
+  // const yAxis = svg.call(d3.axisLeft(yScale))
+  const xAxis = d3.select(`#${id}-axis`)
+    .transition().duration(100)
+    .attr("transform", `translate(0,${x0})`)
+    .call(d3.axisTop(xScale));
+  const t = d3.transition().duration(100);
+
+  const link = d3.select(`#${id}-links`).selectAll()
+    .data(root.links())
+    .join("path")
+    .transition(t)
+    .attr("fill", "none")
+    .attr("stroke", "#555")
+    .attr("stroke-opacity", 0.4)
+    .attr("stroke-width", 1.5)
+    .attr("d", d3.linkHorizontal()
+      .x(d => d.y)
+      .y(d => d.x)
+    );
+
+  const node = d3.select(`#${id}-nodes`).selectAll()
+    .data(root.descendants())
+    .join("g");
+
+  node.transition(t)
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 3)
+    .attr("transform", d => `translate(${d.y},${d.x})`);
+
+  node.append("circle")
+    .transition(t)
+    .attr("fill", d => d.children ? "#555" : "#999")
+    .attr("r", 2.5);
+
+  node.append("text")
+    .transition(t)
+    .attr("fill", "black")
+    .attr("dy", "0.31em")
+    .attr("x", d => d.children ? -6 : 6)
+    .attr("text-anchor", d => d.children ? "end" : "start")
+    .text(d => d.data.id)
+    .attr("stroke", "white")
+    .attr("paint-order", "stroke");
+}
+
+function D3Dendrogram({data}) {
+  let height = 500;
+  const width = 928;
+  // const margin = {top: 20, right: 20, bottom: 30, left: 40};
+  const margin = {top: 0, right: 0, bottom: 0, left: 0};
+  let innerHeight = height - margin.top - margin.bottom;
+  const innerWidth = width - margin.left - margin.right - 10;
+  const dx = 10;
+  let x0 = 0;
+  let viewPort = "0,0,0,0";
+  const id = useId().replaceAll(":", "");
+
+  const hierarchy = getHierarchyRoot(data);
+  const maxDistance = Math.max(...data.hierarchy.map(obj => obj.distance), 0);
+  const hasData = hierarchy && hierarchy.children && hierarchy.children.length > 0;
+  let root = {};
+  let tree = {};
+  console.log(hierarchy);
+
+  if(hasData) {
+    root = d3.hierarchy(hierarchy);
+    const dy = innerWidth / (root.height + 1);
+    console.log("Hierarchy root:", root);
+
+    root.sort((a, b) => b.height - a.height || d3.ascending(a.id, b.id));
+    tree = d3.cluster().nodeSize([dx, dy])(root);
+
+    // Compute the extent of the tree. Note that x and y are swapped here
+    // because in the tree layout, x is the breadth, but when displayed, the
+    // tree extends right rather than down.
+    x0 = Infinity;
+    let x1 = -x0;
+    root.each(d => {
+      if (d.x > x1) x1 = d.x;
+      if (d.x < x0) x0 = d.x;
+    });
+    height = x1 - x0 + dx * 2;
+    console.log("height", height, "x1", x1, "x0", x0, "dx", dx);
+    innerHeight = height - margin.top - margin.bottom;
+    viewPort = [-dy / 3, x0 - dx, innerWidth + 10, innerHeight]
+      .toString()
+      .replaceAll("[", "")
+      .replaceAll("]", "");
+  }
+
+
   useEffect(() => {
-    drawChart(id);
-  }, [data]);
+    if (hasData)
+      drawChart(id, maxDistance, tree, root, innerWidth, innerHeight, x0);
+  }, [maxDistance, tree, root, innerWidth, innerHeight, x0]);
 
   return (
     <div>
-      <svg width={width} height={height}>
-        <g id={id} transform={"translate(" + margin.left + "," + margin.top + ")"}></g>
+      <svg width={width} height={height}
+           viewBox={viewPort}>
+        <g id={id} transform={"translate(" + margin.left + "," + margin.top + ")"}>
+          <g id={`${id}-axis`}/>
+          <g id={`${id}-links`}/>
+          <g id={`${id}-nodes`}/>
+        </g>
       </svg>
     </div>
   );

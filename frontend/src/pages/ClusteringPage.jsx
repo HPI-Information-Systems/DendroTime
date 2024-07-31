@@ -7,7 +7,10 @@ import {toast} from "react-toastify";
 import D3Dendrogram from "../components/D3Dendrogram";
 
 const defaultState = {
-  "hierarchy": [],
+  "hierarchy": {
+    "hierarchy": [],
+    "n": 0
+  },
   "state": "Initializing",
   "progress": 0
 }
@@ -59,11 +62,15 @@ function ClusteringPage() {
         .then(resp => resp.json())
         .then(data => setState(data))
         .catch(toast.error);
-    }, 1000);
+    }, 2000);
     setPolling(inter);
   }, [setState]);
 
   const abortPolling = useCallback(() => {
+    if (polling) {
+      clearInterval(polling);
+      setPolling(null);
+    }
     fetch("/api/jobs/" + jobId, {
       method: "DELETE",
       headers: {'Content-Type': 'application/json'},
@@ -77,10 +84,6 @@ function ClusteringPage() {
       .then(resp => resp.text())
       .then(txt => toast.info("Aborting polling: " + txt))
       .catch(toast.error);
-    if (polling) {
-      clearInterval(polling);
-      setPolling(null);
-    }
   }, [jobId, polling, setPolling]);
 
   useEffect(() => {
@@ -101,12 +104,12 @@ function ClusteringPage() {
         <Button className="mx-auto" variant="primary" size="lg" disabled={!!polling || !dataset} onClick={startDemoJob}>
           Start demo Job
         </Button>
-        <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
+        <Button className="mx-auto" variant="secondary" disabled={false && !polling} size="lg" onClick={abortPolling}>
           Abort Job {jobId ? jobId.toString() : ""}
         </Button>
       </div>
       <Divider />
-      <D3Dendrogram data={data.hierarchy} />
+      <D3Dendrogram data={state.hierarchy} />
       <Divider />
       <D3BarChart data={data}/>
       <div className="flex flex-auto m-auto mx-auto justify-between items-center">
