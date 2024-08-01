@@ -1,10 +1,10 @@
-import D3BarChart from "../components/D3BarChart";
 import {Button, Divider} from "@tremor/react";
 import React, {useState, useEffect, useCallback} from "react";
 import DatasetPicker from "../components/DatasetPicker";
 import StatusOverview from "../components/StatusOverview";
 import {toast} from "react-toastify";
 import D3Dendrogram from "../components/D3Dendrogram";
+import WidthProvider from "../components/WidthProvider";
 
 const defaultState = {
   "hierarchy": {
@@ -16,25 +16,11 @@ const defaultState = {
 }
 
 function ClusteringPage() {
-  const [data, setData] = useState([12, 5, 6, 6, 9, 10]);
   const [dataset, setDataset] = useState(undefined);
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
-
-  const addData = () => {
-    setData(d => d.concat([Math.trunc(Math.random()*50)]));
-  };
-  const removeData = () => {
-    setData(d => d.length > 1 ? d.slice(0, -1) : d);
-  };
-  const changeData = () => {
-    setData(d => {
-      const newD = [...d];
-      newD[Math.trunc(Math.random()*newD.length)] += 10;
-      return newD;
-    })
-  };
+  const pollingInterval = 1000;
 
   const startDemoJob = useCallback(() => {
     fetch("/api/jobs", {
@@ -62,7 +48,7 @@ function ClusteringPage() {
         .then(resp => resp.json())
         .then(data => setState(data))
         .catch(toast.error);
-    }, 2000);
+    }, pollingInterval);
     setPolling(inter);
   }, [setState]);
 
@@ -109,20 +95,11 @@ function ClusteringPage() {
         </Button>
       </div>
       <Divider />
-      <D3Dendrogram data={state.hierarchy} />
-      <Divider />
-      <D3BarChart data={data}/>
-      <div className="flex flex-auto m-auto mx-auto justify-between items-center">
-        <Button className="mx-auto" variant="primary" size="md" onClick={addData}>
-          Add
-        </Button>
-        <Button className="mx-auto" variant="primary" size="md" onClick={removeData}>
-          Remove
-        </Button>
-        <Button className="mx-auto" variant="secondary" size="md" onClick={changeData}>
-          +10
-        </Button>
-      </div>
+      <WidthProvider>
+        {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (
+          <D3Dendrogram data={state.hierarchy} />
+        )}
+      </WidthProvider>
     </div>
   )
 }

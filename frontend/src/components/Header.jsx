@@ -24,19 +24,19 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import {cx} from "../util";
+import { Link } from "react-router-dom";
 
-const products = [
-  {name: 'Analytics', description: 'Get a better understanding of your traffic', href: '#', icon: ChartPieIcon},
-  {name: 'Engagement', description: 'Speak directly to your customers', href: '#', icon: CursorArrowRaysIcon},
-  {name: 'Security', description: 'Your customers’ data will be safe and secure', href: '#', icon: FingerPrintIcon},
-  {name: 'Integrations', description: 'Connect with third-party tools', href: '#', icon: SquaresPlusIcon},
-  {name: 'Automations', description: 'Build strategic funnels that will convert', href: '#', icon: ArrowPathIcon},
+const examples = [
+  {name: 'Bar Chart', description: 'Interactive bar chart with React and d3.js', href: '/bar-example', icon: ChartPieIcon},
+  {name: 'Dendrogram Test', description: 'Dendrogram created using d3.js with demo data', href: '/dendro-test', icon: CursorArrowRaysIcon},
+  // {name: 'Security', description: 'Your customers’ data will be safe and secure', href: '#', icon: FingerPrintIcon},
+  // {name: 'Integrations', description: 'Connect with third-party tools', href: '#', icon: SquaresPlusIcon},
+  // {name: 'Automations', description: 'Build strategic funnels that will convert', href: '#', icon: ArrowPathIcon},
 ];
 const menuEntries = [
-  {name: 'Product', href: '#', icon: SquaresPlusIcon, items: products},
-  {name: 'Datasets', href: '#', icon: PlayCircleIcon, items: []},
-  {name: 'Clustering', href: '#', icon: PlayCircleIcon, items: []},
-  {name: 'Previous Runs', href: '#', icon: ChartPieIcon, items: products},
+  {name: 'Examples', href: '#', icon: SquaresPlusIcon, items: examples},
+  {name: 'Clustering', href: '/', icon: PlayCircleIcon, items: []},
+  // {name: 'Previous Runs', href: '#', icon: ChartPieIcon, items: examples},
 ];
 
 function AppHeader() {
@@ -70,10 +70,10 @@ function AppHeader() {
                         <item.icon className="h-6 w-6 text-gray-600 group-hover:text-indigo-600" aria-hidden="true"/>
                       </div>
                       <div className="flex-auto">
-                        <a href={item.href} className="block font-semibold text-gray-900">
+                        <Link to={item.href} className="block font-semibold text-gray-900">
                           {item.name}
                           <span className="absolute inset-0"/>
-                        </a>
+                        </Link>
                         <p className="mt-1 text-gray-600">{item.description}</p>
                       </div>
                     </div>
@@ -82,12 +82,12 @@ function AppHeader() {
               </PopoverPanel>
             </Popover>
           ) : (
-            <a key={entry.name} href={entry.href} className="flex items-center gap-x-1">
+            <Link key={entry.name} to={entry.href} className="flex items-center gap-x-1">
               <entry.icon className="h-5 w-5 flex-none text-gray-400" aria-hidden="true"/>
               <span className="text-sm font-semibold leading-6 text-gray-900">
                 {entry.name}
               </span>
-            </a>
+            </Link>
           ))}
         </PopoverGroup>
         <div className="flex lg:hidden">
@@ -153,15 +153,15 @@ function AppHeader() {
                     )}
                   </Disclosure>
                 ) : (
-                  <a key={entry.name}
-                     href={entry.href}
+                  <Link key={entry.name}
+                     to={entry.href}
                      className="-mx-3 block flex rounded-lg px-3 py-2 hover:bg-gray-50 items-center"
                   >
                     <entry.icon className="h-5 w-5 flex-none text-gray-400 mr-1" aria-hidden="true"/>
                     <span className="text-base font-semibold leading-7 text-gray-900 ">
                       {entry.name}
                     </span>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>

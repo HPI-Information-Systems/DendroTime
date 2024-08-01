@@ -21,7 +21,7 @@ function DatasetPicker({ onSelect }) {
           {item.name}
         </SearchSelectItem>
       )) : (
-        <SearchSelectItem key={undefined} value={undefined} aria-disabled={true} disabled={true} className="text-gray-500">
+        <SearchSelectItem key={"placeholder"} value={undefined} aria-disabled={true} disabled={true} className="text-gray-500">
           No datasets available.
         </SearchSelectItem>
       )}
