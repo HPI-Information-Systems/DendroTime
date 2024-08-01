@@ -2,6 +2,7 @@ import React, {useCallback, useState} from "react";
 import {toast} from "react-toastify";
 import D3Dendrogram from "../components/D3Dendrogram";
 import {Button, Divider} from "@tremor/react";
+import WidthProvider from "../components/WidthProvider";
 
 const approxData = {
   "hierarchy": {
@@ -289,21 +290,21 @@ const smallHierarchy = {
       "cId2": 2,
       "cardinality": 2,
       "distance": 0.033,
-      "idx": 0
+      "idx": 1
     },
     {
       "cId1": 4,
       "cId2": 5,
       "cardinality": 3,
       "distance": 0.1,
-      "idx": 0
+      "idx": 2
     },
     {
       "cId1": 6,
       "cId2": 7,
       "cardinality": 5,
       "distance": 0.23,
-      "idx": 0
+      "idx": 3
     }
   ]
 };
@@ -350,6 +351,39 @@ function DendoTest() {
 
   const abortPolling = useCallback(reset, [polling, setState, setPolling]);
 
+  const switchLeafs = useCallback(() => {
+    setState(s => {
+      // const newId = s.hierarchy.n;
+      // const lastClusterId = s.hierarchy.hierarchy.length + newId - 1;
+      // const state = {
+      //   ...s,
+      //   hierarchy: {
+      //     n: newId + 1,
+      //     hierarchy: s.hierarchy.hierarchy.concat([{
+      //       "cId1": newId,
+      //       "cId2": lastClusterId,
+      //       "cardinality": 5,
+      //       "distance": 0.23,
+      //       "idx": 0
+      //     }])
+      //   }
+      // };
+      const h0 = {...s.hierarchy.hierarchy[0]}
+      const h1 = {...s.hierarchy.hierarchy[1]};
+      const id1 = h0.cId1;
+      h0.cId1 = h1.cId1;
+      h1.cId1 = id1;
+      const state = {
+        ...s,
+        hierarchy: {...s.hierarchy}
+      };
+      state.hierarchy.hierarchy[0] = h0;
+      state.hierarchy.hierarchy[1] = h1;
+      console.debug("New State", state);
+      return state;
+    });
+  });
+
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold text-center">Dendrogram Test</h1>
@@ -366,13 +400,19 @@ function DendoTest() {
         <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
           Abort Polling
         </Button>
+        <Button className="mx-auto" variant="light" size="lg" onClick={switchLeafs}>
+          Switch leafs
+        </Button>
       </div>
       <span className="text-lg font-bold">State: {state.state}</span>
       <Divider className="border-2" />
-      {!state.hierarchy.hierarchy ? (<></>) : (
-        <D3Dendrogram data={state.hierarchy} />
-      )}
+      <WidthProvider>
+        {!state.hierarchy.hierarchy ? (<></>) : (
+          <D3Dendrogram data={state.hierarchy} />
+        )}
+      </WidthProvider>
       <Divider className="border-2" />
+      <span>{JSON.stringify(state.hierarchy)}</span>
     </div>
   )
 }
