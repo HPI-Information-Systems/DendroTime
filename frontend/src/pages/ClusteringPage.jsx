@@ -72,13 +72,6 @@ function ClusteringPage() {
       .catch(toast.error);
   }, [jobId, polling, setPolling]);
 
-  useEffect(() => {
-    if (state.state === "Approximating" && state.progress === 100) {
-      toast.warning("DEV: Stopping polling after approximating state is done!");
-      abortPolling();
-    }
-  }, [state]);
-
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold">Clustering</h1>

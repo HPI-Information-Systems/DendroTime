@@ -10,7 +10,7 @@ const defaultStatusList = [{
   "active": false,
   "progress": 0
 },{
-  "name": "Computing",
+  "name": "ComputingFullDistances",
   "active": false,
   "progress": 0
 },{
