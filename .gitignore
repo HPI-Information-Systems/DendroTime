@@ -5,6 +5,7 @@
 data
 # created by sbt for root project:
 DendroTime
+**/target
 
 # temporary files which can be created if a process still has a handle open of a deleted file
 .fuse_hidden*
@@ -21,7 +22,6 @@ DendroTime
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 
-frontend/target
 
 ###########################################################
 # Scala and SBT gitignore

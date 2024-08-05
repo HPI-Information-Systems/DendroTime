@@ -17,10 +17,14 @@ ThisBuild / resolvers += "Akka library repository".at("https://repo.akka.io/mave
 // sbt tasks, consider https://github.com/spray/sbt-revolver/
 ThisBuild / fork := true
 
-lazy val `DendroTime` = project.dependsOn(`backend`, `frontend`)
+lazy val `DendroTime` = project.in(file("."))
+  .dependsOn(`backend`, `frontend`)
+  .settings(
+    Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
+  )
 
 lazy val `backend` = project
-  .in(file("."))
+  .in(file("backend"))
   .settings(
     name := "DendroTime",
     libraryDependencies ++= Seq(
@@ -40,14 +44,13 @@ lazy val `backend` = project
       "org.scalatest" %% "scalatest" % "3.2.18" % Test
     ),
     javacOptions += "-Xlint:deprecation",
+    Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
-
-`DendroTime`/ Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
-`backend`/ Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
 
 lazy val `frontend` = project
   .in(file("./frontend"))
   .settings(
+    name := "DendroTime-UI",
     Compile / resourceGenerators += buildFrontend.init
   )
 

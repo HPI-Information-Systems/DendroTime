@@ -31,6 +31,13 @@ object StateModel {
     case object Approximating extends Status
     case object ComputingFullDistances extends Status
     case object Finalizing extends Status
+    
+    given Ordering[Status] = Ordering.by {
+      case Initializing => 0
+      case Approximating => 1
+      case ComputingFullDistances => 2
+      case Finalizing => 3
+    }
   }
 
   // FIXME: Is too expensive to serialize!! Maybe perform the transformation in the Browser instead?

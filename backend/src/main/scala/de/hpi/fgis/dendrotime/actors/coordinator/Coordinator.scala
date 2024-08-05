@@ -21,6 +21,8 @@ object Coordinator {
 
   case class DispatchWork(worker: ActorRef[Worker.Command]) extends Command
   case class ApproximationResult(t1: Long, t2: Long, dist: Double) extends Command
+  case class FullResult(t1: Long, t2: Long, dist: Double) extends Command
+  case object ClusteringFinished extends Command
 
   sealed trait Response
   case class ProcessingStarted(id: Long, communicator: ActorRef[Communicator.Command]) extends Response
@@ -74,7 +76,7 @@ private class Coordinator private (
     initializing(Seq.empty, WorkQueue.empty)
   }
 
-  private def initializing(tsIds: Seq[Long], workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessage {
+  private def initializing(tsIds: Seq[Long], workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessagePartial {
     case CancelProcessing =>
       ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
       reportTo ! ProcessingFailed(id)
@@ -97,7 +99,7 @@ private class Coordinator private (
       // switch to approximating state
       clusterer ! Clusterer.Initialize(allTsIds.size)
       communicator ! Communicator.NewStatus(Status.Approximating)
-      stash.unstashAll(approximating(workQueue, allTsIds))
+      stash.unstashAll(approximating(workQueue, WorkQueue.from(tsIds.combinations(2).map(p => (p(0), p(1)))), allTsIds))
 
     case FailedToLoadAllTimeSeries(_, reason) =>
       reportTo ! ProcessingFailed(id)
@@ -121,34 +123,43 @@ private class Coordinator private (
       initializing(tsIds, newQueue)
   }
 
-  private def approximating(workQueue: WorkQueue[(Long, Long)], allIds: Set[Long]): Behavior[Command] =
+  private def approximating(approxWorkQueue: WorkQueue[(Long, Long)], fullWorkQueue: WorkQueue[(Long, Long)], allIds: Set[Long]): Behavior[Command] =
     Behaviors.receiveMessagePartial {
       case CancelProcessing =>
         ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
         reportTo ! ProcessingFailed(id)
         Behaviors.stopped
 
-      case DispatchWork(worker) if workQueue.hasWork =>
-        val (work, newQueue) = workQueue.dequeue()
-        ctx.log.debug("Dispatching job ({}) to worker {}", work, worker)
+      case DispatchWork(worker) if approxWorkQueue.hasWork =>
+        val (work, newQueue) = approxWorkQueue.dequeue()
+        ctx.log.debug("Dispatching approx job ({}) to worker {}", work, worker)
         worker ! Worker.CheckApproximate(work._1, work._2)
-        approximating(newQueue, allIds)
+        approximating(newQueue, fullWorkQueue, allIds)
 
-      case m: DispatchWork =>
-        stash.stash(m)
-        if workQueue.isEmpty then
-          ctx.log.info("No more work to do, temporarily finished!")
-          reportTo ! ProcessingEnded(id)
-          Behaviors.stopped
+      case DispatchWork(worker) => // if approxWorkQueue.noWork && fullWorkQueue.hasWork
+        val (work, newQueue) = fullWorkQueue.dequeue()
+        ctx.log.debug("Dispatching full job ({}) to worker {}", work, worker)
+        worker ! Worker.CheckFull(work._1, work._2)
+        if approxWorkQueue.hasPending then
+          approximating(approxWorkQueue, newQueue, allIds)
         else
-          Behaviors.same
+          communicator ! Communicator.NewStatus(Status.ComputingFullDistances)
+          communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(approxWorkQueue.size, allIds.size))
+          computingFullDistances(newQueue, allIds)
 
       case ApproximationResult(t1, t2, dist) =>
         ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
-        val newQueue = workQueue.removePending((t1, t2))
+        val newQueue = approxWorkQueue.removePending((t1, t2))
         clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
-        communicator ! Communicator.ProgressUpdate(progress(workQueue.size, allIds.size))
-        approximating(newQueue, allIds)
+        communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(newQueue.size, allIds.size))
+        approximating(newQueue, fullWorkQueue, allIds)
+
+      case FullResult(t1, t2, dist) =>
+        ctx.log.info("Full result for ts-{} and ts-{}: {}", t1, t2, dist)
+        val newQueue = fullWorkQueue.removePending((t1, t2))
+        clusterer ! Clusterer.FullDistance(t1.toInt, t2.toInt, dist)
+        communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(newQueue.size, allIds.size))
+        approximating(approxWorkQueue, newQueue, allIds)
     }
 
   private def computingFullDistances(workQueue: WorkQueue[(Long, Long)], allIds: Set[Long]): Behavior[Command] = Behaviors.receiveMessagePartial {
@@ -157,27 +168,40 @@ private class Coordinator private (
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
-//    case DispatchWork(worker) if workQueue.hasWork =>
-//      val (work, newQueue) = workQueue.dequeue()
-//      ctx.log.debug("Dispatching job ({}) to worker {}", work, worker)
-//      worker ! Worker.CheckFull(work._1, work._2)
-//      computingFullDistances(newQueue)
+    case DispatchWork(worker) if workQueue.hasWork =>
+      val (work, newQueue) = workQueue.dequeue()
+      ctx.log.debug("Dispatching full job ({}) to worker {}", work, worker)
+      worker ! Worker.CheckFull(work._1, work._2)
+      computingFullDistances(newQueue, allIds)
 
     case m: DispatchWork =>
       stash.stash(m)
       if workQueue.isEmpty then
-        ctx.log.info("No more work to do, temporarily finished!")
-        reportTo ! ProcessingEnded(id)
-        Behaviors.stopped
+        ctx.log.info("No more work to do, waiting for clusering")
+        communicator ! Communicator.NewStatus(Status.Finalizing)
+        communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
+        waitingForClustering()
       else
         Behaviors.same
 
-    case ApproximationResult(t1, t2, dist) =>
-      ctx.log.info("Approximation result for ts-{} and ts-{}: {}", t1, t2, dist)
+    case FullResult(t1, t2, dist) =>
+      ctx.log.info("Full result for ts-{} and ts-{}: {}", t1, t2, dist)
       val newQueue = workQueue.removePending((t1, t2))
-      clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
-      communicator ! Communicator.ProgressUpdate(progress(workQueue.size, allIds.size))
+      clusterer ! Clusterer.FullDistance(t1.toInt, t2.toInt, dist)
+      communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(newQueue.size, allIds.size))
       computingFullDistances(newQueue, allIds)
+  }
+
+  private def waitingForClustering(): Behavior[Command] = Behaviors.receiveMessage {
+    case ClusteringFinished =>
+      communicator ! Communicator.ProgressUpdate(Status.Finalizing, 100)
+      ctx.log.info("Finished processing job {}", id)
+      reportTo ! ProcessingEnded(id)
+      // TODO: wait until all results have been send to frontend
+      Behaviors.stopped
+    case m =>
+      ctx.log.warn("Received unexpected message! {}", m)
+      Behaviors.same
   }
 
   private def progress(pending: Int, allIds: Int): Int = {
