@@ -1,57 +1,72 @@
-import React, {useEffect, useId, useContext} from "react";
+import React, {useContext, useEffect, useId} from "react";
 import * as d3 from "d3";
-import { WidthContext } from "./WidthProvider";
+import {WidthContext} from "./WidthProvider";
 
 function getHierarchyRoot(data) {
   const {hierarchy: h, n: nLeafs} = data;
   const nClusters = h.length;
   console.log("nLeafs:", nLeafs, "nClusters:", nClusters);
-  const tree = Array(nLeafs + nClusters);
+  const nodes = Array(nLeafs + nClusters);
+  const reachable = Array(nLeafs + nClusters);
 
   // add leafs
   for (let i = 0; i < nLeafs; i++) {
-    tree[i] = {id: i, distance: 0.0, size: 1, children: []};
+    nodes[i] = {id: i, distance: 0.0, size: 1, children: []};
   }
-  const root = {
-    id: tree.length - 1,
-    distance: 0.0,
-    size: nLeafs,
-    children: []
-  }
-  tree[tree.length - 1] = root;
 
   // add clusters
   for (let i = 0; i < nClusters; i++) {
     const node = h[i];
     const idx = nLeafs + i;
-    if (node.distance?.valueOf() === undefined) {
-      const c1 = tree[node.cId1];
-      if (c1) root.children.push(c1);
-      const c2 = tree[node.cId2];
-      if (c2) root.children.push(c2);
-    } else if (i === nClusters - 1) {
-      root.distance = node.distance;
-      root.size = node.cardinality;
-      const c1 = tree[node.cId1];
-      if (c1) root.children.push(c1);
-      const c2 = tree[node.cId2];
-      if (c2) root.children.push(c2);
-    } else {
-      tree[idx] = {
+    if (node.distance?.valueOf() !== undefined) {
+      reachable[node.cId1] = true;
+      reachable[node.cId2] = true;
+      nodes[idx] = {
         id: idx,
         distance: node.distance,
         size: node.cardinality,
         children: [
-          tree[node.cId1],
-          tree[node.cId2]
+          nodes[node.cId1],
+          nodes[node.cId2]
         ]
       };
+    } else if (i === nClusters - 1) {
+      const children = new Set();
+      const c1 = nodes[node.cId1];
+      if (c1) {
+        reachable[node.cId1] = true;
+        children.add(c1);
+      }
+      const c2 = nodes[node.cId2];
+      if (c2) {
+        reachable[node.cId2] = true;
+        children.add(c2);
+      }
+      nodes[idx] = {
+        id: idx,
+        distance: node.distance,
+        size: node.cardinality,
+        children: children
+      };
+    }
+  }
+  
+  // add non-reachable nodes to root
+  const root = nodes[nodes.length - 1];
+  reachable[nodes.length - 1] = true; // is the root and thus always reachable
+  for (let i = 0; i < nodes.length; i++) {
+    if (!reachable[i]) {
+      const c1 = nodes[i];
+      if (c1) {
+        root.children.add(c1);
+        root.size += 1;
+      }
     }
   }
 
   // repair distance of root: move to top
   if (root.distance <= 0) {
-    const maxDistance = tree
+    const maxDistance = nodes
       .map(n => isNaN(n.distance) ? 0 : n.distance)
       .reduceRight((a, b) => a>b? a:b, 0)
     root.distance = 1.1*maxDistance;
@@ -68,11 +83,11 @@ function D3Dendrogram({data}) {
   const axisHeight = 50;
   const tDuration = 500;
 
+  const hierarchy = getHierarchyRoot(data);
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!
   useEffect(() => {
     // optimize: useMemo
-    const hierarchy = getHierarchyRoot(data);
     const root = d3.hierarchy(hierarchy);
     console.log("Root:", root);
 
