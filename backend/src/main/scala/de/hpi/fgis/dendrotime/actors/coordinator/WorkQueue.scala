@@ -10,7 +10,7 @@ object WorkQueue {
 
   def from[T](initialItems: T*): WorkQueue[T] = from(initialItems)
 
-  def from[T](candidates: IterableOnce[T]): WorkQueue[T] =
+  def from[T](candidates: Iterable[T]): WorkQueue[T] =
     WorkQueue(Queue.from(candidates), Set.from(candidates), Set.empty)
 }
 

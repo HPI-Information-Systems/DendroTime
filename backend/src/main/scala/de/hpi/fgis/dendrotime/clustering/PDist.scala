@@ -61,18 +61,26 @@ object PDist {
   def empty(n: Int): PDist = PDistImpl(Array.fill(n * (n - 1) / 2)(Double.PositiveInfinity), n)
 
   /**
-   * Create a compact pairwise distance vector from a quadratic distance matrix.
+   * Create a compact pairwise distance vector from a quadratic distance matrix verifying the size of the matrix.
    *
    * @param dists pairwise distance matrix of size n x n
    * @param n number of observations
    * @return pairwise distance vector of size n*(n-1)/2
    */
-  def apply(dists: Array[Array[Double]], n: Option[Int] = None): PDist =
-    val _n = n.getOrElse(dists.length)
-    if dists.length != _n || dists.exists(_.length != _n) then
+  def apply(dists: Array[Array[Double]], n: Int): PDist =
+    if dists.length != n || dists.exists(_.length != n) then
       throw new IllegalArgumentException("Distance matrix must be square.")
     // convert quadratic pairwise distance matrix into compact form
-    PDistImpl(Array.from(for i <- 0 until _n; j <- i + 1 until _n yield dists(i)(j)), _n)
+    PDistImpl(Array.from(for i <- 0 until n; j <- i + 1 until n yield dists(i)(j)), n)
+
+  /**
+   * Create a compact pairwise distance vector from a quadratic distance matrix.
+   *
+   * @param dists pairwise distance matrix of size n x n
+   * @return pairwise distance vector of size n*(n-1)/2
+   */
+  def apply(dists: Array[Array[Double]]): PDist =
+    apply(dists, dists.length)
 
   /**
    * Create a compact pairwise distance vector from a sequence of distances.

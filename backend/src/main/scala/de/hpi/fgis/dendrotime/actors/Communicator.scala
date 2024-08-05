@@ -38,11 +38,13 @@ private class Communicator private (ctx: ActorContext[Communicator.Command]) {
       case NewStatus(newStatus) =>
         // set all previous progresses to 100
         val newP = for (k, v) <- progress yield (k, if k < newStatus then 100 else v)
-        running(newStatus, progress, hierarchy)
-      case ProgressUpdate(status, p) =>
-        running(status, progress.updated(status, p), hierarchy)
-      case NewHierarchy(hierarchy) =>
-        running(status, progress, hierarchy)
+        ctx.log.info("Updating progress bc. state change to {}: {}", newStatus, newP)
+        running(newStatus, newP, hierarchy)
+      case ProgressUpdate(s, p) =>
+        ctx.log.debug("({}) New progress ({}): {}", status, s, p)
+        running(status, progress.updated(s, p), hierarchy)
+      case NewHierarchy(h) =>
+        running(status, progress, h)
       case GetProgress(replyTo) =>
         replyTo ! ProgressMessage.CurrentProgress(status, progress(status), hierarchy)
         Behaviors.same

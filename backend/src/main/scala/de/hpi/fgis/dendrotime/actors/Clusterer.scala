@@ -4,6 +4,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.ClusteringFinished
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist, hierarchy}
 
@@ -13,6 +14,7 @@ object Clusterer {
   case class Initialize(n: Int) extends Command
   case class ApproximateDistance(t1: Int, t2: Int, dist: Double) extends Command
   case class FullDistance(t1: Int, t2: Int, dist: Double) extends Command
+  case class ReportFinished(replyTo: ActorRef[ClusteringFinished.type]) extends Command
 
   def apply(communicator: ActorRef[Communicator.Command]): Behavior[Command] = {
     def uninitialized(stash: StashBuffer[Command]): Behavior[Command] = Behaviors.receiveMessage {
@@ -56,6 +58,9 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       distances(t1, t2) = dist
       computeHierarchy()
       Behaviors.same
+    case ReportFinished(replyTo) =>
+      replyTo ! ClusteringFinished
+      Behaviors.stopped
   }
 
   private def computeHierarchy(): Hierarchy = {

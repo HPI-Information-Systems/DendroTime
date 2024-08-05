@@ -16,6 +16,8 @@ private[hierarchy] object LinkageUnionFind {
       val node = z(i)
       val x = uf.find(node.cId1)
       val y = uf.find(node.cId2)
+      if x == y then
+        throw new RuntimeException(s"x=$x and y=$y are equal! i=$i, z=$z")
       val size = uf.merge(x, y)
       if x < y then
         z.update(i, node.copy(cId1 = x, cId2 = y, cardinality = size))

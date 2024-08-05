@@ -7,6 +7,8 @@ import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
+private val SLEEP_TIME = 100
+
 object Worker {
   sealed trait Command
   case class CheckApproximate(t1: Long, t2: Long) extends Command
@@ -54,7 +56,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
           ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
           idle
         else
-          waitingForTs(newTs, t1, t2)
+          waitingForTs(newTs, t1, t2, full)
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesNotFound(id)) =>
         ctx.context.log.error("Time series ts-{} not found", id)
         // report failure to coordinator?
@@ -63,13 +65,13 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   
   private def checkApproximate(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
     val dist = distance(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
-    Thread.sleep(500)
+    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, dist)
   }
   
   private def checkFull(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
     val dist = distance(ts1.data, ts2.data)
-    Thread.sleep(500)
+    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, dist)
   }
 }
