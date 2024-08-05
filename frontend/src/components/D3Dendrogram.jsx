@@ -79,18 +79,18 @@ function D3Dendrogram({data}) {
   const id = useId().replaceAll(":", "");
   // fixed width of outer div, the height is dynamic on dataset size!
   const width = useContext(WidthContext);
-  const horizMargin = 30;
+  const horizMargin = 50;
   const axisHeight = 50;
-  const tDuration = 500;
+  const tDuration = 200;
 
   const hierarchy = getHierarchyRoot(data);
+  // optimize: useMemo
+  const root = d3.hierarchy(hierarchy);
+  console.log("Root:", root);
+
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!
   useEffect(() => {
-    // optimize: useMemo
-    const root = d3.hierarchy(hierarchy);
-    console.log("Root:", root);
-
     const dx = 15;
     const vertMargin = 2*dx;
     const dy = (width - 2*horizMargin) / (root.height);
@@ -99,11 +99,11 @@ function D3Dendrogram({data}) {
     // overwrite value property with our own computation:
     root.sum(() => 0).each(d => {d.value = d.data.distance;})
     // root.sort((a, b) => b.data.idx);
-    const tree = d3.cluster().nodeSize([dx, dy])
-    .separation((a, b) => 1);
+    const tree = d3.cluster()
+      .nodeSize([dx, dy])
+      .separation((a, b) => 1);
     tree(root);
     const maxDistance = root.value;
-    console.log("Max distance", maxDistance);
 
     // Compute the extent of the tree. Note that x and y are swapped here
     // because in the tree layout, x is the breadth, but when displayed, the
@@ -121,7 +121,7 @@ function D3Dendrogram({data}) {
       .toString()
       .replaceAll("[", "")
       .replaceAll("]", "");
-    console.log("viewPort", viewPort);
+    // console.log("viewPort", viewPort);
 
     const svg = d3.select("#" + id)
       .attr("height", height)
@@ -132,15 +132,14 @@ function D3Dendrogram({data}) {
     //   .range([0, height]);
     // const yAxis = svg.call(d3.axisLeft(yScale))
 
-    console.log("New axis location", top + axisHeight/2);
+    // console.log("New axis location", top + axisHeight/2);
     const xScale = d3.scaleLinear()
       .domain([maxDistance, 0])
       .range([0, width-2*horizMargin]);
     const xAxis = d3.select(`#${id}-axis`)
-      .transition().duration(tDuration)
+      // .transition().duration(tDuration)
       .attr("transform", `translate(0,${top + axisHeight/2})`)
       .call(d3.axisTop(xScale));
-    const t = d3.transition().duration(tDuration);
     const connection = d3.linkHorizontal()
       .x(d => xScale(d.data.distance))
       .y(d => d.x);
@@ -172,7 +171,7 @@ function D3Dendrogram({data}) {
           selection//.transition().duration(tDuration)
             .attr("transform", d => `translate(${xScale(d.data.distance)},${d.x})`)
             .attr("id", d => d.data.id);
-          selection.append("text")
+          selection.filter(d => !d.children).append("text")
               .attr("fill", "black")
               .attr("dy", "0.31em")
               .attr("x", d => d.children ? -6 : 6)

@@ -23,6 +23,15 @@ function statusReducer(state, action) {
   const {type, data} = action;
   switch (type) {
     case "nextState":
+      if (data === "Finished") {
+        return state.map(s => {
+          const updatedS = {...s};
+          updatedS.active = false;
+          if (s.active) updatedS.progress = 100;
+          if (s.name === "Finalizing") updatedS.progress = 100;
+          return updatedS;
+        });
+      }
       // set old state to 100 % progress and switch state
       return state.map(s => {
         const updatedS = {...s};

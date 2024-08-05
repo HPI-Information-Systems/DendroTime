@@ -5,9 +5,9 @@ import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
-private val SLEEP_TIME = 100
+private val SLEEP_TIME = 50
 
 object Worker {
   sealed trait Command
@@ -45,7 +45,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
       waitingForTs(Map.empty, t1, t2, full = true)
   }
   
-  private def waitingForTs(tsMap: Map[Long, LabeledTimeSeries], t1: Long, t2: Long, full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def waitingForTs(tsMap: Map[Long, TimeSeries], t1: Long, t2: Long, full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesFound(ts)) =>
         val newTs = tsMap + (ts.id -> ts)
         if (newTs.size == 2)
@@ -63,15 +63,15 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
         Behaviors.stopped
   }
   
-  private def checkApproximate(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
+  private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = distance(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
-    Thread.sleep(SLEEP_TIME)
-    ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, dist)
+//    Thread.sleep(SLEEP_TIME)
+    ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
   
-  private def checkFull(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Unit = {
+  private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = distance(ts1.data, ts2.data)
-    Thread.sleep(SLEEP_TIME)
-    ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, dist)
+//    Thread.sleep(SLEEP_TIME)
+    ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 }

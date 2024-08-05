@@ -31,12 +31,14 @@ object StateModel {
     case object Approximating extends Status
     case object ComputingFullDistances extends Status
     case object Finalizing extends Status
+    case object Finished extends Status
     
     given Ordering[Status] = Ordering.by {
       case Initializing => 0
       case Approximating => 1
       case ComputingFullDistances => 2
       case Finalizing => 3
+      case Finished => 4
     }
   }
 
@@ -170,6 +172,8 @@ object StateModel {
           JsString("ComputingFullDistances")
         case Status.Finalizing =>
           JsString("Finalizing")
+        case Status.Finished =>
+          JsString("Finished")
       }
 
       override def read(json: JsValue): Status = json match {
@@ -177,6 +181,7 @@ object StateModel {
         case JsString("Approximating") => Status.Approximating
         case JsString("ComputingFullDistances") => Status.ComputingFullDistances
         case JsString("Finalizing") => Status.Finalizing
+        case JsString("Finished") => Status.Finished
         case _ => throw DeserializationException("Invalid status")
       }
     }

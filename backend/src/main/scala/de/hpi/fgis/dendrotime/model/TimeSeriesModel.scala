@@ -7,16 +7,17 @@ object TimeSeriesModel {
 
   sealed trait TimeSeries {
     def id: Long
+    def idx: Int
     def data: Array[Double]
   }
-  final case class RawTimeSeries(id: Long, data: Array[Double]) extends TimeSeries
-  final case class LabeledTimeSeries(id: Long, data: Array[Double], label: String) extends TimeSeries
+  final case class RawTimeSeries(id: Long, idx: Int, data: Array[Double]) extends TimeSeries
+  final case class LabeledTimeSeries(id: Long, idx: Int, data: Array[Double], label: String) extends TimeSeries
 
   given Ordering[TimeSeries] = Ordering.by(_.id)
 
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-    given RootJsonFormat[RawTimeSeries] = jsonFormat2(RawTimeSeries.apply)
+    given RootJsonFormat[RawTimeSeries] = jsonFormat3(RawTimeSeries.apply)
 
-    given RootJsonFormat[LabeledTimeSeries] = jsonFormat3(LabeledTimeSeries.apply)
+    given RootJsonFormat[LabeledTimeSeries] = jsonFormat4(LabeledTimeSeries.apply)
   }
 }

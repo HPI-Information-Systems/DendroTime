@@ -24,7 +24,8 @@ object Communicator {
       Status.Initializing -> 20,
       Status.Approximating -> 0,
       Status.ComputingFullDistances -> 0,
-      Status.Finalizing -> 0
+      Status.Finalizing -> 0,
+      Status.Finished -> 100
     )
     new Communicator(ctx).running(Status.Initializing, startProgress, Hierarchy.empty)
   }}

@@ -57,13 +57,15 @@ private class DatasetLoader private (
 
   private def loadDataset(id: Int, path: String, replyTo: ActorRef[Response]): Try[Unit] = Try {
     val file = new File(path)
+    var idx = 0
     parser.parse(file, new TsParser.TsProcessor {
       override def processUnivariate(data: Array[Double], label: String): Unit = {
         ctx.log.trace("New univariate TS ts-{} with d-{} values and label '{}'", idGen, data.length, label)
-        val ts = LabeledTimeSeries(idGen, data, label)
+        val ts = LabeledTimeSeries(idGen, idx, data, label)
         tsManager ! TimeSeriesManager.AddTimeSeries(id, ts)
         replyTo ! NewTimeSeries(datasetId = id, tsId = idGen)
         idGen += 1
+        idx += 1
       }
     })
   }

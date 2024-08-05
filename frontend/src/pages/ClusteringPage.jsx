@@ -20,7 +20,7 @@ function ClusteringPage() {
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
-  const pollingInterval = 1000;
+  const pollingInterval = 200;
 
   const startDemoJob = useCallback(() => {
     fetch("/api/jobs", {
@@ -28,28 +28,34 @@ function ClusteringPage() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(dataset)
     })
-      .then(resp => resp.json())
+      .then(resp => {
+        if (resp.status >= 300) {
+          resp.text().then(txt => toast.error("Failed to start job: " + txt));
+        } else {
+          return resp.json();
+        }
+      })
       .then(data => {
+        if (!data) return;
         const jobId = data.id;
         setJobId(jobId);
+        setState(defaultState);
         startPolling(jobId);
       })
       .catch(toast.error);
-  }, [dataset, setJobId]);
+  }, [dataset, setJobId, setState]);
 
   const startPolling = useCallback((jobId) => {
     toast.info("Starting job " + jobId + " and polling ...");
-    const inter = setInterval(() => {
-      console.debug("Polling...");
-      fetch("/api/jobs/" + jobId + "/progress", {
-        method: "GET",
-        headers: {'Content-Type': 'application/json'},
-      })
+    function poll() {
+      fetch("/api/jobs/" + jobId + "/progress")
         .then(resp => resp.json())
         .then(data => setState(data))
         .catch(toast.error);
-    }, pollingInterval);
+    }
+    const inter = setInterval(poll, pollingInterval);
     setPolling(inter);
+    poll();
   }, [setState]);
 
   const abortPolling = useCallback(() => {
@@ -72,6 +78,14 @@ function ClusteringPage() {
       .catch(toast.error);
   }, [jobId, polling, setPolling]);
 
+  useEffect(() => {
+    if (polling && state.state === "Finished") {
+      clearInterval(polling);
+      setPolling(null);
+      toast.success("Job " + jobId + " finished successfully!");
+    }
+  }, [polling, state, setPolling]);
+
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold">Clustering</h1>
@@ -90,7 +104,7 @@ function ClusteringPage() {
       <Divider />
       <WidthProvider>
         {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (
-          <D3Dendrogram data={state.hierarchy} />
+          <D3Dendrogram key={jobId} data={state.hierarchy} />
         )}
       </WidthProvider>
     </div>

@@ -4,7 +4,7 @@ import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 
 import scala.collection.immutable.{HashMap, Set}
 import scala.concurrent.duration.*
@@ -20,7 +20,7 @@ object TimeSeriesManager {
   private case object StatusTick extends Command
 
   sealed trait GetTimeSeriesResponse
-  case class TimeSeriesFound(timeseries: LabeledTimeSeries) extends GetTimeSeriesResponse
+  case class TimeSeriesFound(timeseries: TimeSeries) extends GetTimeSeriesResponse
   case class TimeSeriesNotFound(id: Long) extends GetTimeSeriesResponse
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
@@ -36,15 +36,15 @@ object TimeSeriesManager {
       case AddReceiver(replyTo) =>
         DatasetLoadingHandler(receivers + replyTo)
       case DatasetLoader.DatasetLoaded(id, tsIds) =>
-        ctx.log.debug("Received dataset loaded message for dataset d-{}, forwarding", id)
+//        ctx.log.debug("Received dataset loaded message for dataset d-{}, forwarding", id)
         receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(id, tsIds.toSet))
         Behaviors.stopped
       case DatasetLoader.DatasetNotLoaded(id, reason) =>
-        ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
+//        ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
         receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(id, reason))
         Behaviors.stopped
       case DatasetLoader.NewTimeSeries(datasetId, tsId) =>
-        ctx.log.debug("Received new time series message: forwarding message.")
+//        ctx.log.debug("Received new time series message: forwarding message.")
         receivers.foreach(_ ! Coordinator.NewTimeSeries(datasetId, tsId))
         Behaviors.same
     })
@@ -76,7 +76,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
         timeseries + (ts.id -> ts),
         datasetMapping.updatedWith(datasetId){
           case Some(mapping) => Some(mapping + ts.id)
-          case None => Some(Set.empty)
+          case None => Some(Set(ts.id))
         },
         handlers
       )

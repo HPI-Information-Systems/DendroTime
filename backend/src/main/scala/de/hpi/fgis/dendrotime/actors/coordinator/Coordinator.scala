@@ -8,11 +8,15 @@ import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.StateModel.Status
 
+import scala.concurrent.duration.*
+
 
 object Coordinator {
 
   sealed trait Command
   case object CancelProcessing extends Command
+  case object ClusteringFinished extends Command
+  private case object Stop extends Command
 
   sealed trait TsLoadingCommand extends Command
   case class NewTimeSeries(datasetId: Int, tsId: Long) extends TsLoadingCommand
@@ -20,9 +24,8 @@ object Coordinator {
   case class FailedToLoadAllTimeSeries(datasetId: Int, cause: String) extends TsLoadingCommand
 
   case class DispatchWork(worker: ActorRef[Worker.Command]) extends Command
-  case class ApproximationResult(t1: Long, t2: Long, dist: Double) extends Command
-  case class FullResult(t1: Long, t2: Long, dist: Double) extends Command
-  case object ClusteringFinished extends Command
+  case class ApproximationResult(t1: Long, t2: Long, t1Idx: Int, t2Idx: Int, dist: Double) extends Command
+  case class FullResult(t1: Long, t2: Long, t1Idx: Int, t2Idx: Int, dist: Double) extends Command
 
   sealed trait Response
   case class ProcessingStarted(id: Long, communicator: ActorRef[Communicator.Command]) extends Response
@@ -121,9 +124,9 @@ private class Coordinator private (
       stash.stash(m)
       Behaviors.same
 
-    case ApproximationResult(t1, t2, dist) =>
+    case ApproximationResult(t1, t2, idx1, idx2, dist) =>
       ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
-      clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
+      clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
       val newQueue = workQueue.removePending((t1, t2))
       initializing(tsIds, newQueue)
   }
@@ -153,17 +156,17 @@ private class Coordinator private (
           communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(approxWorkQueue.size, allIds.size))
           computingFullDistances(newQueue, allIds)
 
-      case ApproximationResult(t1, t2, dist) =>
+      case ApproximationResult(t1, t2, idx1, idx2, dist) =>
         ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
         val newQueue = approxWorkQueue.removePending((t1, t2))
-        clusterer ! Clusterer.ApproximateDistance(t1.toInt, t2.toInt, dist)
+        clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(newQueue.size, allIds.size))
         approximating(newQueue, fullWorkQueue, allIds)
 
-      case FullResult(t1, t2, dist) =>
+      case FullResult(t1, t2, idx1, idx2, dist) =>
         ctx.log.debug("Full result {}-{}: {}", t1, t2, dist)
         val newQueue = fullWorkQueue.removePending((t1, t2))
-        clusterer ! Clusterer.FullDistance(t1.toInt, t2.toInt, dist)
+        clusterer ! Clusterer.FullDistance(idx1, idx2, dist)
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(newQueue.size, allIds.size))
         approximating(approxWorkQueue, newQueue, allIds)
     }
@@ -186,18 +189,23 @@ private class Coordinator private (
         ctx.log.info("No more work to do, waiting for clustering!")
         communicator ! Communicator.NewStatus(Status.Finalizing)
         communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
-        waitingForClustering()
+        if workQueue.hasPending then
+          Behaviors.same
+        else
+          clusterer ! Clusterer.ReportFinished(ctx.self)
+          ctx.unwatch(clusterer)
+          Behaviors.withTimers { timers =>
+            timers.startSingleTimer("stopping-timeout", Stop, 30 seconds span)
+            waitingForClustering()
+          }
       else
         Behaviors.same
 
-    case FullResult(t1, t2, dist) =>
+    case FullResult(t1, t2, idx1, idx2, dist) =>
       ctx.log.debug("Full result {}-{}: {}", t1, t2, dist)
       val newQueue = workQueue.removePending((t1, t2))
-      clusterer ! Clusterer.FullDistance(t1.toInt, t2.toInt, dist)
+      clusterer ! Clusterer.FullDistance(idx1, idx2, dist)
       communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(newQueue.size, allIds.size))
-      if workQueue.isEmpty then
-        clusterer ! Clusterer.ReportFinished(ctx.self)
-        ctx.unwatch(clusterer)
       computingFullDistances(newQueue, allIds)
   }
 
@@ -209,10 +217,15 @@ private class Coordinator private (
 
     case ClusteringFinished =>
       communicator ! Communicator.ProgressUpdate(Status.Finalizing, 100)
+      communicator ! Communicator.NewStatus(Status.Finished)
       ctx.log.info("Finished processing job {}", id)
+      Behaviors.same
+
+    case Stop =>
+      ctx.log.info("Shutting down coordinator due to timeout")
       reportTo ! ProcessingEnded(id)
-      // TODO: wait until all results have been send to frontend
       Behaviors.stopped
+
     case m =>
       ctx.log.warn("Received unexpected message! {}", m)
       Behaviors.same
