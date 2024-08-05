@@ -59,7 +59,8 @@ private[hierarchy] object NNChain {
         .lazyZip(sizes.indices)
         .withFilter((ni, i) => ni != 0 && i != y)
         .foreach { (ni, i) =>
-          d(i, y) = linkage(d(i, x), d(i, y), distXY, nx, ny, ni)
+          val newDist = linkage(d(i, x), d(i, y), distXY, nx, ny, ni)
+          d(i, y) = if newDist.isNaN then Double.PositiveInfinity else newDist
         }
 
     z.sort()
@@ -109,8 +110,15 @@ private[hierarchy] object NNChain {
 
 @main
 def main(): Unit = {
-  val dists = PDist(4)(0.1, 0.2, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity)
-  val linkage = Linkage.CompleteLinkage
+//  val dists = PDist(7)(0.1, Double.PositiveInfinity, Double.PositiveInfinity, 0.25, Double.PositiveInfinity, 0.1,
+//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
+//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
+//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
+//    Double.PositiveInfinity, Double.PositiveInfinity, 0.1,
+//  )
+  val dists = PDist.empty(20)
+  val linkage = Linkage.WardLinkage
   val hierarchy = NNChain(dists, linkage, adjustLabels = true)
-  println(hierarchy)
+  for node <- hierarchy do
+    println(node)
 }
