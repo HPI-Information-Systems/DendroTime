@@ -9,20 +9,20 @@ import java.nio.file.{Files, Paths}
 import scala.util.{Failure, Success, Try}
 
 object DatasetRegistry {
-  
+
   sealed trait Command
   case class GetDatasets(replyTo: ActorRef[GetDatasetsResponse]) extends Command
   case class GetDataset(id: Int, replyTo: ActorRef[GetDatasetResponse]) extends Command
   case class AddDataset(dataset: Dataset, replyTo: ActorRef[AddDatasetResponse]) extends Command
   case class RemoveDataset(id: Int, replyTo: ActorRef[RemoveDatasetResponse]) extends Command
-  
+
   final case class GetDatasetsResponse(datasets: Seq[Dataset])
   final case class GetDatasetResponse(dataset: Option[Dataset])
   sealed trait AddDatasetResponse
   final case class DatasetAdded(dataset: Dataset) extends AddDatasetResponse
   final case class DatasetNotAdded(reason: String) extends AddDatasetResponse
   final case class RemoveDatasetResponse(id: Int)
-  
+
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetRegistry(ctx).start()
   }
@@ -30,23 +30,23 @@ object DatasetRegistry {
 
 private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command]) {
   import DatasetRegistry.*
-  
+
   private val dataPath = Settings(ctx.system).dataPath
-  
+
   private def start(): Behavior[Command] = {
     val datasets = loadExistingDatasets
     running(datasets)
   }
-  
+
   private def running(datasets: Map[Int, Dataset]): Behavior[Command] = Behaviors.receiveMessage{
     case GetDatasets(replyTo) =>
       replyTo ! GetDatasetsResponse(datasets.values.toSeq.sorted)
       Behaviors.same
-      
+
     case GetDataset(id, replyTo) =>
       replyTo ! GetDatasetResponse(datasets.get(id))
       Behaviors.same
-      
+
     case AddDataset(dataset, replyTo) =>
       if datasets.contains(dataset.id) then
         replyTo ! DatasetNotAdded("Dataset with id d-${dataset.id} already exists")
@@ -60,7 +60,7 @@ private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command
           case Failure(e) =>
             replyTo ! DatasetNotAdded(e.toString)
             Behaviors.same
-      
+
     case RemoveDataset(id, replyTo) =>
       replyTo ! RemoveDatasetResponse(id)
       running(datasets - id)
@@ -71,13 +71,13 @@ private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command
     if !localDatasetsFolder.exists() then
       localDatasetsFolder.mkdir()
 
-    localDatasetsFolder.listFiles(_.isDirectory).sorted.zipWithIndex.flatMap { (file, i) =>
-      for {
-        datasetFile <- file.listFiles().find(_.getName.endsWith(".ts"))
-        if datasetFile.isFile
-      } yield
-        i -> Dataset(i, datasetFile.getName, datasetFile.getCanonicalPath)
-    }.toMap
+    localDatasetsFolder.listFiles(_.isDirectory).sorted.flatMap { file =>
+      file.listFiles()
+          .filter(_.getName.endsWith(".ts"))
+          .filter(_.isFile)
+    }.zipWithIndex.map((file, i) =>
+      (i, Dataset(i, file.getName, file.getCanonicalPath))
+    ).toMap
   }
 
   private def cacheNewDataset(dataset: Dataset, newId: Int): Try[Dataset] = Try {
