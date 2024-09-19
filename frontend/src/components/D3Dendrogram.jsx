@@ -5,7 +5,6 @@ import {WidthContext} from "./WidthProvider";
 function getHierarchyRoot(data) {
   const {hierarchy: h, n: nLeafs} = data;
   const nClusters = h.length;
-  console.log("nLeafs:", nLeafs, "nClusters:", nClusters);
   const nodes = Array(nLeafs + nClusters);
   const reachable = Array(nLeafs + nClusters);
 
@@ -86,7 +85,7 @@ function D3Dendrogram({data}) {
   const hierarchy = getHierarchyRoot(data);
   // optimize: useMemo
   const root = d3.hierarchy(hierarchy);
-  console.log("Root:", root);
+  // console.log("Root:", root);
 
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!

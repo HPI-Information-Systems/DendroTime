@@ -16,7 +16,7 @@ object Coordinator {
   sealed trait Command
   case object CancelProcessing extends Command
   case object ClusteringFinished extends Command
-  private case object Stop extends Command
+  case object Stop extends Command
 
   sealed trait TsLoadingCommand extends Command
   case class NewTimeSeries(datasetId: Int, tsId: Long) extends TsLoadingCommand
@@ -194,6 +194,7 @@ private class Coordinator private (
         else
           clusterer ! Clusterer.ReportFinished(ctx.self)
           ctx.unwatch(clusterer)
+          reportTo ! ProcessingStatus(id, Status.Finished)
           Behaviors.withTimers { timers =>
             timers.startSingleTimer("stopping-timeout", Stop, 30 seconds span)
             waitingForClustering()
@@ -222,7 +223,7 @@ private class Coordinator private (
       Behaviors.same
 
     case Stop =>
-      ctx.log.info("Shutting down coordinator due to timeout")
+      ctx.log.info("Shutting down coordinator")
       reportTo ! ProcessingEnded(id)
       Behaviors.stopped
 

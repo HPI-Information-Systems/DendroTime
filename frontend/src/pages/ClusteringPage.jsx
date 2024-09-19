@@ -1,4 +1,4 @@
-import {Button, Divider} from "@tremor/react";
+import {Button, Divider, Switch} from "@tremor/react";
 import React, {useState, useEffect, useCallback} from "react";
 import DatasetPicker from "../components/DatasetPicker";
 import StatusOverview from "../components/StatusOverview";
@@ -83,25 +83,31 @@ function ClusteringPage() {
       clearInterval(polling);
       setPolling(null);
       toast.success("Job " + jobId + " finished successfully!");
+      setTimeout(() => fetch("/api/jobs/" + jobId, {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: "stop"
+      }).catch(toast.error), 500);
+
     }
   }, [polling, state, setPolling]);
 
   return (
     <div className="m-5">
-      <h1 className="text-3xl font-bold">Clustering</h1>
+      <h1 className="text-3xl font-bold m-5 mx-auto">Clustering</h1>
       <div className="flex flex-auto mx-auto">
         <DatasetPicker onSelect={dataset => setDataset(dataset)}/>
       </div>
       <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>
-      <div className="flex justify-center items-center m-10">
+      <div className="flex justify-center items-center m-5">
         <Button className="mx-auto" variant="primary" size="lg" disabled={!!polling || !dataset} onClick={startDemoJob}>
-          Start demo Job
+          Start Clustering
         </Button>
-        <Button className="mx-auto" variant="secondary" disabled={false && !polling} size="lg" onClick={abortPolling}>
-          Abort Job {jobId ? jobId.toString() : ""}
+        <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
+          Cancel Clustering
         </Button>
       </div>
-      <Divider />
+      <Divider/>
       <WidthProvider>
         {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (
           <D3Dendrogram key={jobId} data={state.hierarchy} />

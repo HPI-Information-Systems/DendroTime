@@ -405,16 +405,18 @@ function DendoTest() {
         </Button>
       </div>
       <span className="text-lg font-bold">State: {state.state}</span>
-      <Divider className="border-2" />
+      <Divider className="border-2"/>
       <WidthProvider>
         {!state.hierarchy.hierarchy ? (<></>) : (
-          <D3Dendrogram data={state.hierarchy} />
+          <D3Dendrogram data={state.hierarchy}/>
         )}
       </WidthProvider>
-      <Divider className="border-2" />
-      <span>{JSON.stringify(state.hierarchy)}</span>
+      <Divider className="border-2"/>
+      <pre className="block m-0 pl-2 overscroll-y-auto">
+        {JSON.stringify(state.hierarchy, null, 2)}
+      </pre>
     </div>
-  )
+)
 }
 
 export default DendoTest;

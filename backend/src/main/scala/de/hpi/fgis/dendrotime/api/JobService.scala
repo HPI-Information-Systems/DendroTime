@@ -14,6 +14,8 @@ import de.hpi.fgis.dendrotime.model.{DatasetModel, StateModel}
 import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
+import scala.util.{Failure, Success, Try}
+
 object JobService {
   final case class Job(id: Long, dataset: DatasetModel.Dataset)
 
@@ -60,6 +62,17 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
                 onSuccess(scheduler.ask[Scheduler.ProcessingStatus](Scheduler.GetStatus.apply)) { response =>
                   given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
                   complete(StatusCodes.OK, response)
+                }
+              },
+              post {
+                entity(as[String]) {
+                  case "pause" => complete(StatusCodes.NotImplemented)
+                  case "resume" => complete(StatusCodes.NotImplemented)
+                  case "stop" => onSuccess(scheduler.ask[Try[Unit]](Scheduler.StopProcessing(id, _))) {
+                    case Failure(response) => complete(StatusCodes.BadRequest, response.getMessage)
+                    case Success(_) => complete(StatusCodes.OK)
+                  }
+                  case _ => complete(StatusCodes.BadRequest, "Invalid command")
                 }
               },
               delete {

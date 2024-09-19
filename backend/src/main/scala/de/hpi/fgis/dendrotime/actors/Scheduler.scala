@@ -3,13 +3,17 @@ package de.hpi.fgis.dendrotime.actors
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.Stop
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
-import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
+import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
+
+import scala.util.{Failure, Success, Try}
 
 object Scheduler {
 
   sealed trait Command
   case class StartProcessing(dataset: Dataset, replyTo: ActorRef[Response]) extends Command
+  case class StopProcessing(id: Long, replyTo: ActorRef[Try[Unit]]) extends Command
   case class GetStatus(replyTo: ActorRef[ProcessingStatus]) extends Command
   case class CancelProcessing(id: Long, replyTo: ActorRef[ProcessingCancelled]) extends Command
   private case class ProcessingResponse(msg: Coordinator.Response, replyTo: ActorRef[ProcessingOutcome]) extends Command
@@ -55,6 +59,9 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       ctx.log.warn("No dataset is currently being processed!")
       replyTo ! ProcessingCancelled(id, "Nothing changed, no dataset is currently being processed!")
       Behaviors.same
+    case StopProcessing(id, replyTo) =>
+      replyTo ! Failure[Unit](new IllegalStateException("No dataset is currently being processed!"))
+      Behaviors.same
   }
 
   private def starting(jobId: Long, dataset: Dataset, coordinator: ActorRef[Coordinator.Command]): Behavior[Command] = {
@@ -63,6 +70,10 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
         ctx.log.info("Successfully started processing dataset job={}", id)
         replyTo ! ProcessingStarted(id)
         inProgress(id, dataset, coordinator, communicator)
+      case ProcessingResponse(Coordinator.ProcessingEnded(id), replyTo) =>
+        ctx.log.info("Successfully processed dataset job={}", id)
+        ctx.unwatch(coordinator)
+        idle(jobId)
       case GetProgress(id, replyTo) =>
         replyTo ! ProgressMessage.Unchanged
         Behaviors.same
@@ -81,6 +92,10 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       case ProcessingResponse(Coordinator.ProcessingStarted(_, _), _) =>
         ctx.log.warn("Received duplicated processing started message, ignoring")
         Behaviors.same
+      case ProcessingResponse(m @ Coordinator.ProcessingStatus(`jobId`, Status.Finished), _) =>
+        ctx.log.debug("Processing finished, waiting for stop message")
+        ctx.unwatch(coordinator)
+        finished(jobId, dataset, coordinator, communicator)
       case GetProgress(id, replyTo) =>
         communicator ! Communicator.GetProgress(replyTo)
         Behaviors.same
@@ -114,8 +129,8 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
 
     case ProcessingResponse(Coordinator.ProcessingEnded(id), replyTo) =>
       ctx.log.info("Successfully processed dataset job={}", id)
-      //        replyTo ! ProcessingFinished(d)
       ctx.unwatch(coordinator)
+      coordinator ! Stop
       idle(jobId)
     case ProcessingResponse(Coordinator.ProcessingFailed(id), replyTo) =>
       ctx.log.error("Failed to process dataset job={}", id)
@@ -124,6 +139,54 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
     case ProcessingResponse(m @ Coordinator.ProcessingStatus(_, _), _) =>
       ctx.log.debug("Ignored status message: {}", m)
       // ignore
+      Behaviors.same
+    case StopProcessing(id, replyTo) =>
+      replyTo ! Failure[Unit](new IllegalStateException("Processing is still underway! Use the cancel command instead."))
+      Behaviors.same
+  }
+
+  private def finished(jobId: Long, dataset: Dataset,
+                       coordinator: ActorRef[Coordinator.Command],
+                       communicator: ActorRef[Communicator.Command]): Behavior[Command] = Behaviors.receiveMessage{
+    case StartProcessing(d, replyTo) =>
+      ctx.log.warn("Already processing a dataset, ignoring request to start processing dataset {}", d)
+      replyTo ! ProcessingRejected
+      Behaviors.same
+    case GetStatus(replyTo) =>
+      replyTo ! ProcessingStatus(jobId, Some(dataset))
+      Behaviors.same
+    case GetProgress(id, replyTo) =>
+      communicator ! Communicator.GetProgress(replyTo)
+      Behaviors.same
+    case CancelProcessing(id, replyTo) =>
+      if id == jobId then
+        ctx.log.info("Cancelling processing job with ID {} (dataset: {})", id, dataset)
+        coordinator ! Coordinator.CancelProcessing
+        replyTo ! ProcessingCancelled(jobId, "Cancelled by user")
+        Behaviors.same
+      else
+        ctx.log.warn("No dataset with id {} is currently being processed", id)
+        replyTo ! ProcessingCancelled(id, s"The job with id $id is currently not being processed (current=$jobId)")
+        Behaviors.same
+
+    case ProcessingResponse(Coordinator.ProcessingStarted(id, _), replyTo) =>
+      ctx.log.warn("Received duplicated processing started message, ignoring")
+      Behaviors.same
+    case ProcessingResponse(Coordinator.ProcessingEnded(id), replyTo) =>
+      ctx.log.info("Successfully processed dataset job={}", id)
+      //        replyTo ! ProcessingFinished(d)
+      idle(jobId)
+    case ProcessingResponse(Coordinator.ProcessingFailed(id), replyTo) =>
+      ctx.log.error("Failed to process dataset job={}", id)
+      //        replyTo ! ProcessingFailed(d)
+      Behaviors.same
+    case ProcessingResponse(m @ Coordinator.ProcessingStatus(_, _), _) =>
+      ctx.log.debug("Ignored status message: {}", m)
+      // ignore
+      Behaviors.same
+    case StopProcessing(id, replyTo) =>
+      coordinator ! Stop
+      replyTo ! Success[Unit](())
       Behaviors.same
   }
   
