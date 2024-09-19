@@ -20,6 +20,7 @@ function ClusteringPage() {
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
+  const [useEqualNodeDistance, setUseEqualNodeDistance] = useState(false);
   const pollingInterval = 200;
 
   const startDemoJob = useCallback(() => {
@@ -92,6 +93,10 @@ function ClusteringPage() {
     }
   }, [polling, state, setPolling]);
 
+  const handleDistanceMetricSwitch = useCallback(() => {
+    setUseEqualNodeDistance(!useEqualNodeDistance);
+  }, [useEqualNodeDistance, setUseEqualNodeDistance]);
+
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold m-5 mx-auto">Clustering</h1>
@@ -106,11 +111,29 @@ function ClusteringPage() {
         <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
           Cancel Clustering
         </Button>
+        <div className="flex items-center space-x-3 m-5 mx-auto">
+          <Switch id="horiz-measure-switch" checked={useEqualNodeDistance} onChange={handleDistanceMetricSwitch}/>
+          <label htmlFor="horiz-measure-switch"
+                 className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+            Use equal node distances
+          </label>
+        </div>
+      </div>
+      <div className="flex justify-center items-center my-auto">
+        {(jobId && polling) ? (
+          <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+            Currently processing job {jobId ? jobId.toString() : ""}: Dataset {dataset.name}.
+          </span>
+        ) : (jobId && state?.state === "Finished") ? (
+          <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+            Finished processing job {jobId ? jobId.toString() : ""}.
+          </span>
+        ) : (<></>)}
       </div>
       <Divider/>
       <WidthProvider>
         {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (
-          <D3Dendrogram key={jobId} data={state.hierarchy} />
+          <D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>
         )}
       </WidthProvider>
     </div>

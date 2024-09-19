@@ -69,12 +69,11 @@ function getHierarchyRoot(data) {
       .map(n => isNaN(n.distance) ? 0 : n.distance)
       .reduceRight((a, b) => a>b? a:b, 0)
     root.distance = 1.1*maxDistance;
-    console.log(maxDistance, root.distance);
   }
   return root;
 }
 
-function D3Dendrogram({data}) {
+function D3Dendrogram({data, useEqualNodeDistance}) {
   const id = useId().replaceAll(":", "");
   // fixed width of outer div, the height is dynamic on dataset size!
   const width = useContext(WidthContext);
@@ -102,7 +101,6 @@ function D3Dendrogram({data}) {
       .nodeSize([dx, dy])
       .separation((a, b) => 1);
     tree(root);
-    const maxDistance = root.value;
 
     // Compute the extent of the tree. Note that x and y are swapped here
     // because in the tree layout, x is the breadth, but when displayed, the
@@ -132,6 +130,9 @@ function D3Dendrogram({data}) {
     // const yAxis = svg.call(d3.axisLeft(yScale))
 
     // console.log("New axis location", top + axisHeight/2);
+    const maxDistance = useEqualNodeDistance ? root.height : root.value;
+    const fx = d => useEqualNodeDistance ? d.y : xScale(d.data.distance);
+    const fy = d => d.x;
     const xScale = d3.scaleLinear()
       .domain([maxDistance, 0])
       .range([0, width-2*horizMargin]);
@@ -139,9 +140,8 @@ function D3Dendrogram({data}) {
       // .transition().duration(tDuration)
       .attr("transform", `translate(0,${top + axisHeight/2})`)
       .call(d3.axisTop(xScale));
-    const connection = d3.linkHorizontal()
-      .x(d => xScale(d.data.distance))
-      .y(d => d.x);
+    const connection = d3.linkHorizontal().x(fx).y(fy);
+
 
     const links = d3.select(`#${id}-links`).selectAll("path")
       .data(root.links(), d => d? d.id : this.id)
@@ -168,7 +168,7 @@ function D3Dendrogram({data}) {
         enter => {
           const selection = enter.append("g");
           selection//.transition().duration(tDuration)
-            .attr("transform", d => `translate(${xScale(d.data.distance)},${d.x})`)
+            .attr("transform", d => `translate(${fx(d)},${fy(d)})`)
             .attr("id", d => d.data.id);
           selection.filter(d => !d.children).append("text")
               .attr("fill", "black")
@@ -181,7 +181,7 @@ function D3Dendrogram({data}) {
           return selection;
         },
         update => update.transition().duration(tDuration)
-          .attr("transform", d => `translate(${xScale(d.data.distance)},${d.x})`)
+          .attr("transform", d => `translate(${fx(d)},${fy(d)})`)
           .attr("id", d => d.data.id),
         // exit => exit.transition().duration(tDuration).remove()
       )
@@ -194,7 +194,7 @@ function D3Dendrogram({data}) {
 
     // nodes.exit().transition().duration(tDuration).remove()
     //   .selectAll("circle").remove();
-  }, [id, data, width]);
+  }, [id, data, width, useEqualNodeDistance]);
   /////////////////////////////////////////////////////////////////////////////
 
   return (
