@@ -19,6 +19,7 @@ object Coordinator {
   case object Stop extends Command
 
   sealed trait TsLoadingCommand extends Command
+  case class DatasetHasNTimeseries(n: Int) extends TsLoadingCommand
   case class NewTimeSeries(datasetId: Int, tsId: Long) extends TsLoadingCommand
   case class AllTimeSeriesLoaded(datasetId: Int, ids: Set[Long]) extends TsLoadingCommand
   case class FailedToLoadAllTimeSeries(datasetId: Int, cause: String) extends TsLoadingCommand
@@ -81,7 +82,7 @@ private class Coordinator private (
     initializing(Seq.empty, WorkQueue.empty)
   }
 
-  private def initializing(tsIds: Seq[Long], workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def initializing(tsIds: Seq[Long], workQueue: WorkQueue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessage {
     case CancelProcessing =>
       ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
       reportTo ! ProcessingFailed(id)
@@ -96,20 +97,13 @@ private class Coordinator private (
           initializing(tsIds :+ tsId, workQueue.enqueueAll(tsIds.map((_, tsId))))
         )
 
-    case AllTimeSeriesLoaded(_, allTsIds) =>
-      ctx.log.info("All {} time series loaded for dataset d-{}", allTsIds.size, dataset.id)
-      if allTsIds.size != tsIds.size then
-        throw new IllegalStateException("Not all time series were loaded")
+    case DatasetHasNTimeseries(n) =>
+      ctx.log.info("Dataset d-{} has {} time series, starting clusterer and switching to loading state", dataset.id, n)
+      // switch to loading state
+      clusterer ! Clusterer.Initialize(n)
+      stash.unstashAll(loading(n, tsIds, workQueue))
 
-      // switch to approximating state
-      clusterer ! Clusterer.Initialize(allTsIds.size)
-      communicator ! Communicator.NewStatus(Status.Approximating)
-      val fullQueue = WorkQueue.from(
-        tsIds.combinations(2).map(p => (p(0), p(1))).to(Iterable)
-      )
-      stash.unstashAll(approximating(workQueue, fullQueue, allTsIds))
-
-    case FailedToLoadAllTimeSeries(_, reason) =>
+    case FailedToLoadAllTimeSeries(_, _) =>
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
@@ -129,6 +123,61 @@ private class Coordinator private (
       clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
       val newQueue = workQueue.removePending((t1, t2))
       initializing(tsIds, newQueue)
+
+    case m =>
+      throw new IllegalStateException(f"STATE=initializing: Received unexpected message $m!")
+  }
+
+  private def loading(nTimeseries: Int, tsIds: Seq[Long], workQueue: WorkQueue[(Long, Long)]):  Behavior[Command] = Behaviors.receiveMessage {
+    case CancelProcessing =>
+      ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
+      reportTo ! ProcessingFailed(id)
+      Behaviors.stopped
+
+    case NewTimeSeries(datasetId, tsId) =>
+      ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, datasetId)
+      if tsIds.isEmpty then
+        loading(nTimeseries, tsIds :+ tsId, workQueue)
+      else
+        stash.unstashAll(
+          loading(nTimeseries, tsIds :+ tsId, workQueue.enqueueAll(tsIds.map((_, tsId))))
+        )
+
+    case AllTimeSeriesLoaded(_, allTsIds) =>
+      ctx.log.info("All {} time series loaded for dataset d-{}", allTsIds.size, dataset.id)
+      if allTsIds.size != tsIds.size || allTsIds.size != nTimeseries then
+        throw new IllegalStateException(f"Not all time series were loaded (${tsIds.size} of $nTimeseries)")
+
+      // switch to approximating state
+      communicator ! Communicator.NewStatus(Status.Approximating)
+      val fullQueue = WorkQueue.from(
+        tsIds.combinations(2).map(p => (p(0), p(1))).to(Iterable)
+      )
+      stash.unstashAll(approximating(workQueue, fullQueue, allTsIds))
+
+    case FailedToLoadAllTimeSeries(_, _) =>
+      reportTo ! ProcessingFailed(id)
+      Behaviors.stopped
+
+    case DispatchWork(worker) if workQueue.hasWork =>
+      val (work, newQueue) = workQueue.dequeue()
+      ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
+      worker ! Worker.CheckApproximate(work._1, work._2)
+      loading(nTimeseries, tsIds, newQueue)
+
+    case m: DispatchWork =>
+      ctx.log.debug("Worker {} asked for work but there is none", m.worker)
+      stash.stash(m)
+      Behaviors.same
+
+    case ApproximationResult(t1, t2, idx1, idx2, dist) =>
+      ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
+      clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
+      val newQueue = workQueue.removePending((t1, t2))
+      loading(nTimeseries, tsIds, newQueue)
+
+    case m =>
+      throw new IllegalStateException(f"STATE:loading: Received unexpected message $m!")
   }
 
   private def approximating(approxWorkQueue: WorkQueue[(Long, Long)], fullWorkQueue: WorkQueue[(Long, Long)], allIds: Set[Long]): Behavior[Command] =

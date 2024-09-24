@@ -18,6 +18,7 @@ object DatasetLoader {
   sealed trait Response
   case class DatasetLoaded(id: Int, tsIds: NumericRange[Long]) extends Response
   case class DatasetNotLoaded(id: Int, reason: String) extends Response
+  case class DatasetNTimeseries(n: Int) extends Response
   case class NewTimeSeries(datasetId: Int, tsId: Long) extends Response
 
   def apply(tsManager: ActorRef[TimeSeriesManager.Command]): Behavior[Command] = Behaviors.setup { ctx =>
@@ -37,6 +38,7 @@ private class DatasetLoader private (
   private val parser = TsParser(TsParser.TsParserSettings(
     parseMetadata = false,
     tsLimit = settings.maxTimeseries,
+    fastCountParsing = true
   ))
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial {
@@ -59,8 +61,10 @@ private class DatasetLoader private (
     val file = new File(path)
     var idx = 0
     parser.parse(file, new TsParser.TsProcessor {
+      override def processTSCount(nTimeseries: Int): Unit = {
+        replyTo ! DatasetNTimeseries(nTimeseries)
+      }
       override def processUnivariate(data: Array[Double], label: String): Unit = {
-        ctx.log.trace("New univariate TS ts-{} with d-{} values and label '{}'", idGen, data.length, label)
         val ts = LabeledTimeSeries(idGen, idx, data, label)
         tsManager ! TimeSeriesManager.AddTimeSeries(id, ts)
         replyTo ! NewTimeSeries(datasetId = id, tsId = idGen)

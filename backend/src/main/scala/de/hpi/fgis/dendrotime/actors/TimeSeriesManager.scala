@@ -32,7 +32,7 @@ object TimeSeriesManager {
 
   private final case class AddReceiver(replyTo: ActorRef[Coordinator.TsLoadingCommand])
   private def DatasetLoadingHandler(receivers: Set[ActorRef[Coordinator.TsLoadingCommand]]): Behavior[DatasetLoader.Response | AddReceiver] =
-    Behaviors.setup(ctx => Behaviors.receiveMessage {
+    Behaviors.receiveMessage {
       case AddReceiver(replyTo) =>
         DatasetLoadingHandler(receivers + replyTo)
       case DatasetLoader.DatasetLoaded(id, tsIds) =>
@@ -43,11 +43,15 @@ object TimeSeriesManager {
 //        ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
         receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(id, reason))
         Behaviors.stopped
+      case DatasetLoader.DatasetNTimeseries(n) =>
+//        ctx.log.debug("Received number of timeseries, forwarding message.")
+        receivers.foreach(_ ! Coordinator.DatasetHasNTimeseries(n))
+        Behaviors.same
       case DatasetLoader.NewTimeSeries(datasetId, tsId) =>
 //        ctx.log.debug("Received new time series message: forwarding message.")
         receivers.foreach(_ ! Coordinator.NewTimeSeries(datasetId, tsId))
         Behaviors.same
-    })
+    }
 }
 
 private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Command]) {
@@ -89,6 +93,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
     case GetTimeSeriesIds(Right(d), replyTo) =>
       datasetMapping.get(d.id) match {
         case Some(ids) =>
+          replyTo ! Coordinator.DatasetHasNTimeseries(ids.size)
           ids.foreach(replyTo ! Coordinator.NewTimeSeries(d.id, _))
           replyTo ! Coordinator.AllTimeSeriesLoaded(d.id, ids)
           Behaviors.same
