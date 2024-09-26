@@ -26,8 +26,10 @@ object Linkage {
     case "single" => SingleLinkage
     case "complete" => CompleteLinkage
     case "average" => AverageLinkage
-    case "centroid" => CentroidLinkage
     case "ward" => WardLinkage
+    case "weighted" => WeightedLinkage
+    case "median" => throw new IllegalArgumentException("Median linkage is not reducible")
+    case "centroid" => throw new IllegalArgumentException("Centroid linkage is not reducible")
     case _ => throw new IllegalArgumentException(s"Unknown linkage method: $method")
   }
 
@@ -46,14 +48,6 @@ object Linkage {
       (nX * dXi + nY * dYi) / (nX + nY)
   }
 
-  case object CentroidLinkage extends Linkage {
-    override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      Math.sqrt((
-        (nX * dXi * dXi) + (nY * dYi * dYi) -
-          (nX * nY * dXY * dXY) / (nX + nY)
-        ) / (nX + nY))
-  }
-
   case object WardLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
       val t = 1.0 / (nX + nY + nI)
@@ -64,6 +58,15 @@ object Linkage {
       )
   }
 
+  case object WeightedLinkage extends Linkage {
+    override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
+      0.5 * (dXi + dYi)
+  }
+
+  /**
+   * Median linkage does not satisfy the reducible condition; thus, we recommend against using it together with
+   * the NN-chain algorithm in DendroTime.
+   */
   case object MedianLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
       Math.sqrt(
@@ -71,8 +74,15 @@ object Linkage {
       )
   }
 
-  case object WeightedLinkage extends Linkage {
+  /**
+   * Centroid linkage does not satisfy the reducible condition; thus, we recommend against using it together with
+   * the NN-chain algorithm in DendroTime.
+   */
+  case object CentroidLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      0.5 * (dXi + dYi)
+      Math.sqrt((
+        (nX * dXi * dXi) + (nY * dYi * dYi) -
+          (nX * nY * dXY * dXY) / (nX + nY)
+        ) / (nX + nY))
   }
 }
