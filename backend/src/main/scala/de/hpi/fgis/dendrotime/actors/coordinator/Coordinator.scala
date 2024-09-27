@@ -3,7 +3,8 @@ package de.hpi.fgis.dendrotime.actors.coordinator
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, SupervisorStrategy}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.{Clusterer, Communicator, TimeSeriesManager}
+import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
+import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.StateModel.Status

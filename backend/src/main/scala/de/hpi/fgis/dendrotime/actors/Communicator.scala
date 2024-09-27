@@ -1,10 +1,10 @@
 package de.hpi.fgis.dendrotime.actors
 
-import scala.concurrent.duration.*
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.model.StateModel.{DendrogramTree, ProgressMessage, Status}
+import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
 
 import scala.language.postfixOps
 import scala.math.Ordering.Implicits.infixOrderingOps
@@ -19,7 +19,7 @@ object Communicator {
   private case object Tick extends Command
   
   def apply(): Behavior[Command] = Behaviors.setup { ctx => Behaviors.withTimers { timers =>
-    timers.startTimerAtFixedRate(Tick, 1 second)
+    timers.startTimerAtFixedRate(Tick, Settings(ctx.system).reportingInterval)
     val startProgress = Map[Status, Int](
       Status.Initializing -> 20,
       Status.Approximating -> 0,

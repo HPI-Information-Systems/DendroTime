@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors
 
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
@@ -25,7 +26,7 @@ object TimeSeriesManager {
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
-      timers.startTimerWithFixedDelay(StatusTick, 30.seconds)
+      timers.startTimerWithFixedDelay(StatusTick, Settings(ctx.system).reportingInterval)
       new TimeSeriesManager(ctx).start()
     }
   }
