@@ -79,7 +79,8 @@ private[hierarchy] object NNChain {
     boundary {
       var x = 0
       var y = 0
-      var currentMin = Double.PositiveInfinity
+      // start with +INF - 1 to avoid adding the non-existing distances, which are set to +INF
+      var currentMin = Double.PositiveInfinity - 1
       var chainLength = initialLength
       while true do
         x = chain(chainLength - 1)
@@ -90,7 +91,7 @@ private[hierarchy] object NNChain {
           y = chain(chainLength - 2)
           currentMin = d(x, y)
         else
-          currentMin = Double.PositiveInfinity
+          currentMin = Double.PositiveInfinity - 1
 
         for i <- sizes.indices do
           if sizes(i) != 0 && x != i then
