@@ -3,6 +3,8 @@
 
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
+import de.hpi.fgis.bloomfilter.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import de.hpi.fgis.dendrotime.clustering.PDist
 
 import scala.util.boundary
@@ -109,6 +111,52 @@ private[hierarchy] object NNChain {
     }
 }
 
+def testComparison(): Unit = {
+  val N = 1000
+  val dists = PDist.empty(N).mutable
+  val linkage = Linkage.WardLinkage
+  val leftH = NNChain(dists, linkage, adjustLabels = true)
+  dists.update(0, 1, 0.5)
+  dists.update(0, 2, 0.1)
+  dists.update(0, 3, 0.3)
+  dists.update(1, 2, 0.6)
+  dists.update(1, 3, 0.8)
+  dists.update(2, 3, 1.0)
+  val rightH = NNChain(dists, linkage, adjustLabels = true)
+  println("LEFT")
+    for node <- leftH do
+      println(node)
+  println("RIGHT")
+  for node <- rightH do
+    println(node)
+
+  // fill bloom filters
+  val leftBF = Array.ofDim[BloomFilter[Int]](N + N-1)
+  val rightBF = Array.ofDim[BloomFilter[Int]](N + N-1)
+
+  for i <- 0 until N do
+    leftBF(i) = BloomFilter64[Int](N + N - 1, falsePositiveRate = 0.01) += i
+    rightBF(i) = BloomFilter64[Int](N + N - 1, falsePositiveRate = 0.01) += i
+    
+  val t0 = System.nanoTime()
+  val comparisons = Array.ofDim[Boolean](N-1)
+  for i <- 0 until N-1 do
+    leftBF(N + i) = leftBF(leftH.cId1(i)) | leftBF(leftH.cId2(i))
+    rightBF(N + i) = rightBF(rightH.cId1(i)) | rightBF(rightH.cId2(i))
+    comparisons(i) = leftBF(N + i) == rightBF(N + i)
+  val t1 = System.nanoTime()
+
+//  for i <- 0 until N + N-1 do
+//    if i < N then
+//      println(s"$i")
+//    else
+//      println(s"$i: ${leftBF(i)}, ${rightBF(i)}")
+//      println(s"${comparisons(i - N)}")
+      
+  println()
+  println(s"Time: ${(t1 - t0) / 1e6} ms")
+}
+
 @main
 def main(): Unit = {
 //  val dists = PDist(7)(0.1, Double.PositiveInfinity, Double.PositiveInfinity, 0.25, Double.PositiveInfinity, 0.1,
@@ -117,9 +165,10 @@ def main(): Unit = {
 //    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
 //    Double.PositiveInfinity, Double.PositiveInfinity, 0.1,
 //  )
-  val dists = PDist.empty(20)
-  val linkage = Linkage.WardLinkage
-  val hierarchy = NNChain(dists, linkage, adjustLabels = true)
-  for node <- hierarchy do
-    println(node)
+//  val dists = PDist.empty(5)
+//  val linkage = Linkage.WardLinkage
+//  val hierarchy = NNChain(dists, linkage, adjustLabels = true)
+//  for node <- hierarchy do
+//    println(node)
+  testComparison()
 }

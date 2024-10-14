@@ -1,8 +1,5 @@
 ## Bloom filter for Scala
 
-[![Build Status](https://travis-ci.org/alexandrnikitin/bloom-filter-scala.svg?branch=master)](https://travis-ci.org/alexandrnikitin/bloom-filter-scala)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.alexandrnikitin/bloom-filter_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.alexandrnikitin/bloom-filter_2.11)
-
 > [WARNING]
 > 
 > Adaptation of Alexandr Nikitin's bloom-filter library for Scala 3. The original library is
@@ -25,7 +22,7 @@ What's Bloom filter in a nutshell:
 ### Getting Started
 
 ```scala
-libraryDependencies += "com.github.alexandrnikitin" %% "bloom-filter" % "latest.release"
+libraryDependencies += "de.hpi.fgis" %% "bloom-filter" % "0.14.0"
 ```
 
 ```scala

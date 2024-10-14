@@ -23,8 +23,8 @@ lazy val `DendroTime` = project.in(file("."))
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 
-lazy val `backend` = project
-  .in(file("backend"))
+lazy val `backend` = project.in(file("backend"))
+  .dependsOn(`bloom-filter`)
   .settings(
     name := "DendroTime",
     libraryDependencies ++= Seq(
@@ -47,8 +47,7 @@ lazy val `backend` = project
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 
-lazy val `frontend` = project
-  .in(file("./frontend"))
+lazy val `frontend` = project.in(file("./frontend"))
   .settings(
     name := "DendroTime-UI",
     Compile / resourceGenerators += buildFrontend.init
@@ -70,3 +69,32 @@ lazy val buildFrontend = taskKey[Seq[File]]("Generate UI resources") := {
     to
   }
 }
+
+lazy val `bloom-filter` = project.in(file("bloom-filter"))
+  .settings(
+    name := "bloom-filter",
+    version := "0.14.0",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.2.18" % "test",
+      "org.scalacheck" %% "scalacheck" % "1.18.1" % "test"
+    ),
+    scalacOptions ++= Seq(
+      "-rewrite",
+      "-deprecation",
+      "-source:future-migration",
+      "-explaintypes",
+      "-feature",
+      "-Xtarget:12",
+      "-language:postfixOps",
+    ),
+    javacOptions += "-Xlint:deprecation",
+    // testing settings
+    Test / javaOptions += "-Xmx1G",
+    Test / fork := true,
+    Test / parallelExecution := false,
+    Test / testOptions += Tests.Argument(
+      TestFrameworks.ScalaCheck,
+      "-verbosity",
+      "2"
+    )
+  )
