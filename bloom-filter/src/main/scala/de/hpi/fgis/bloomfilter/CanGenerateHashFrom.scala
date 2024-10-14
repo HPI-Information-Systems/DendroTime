@@ -10,6 +10,10 @@ trait CanGenerateHashFrom[From] {
 }
 
 object CanGenerateHashFrom {
+  given CanGenerateHashFrom[Int] with {
+    override def generateHash(from: Int): Long = MurmurHash3Generic.fmix64(from)
+  }
+
   given CanGenerateHashFrom[Long] with {
     override def generateHash(from: Long): Long = MurmurHash3Generic.fmix64(from)
   }
