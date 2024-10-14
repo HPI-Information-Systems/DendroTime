@@ -55,7 +55,7 @@ class UnsafeBitArraysSpec extends Properties("UnsafeBitArray") {
       })
 
       val sut = array & thatArray
-      val result = commonIndices.forall(sut.get)
+      val result = commonIndices.forall(sut.get) && commonIndices.size == sut.getBitCount
 
       array.dispose()
       thatArray.dispose()
