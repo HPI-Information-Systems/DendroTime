@@ -6,7 +6,7 @@ import de.hpi.fgis.bloomfilter.util.Unsafe.unsafe
 import scala.annotation.targetName
 
 @SerialVersionUID(2L)
-class UnsafeBitArray(val numberOfBits: Long) extends Serializable {
+private[bloomfilter] final class UnsafeBitArray(val numberOfBits: Long) extends Serializable with Equals {
   private val indices = math.ceil(numberOfBits.toDouble / 64).toLong
   @transient
   private val ptr = unsafe.allocateMemory(8L * indices)
@@ -70,6 +70,32 @@ class UnsafeBitArray(val numberOfBits: Long) extends Serializable {
 
   @throws(classOf[java.io.ObjectStreamException])
   private def writeReplace: AnyRef = new UnsafeBitArray.SerializedForm(this)
+
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[UnsafeBitArray]
+
+  override def equals(obj: Any): Boolean = obj match
+    case that: UnsafeBitArray =>
+      (this eq that) || (
+        this.canEqual(that) && this.hashCode == that.hashCode &&
+          this.numberOfBits == that.numberOfBits && compareBits(that)
+        )
+    case _ => false
+
+  private def compareBits(that: UnsafeBitArray): Boolean =
+    var index = 0L
+    while (index < numberOfBits)
+      if (unsafe.getLong(this.ptr + (index >>> 6) * 8L) != unsafe.getLong(that.ptr + (index >>> 6) * 8L))
+        return false
+      index += 64
+    true
+
+  override def hashCode(): Int =
+    var hash = 31 * numberOfBits.##
+    var index = 0L
+    while (index < numberOfBits)
+      hash = 31 * hash + unsafe.getLong(this.ptr + (index >>> 6) * 8L).##
+      index += 64
+    hash
 }
 
 object UnsafeBitArray {
