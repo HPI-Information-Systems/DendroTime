@@ -1,6 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter128
 import org.scalacheck.Prop.forAll
 import org.scalacheck.{Gen, Properties}
 import org.scalatest.matchers.should
@@ -20,7 +20,7 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter_128bit") with
 
   property("writeTo & readFrom") = forAll(gen) {
     case (size: Long, indices: List[Long]) =>
-      val initial = BloomFilter[Long](size, 0.01)
+      val initial = BloomFilter128[Long](size, 0.01)
       indices.foreach(initial.add)
 
       val file = File.createTempFile("bloomFilterSerialized", ".tmp")
@@ -28,10 +28,10 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter_128bit") with
       initial.writeTo(out)
       out.close()
       val in = new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
-      val sut = BloomFilter.readFrom[Long](in)
+      val sut = BloomFilter128.readFrom[Long](in)
       in.close()
 
-      sut.approximateElementCount() shouldEqual initial.approximateElementCount()
+      sut.approximateElementCount shouldEqual initial.approximateElementCount
 
       val result = indices.forall(sut.mightContain)
 

@@ -1,6 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter128
 import de.hpi.fgis.bloomfilter.{CanGenerate128HashFrom, CanGenerateHashFrom}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Test.Parameters
@@ -21,7 +21,7 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
     super.overrideParameters(p).withMinSuccessfulTests(100)
 
   class BloomFilterCommands[T: Arbitrary](using CanGenerate128HashFrom[T]) extends Commands {
-    type Sut = BloomFilter[T]
+    type Sut = BloomFilter128[T]
 
     case class State(expectedItems: Long, addedItems: Long)
 
@@ -37,7 +37,7 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
       Gen.chooseNum[Long](1, Int.MaxValue).map(State(_, 0))
 
     override def newSut(state: State): Sut =
-      BloomFilter[T](state.expectedItems, 0.01)
+      BloomFilter128[T](state.expectedItems, 0.01)
 
     def initialPreCondition(state: State): Boolean = true
 
@@ -75,7 +75,7 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
 
     Prop.forAll(gen) { indices =>
       val sz = indices.size max 1
-      val bf1 = BloomFilter[Long](sz, 0.01)
+      val bf1 = BloomFilter128[Long](sz, 0.01)
       try
         indices foreach bf1.add
         val bos = new ByteArrayOutputStream
@@ -86,8 +86,8 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
         val ois = new ObjectInputStream(bis)
         val deserialized = ois.readObject()
         deserialized should not be null
-        deserialized should be(a[BloomFilter[Long]])
-        val bf2 = deserialized.asInstanceOf[BloomFilter[Long]]
+        deserialized should be(a[BloomFilter128[Long]])
+        val bf2 = deserialized.asInstanceOf[BloomFilter128[Long]]
         try
           bf2.numberOfBits shouldEqual bf1.numberOfBits
           bf1.numberOfHashes shouldEqual bf1.numberOfHashes
@@ -109,11 +109,9 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
   property("approximateElementCount") =
     Prop.forAll(elemsToAddGen.filter(x => x.size > 10 && x.toSet.size > 10)) {
       (elemsToAdd: List[Long]) =>
-        val bf = BloomFilter[Long](elemsToAdd.size * 10, 0.0001)
+        val bf = BloomFilter128[Long](elemsToAdd.size * 10, 0.0001)
         elemsToAdd.foreach(bf.add)
         val numberOfUnique = elemsToAdd.toSet.size
-        math.abs(
-          bf.approximateElementCount() - numberOfUnique
-        ) < numberOfUnique * 0.1
+        math.abs(bf.approximateElementCount - numberOfUnique) < numberOfUnique * 0.1
     }
 }

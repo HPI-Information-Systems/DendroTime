@@ -1,12 +1,12 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpec
 
 class SampleUsageSpec extends AnyWordSpec with should.Matchers {
   "Create, put and check" in {
-    val bloomFilter = BloomFilter[String](1000, 0.01)
+    val bloomFilter = BloomFilter64[String](1000, 0.01)
 
     bloomFilter.add("")
     bloomFilter.add("Hello!")

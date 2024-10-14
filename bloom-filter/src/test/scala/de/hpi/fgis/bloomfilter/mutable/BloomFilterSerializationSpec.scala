@@ -1,6 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalacheck.Prop.forAll
 import org.scalacheck.{Gen, Properties}
 import org.scalatest.matchers.should.Matchers
@@ -8,7 +8,7 @@ import org.scalatest.matchers.should.Matchers
 import java.io.*
 import scala.language.adhocExtensions
 
-class BloomFilterSerializationSpec extends Properties("BloomFilter") with Matchers {
+class BloomFilterSerializationSpec extends Properties("BloomFilter64") with Matchers {
   def genListElems[A](max: Long)(implicit aGen: Gen[A]): Gen[List[A]] =
     Gen
       .posNum[Int]
@@ -22,7 +22,7 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter") with Matche
 
   property("writeTo & readFrom") = forAll(gen) {
     case (size: Long, indices: List[Long]) =>
-      val initial = BloomFilter[Long](size, 0.01)
+      val initial = BloomFilter64[Long](size, 0.01)
       indices.foreach(initial.add)
 
       val file = File.createTempFile("bloomFilterSerialized", ".tmp")
@@ -32,11 +32,10 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter") with Matche
       out.close()
       val in =
         new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
-      val sut = BloomFilter.readFrom[Long](in)
+      val sut = BloomFilter64.readFrom[Long](in)
       in.close()
 
-      sut.approximateElementCount() shouldEqual initial
-        .approximateElementCount()
+      sut.approximateElementCount shouldEqual initial.approximateElementCount
 
       val result = indices.forall(sut.mightContain)
 
@@ -49,7 +48,7 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter") with Matche
 
   property("supports java serialization") = forAll(gen) {
     case (size, indices) =>
-      val initial = BloomFilter[Long](size, 0.01)
+      val initial = BloomFilter64[Long](size, 0.01)
       indices.foreach(initial.add)
       val file = File.createTempFile("bloomFilterSerialized", ".tmp")
       val out =
@@ -66,13 +65,12 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter") with Matche
       in.close()
 
       desrialized should not be null
-      desrialized should be(a[BloomFilter[Long]])
-      val sut = desrialized.asInstanceOf[BloomFilter[Long]]
+      desrialized should be(a[BloomFilter64[Long]])
+      val sut = desrialized.asInstanceOf[BloomFilter64[Long]]
 
       sut.numberOfBits shouldEqual initial.numberOfBits
       sut.numberOfHashes shouldEqual initial.numberOfHashes
-      sut.approximateElementCount() shouldEqual initial
-        .approximateElementCount()
+      sut.approximateElementCount shouldEqual initial.approximateElementCount
 
       val result = indices.forall(sut.mightContain)
 

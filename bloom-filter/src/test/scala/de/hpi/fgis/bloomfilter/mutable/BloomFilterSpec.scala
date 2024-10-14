@@ -1,7 +1,7 @@
 package de.hpi.fgis.bloomfilter.mutable
 
 import de.hpi.fgis.bloomfilter.CanGenerateHashFrom
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter
+import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Prop.forAll
 import org.scalacheck.Test.Parameters
@@ -10,7 +10,7 @@ import org.scalacheck.{Arbitrary, Gen, Prop, Properties}
 
 import scala.language.adhocExtensions
 
-class BloomFilterSpec extends Properties("BloomFilter") {
+class BloomFilterSpec extends Properties("BloomFilter64") {
 
   property("for Long") = new BloomFilterCommands[Long].property()
   property("for String") = new BloomFilterCommands[String].property()
@@ -20,7 +20,7 @@ class BloomFilterSpec extends Properties("BloomFilter") {
     super.overrideParameters(p).withMinSuccessfulTests(100)
 
   class BloomFilterCommands[T: Arbitrary](using CanGenerateHashFrom[T]) extends Commands {
-    type Sut = BloomFilter[T]
+    type Sut = BloomFilter64[T]
 
     case class State(expectedItems: Long, addedItems: Long)
 
@@ -36,7 +36,7 @@ class BloomFilterSpec extends Properties("BloomFilter") {
       Gen.chooseNum[Long](1, Int.MaxValue).map(State(_, 0))
 
     override def newSut(state: State): Sut =
-      BloomFilter[T](state.expectedItems, 0.01)
+      BloomFilter64[T](state.expectedItems, 0.01)
 
     def initialPreCondition(state: State): Boolean = true
 
@@ -78,11 +78,9 @@ class BloomFilterSpec extends Properties("BloomFilter") {
   property("approximateElementCount") =
     forAll(elemsToAddGen.filter(x => x.size > 10 && x.toSet.size > 10)) {
       (elemsToAdd: List[Long]) =>
-        val bf = BloomFilter[Long](elemsToAdd.size * 10, 0.0001)
+        val bf = BloomFilter64[Long](elemsToAdd.size * 10, 0.0001)
         elemsToAdd.foreach(bf.add)
         val numberOfUnique = elemsToAdd.toSet.size
-        math.abs(
-          bf.approximateElementCount() - numberOfUnique
-        ) < numberOfUnique * 0.1
+        math.abs(bf.approximateElementCount - numberOfUnique) < numberOfUnique * 0.1
     }
 }
