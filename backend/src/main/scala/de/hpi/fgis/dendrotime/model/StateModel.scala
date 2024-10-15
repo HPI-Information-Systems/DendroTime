@@ -18,7 +18,8 @@ object StateModel {
     final case class CurrentProgress(
                                     state: Status,
                                     progress: Int,
-                                    hierarchy: Hierarchy
+                                    hierarchy: Hierarchy,
+                                    similarities: Seq[Double]
                                     ) extends ProgressMessage
 //    final case class StateUpdate(id: Long, newState: Status) extends ProgressMessage
 //    final case class ProgressUpdate(id: Long, progress: Int) extends ProgressMessage
@@ -186,7 +187,7 @@ object StateModel {
       }
     }
 
-    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat3(ProgressMessage.CurrentProgress.apply)
+    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat4(ProgressMessage.CurrentProgress.apply)
 //    given RootJsonFormat[ProgressMessage.StateUpdate] = jsonFormat2(ProgressMessage.StateUpdate.apply)
 //    given RootJsonFormat[ProgressMessage.ProgressUpdate] = jsonFormat2(ProgressMessage.ProgressUpdate.apply)
 

@@ -13,49 +13,53 @@ private[clusterer] object HierarchyCalculator {
   case object ReportRuntime extends Command
 
   def apply(clusterer: ActorRef[Clusterer.Command],
-            communicator: ActorRef[Communicator.Command]
+            communicator: ActorRef[Communicator.Command],
+            n: Int
            ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(ReportRuntime, Settings(ctx.system).reportingInterval)
-      new HierarchyCalculator(ctx, clusterer, communicator).start()
+      new HierarchyCalculator(ctx, clusterer, communicator, n).start()
     }
   }
 }
 
 private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculator.Command],
                                              clusterer: ActorRef[Clusterer.Command],
-                                             communicator: ActorRef[Communicator.Command]) {
+                                             communicator: ActorRef[Communicator.Command],
+                                             n: Int) {
 
   import HierarchyCalculator.*
 
   private val linkage = Settings(ctx.system).linkage
   // debug counters
   private var runtime = 0L
-  private var computations = 0L
+  private var computations = 0
 
   private def start(): Behavior[Command] = {
     clusterer ! Clusterer.GetDistances
-    running()
+    running(HierarchyState.empty(n))
   }
 
-  private def running(): Behavior[Command] = Behaviors.receiveMessage {
+  private def running(state: HierarchyState): Behavior[Command] = Behaviors.receiveMessage {
     case ComputeHierarchy(distances) =>
-      computeHierarchy(distances)
+      val newState = computeHierarchy(state, distances)
       clusterer ! Clusterer.GetDistances
-      Behaviors.same
+      running(newState)
     case ReportRuntime =>
-      ctx.log.info("Average computation time for the last {} hierarchies: {} ms", computations, runtime / computations)
+      val newComps = state.computations - computations
+      ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
       runtime = 0L
-      computations = 0L
+      computations = state.computations
       Behaviors.same
   }
 
-  private def computeHierarchy(distances: PDist): Unit = {
+  private def computeHierarchy(state: HierarchyState, distances: PDist): HierarchyState = {
     val start = System.currentTimeMillis()
     val h = hierarchy.computeHierarchy(distances, linkage)
+    val newState = state.newHierarchy(h)
     runtime += System.currentTimeMillis() - start
-    computations += 1
-    //    ctx.log.debug("Computed new hierarchy:\n{}", h)
-    communicator ! NewHierarchy(h)
+//    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
+    communicator ! NewHierarchy(h, newState.similarities)
+    newState
   }
 }

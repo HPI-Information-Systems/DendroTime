@@ -37,7 +37,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
   import Clusterer.*
 
   private val distances: MutablePDist = PDist.empty(n).mutable
-  private val calculatorActor = ctx.spawn(HierarchyCalculator(ctx.self, communicator), "hierarchy-calculator")
+  private val calculatorActor = ctx.spawn(HierarchyCalculator(ctx.self, communicator, n), "hierarchy-calculator")
   // debug counters
   private var approxCount = 0L
   private var fullCount = 0L

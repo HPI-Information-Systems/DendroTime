@@ -9,21 +9,15 @@ private[hierarchy] object LinkageUnionFind {
    *
    * @param n number of observations (existing clusters)
    */
-  def apply(n: Int)(z: HierarchyBuilder): Unit = {
-    val uf = new LinkageUnionFind(n)
+  def apply(n: Int): HierarchyBuilder => Unit = new LinkageUnionFind(n).apply
 
-    for i <- 0 until n - 1 do
-      val node = z(i)
-      val x = uf.find(node.cId1)
-      val y = uf.find(node.cId2)
-      if x == y then
-        throw new RuntimeException(s"x=$x and y=$y are equal! i=$i, z=$z")
-      val size = uf.merge(x, y)
-      if x < y then
-        z.update(i, node.copy(cId1 = x, cId2 = y, cardinality = size))
-      else
-        z.update(i, node.copy(cId1 = y, cId2 = x, cardinality = size))
-  }
+  /**
+   * Label clusters (with consecutive integers starting from n) in a sorted hierarchy.
+   *
+   * @param n number of observations (existing clusters)
+   * @param z sorted hierarchy
+   */
+  def apply(n: Int, z: HierarchyBuilder): Unit = new LinkageUnionFind(n).apply(z)
 }
 
 /** Helper that provides the union-find data structure. */
@@ -31,6 +25,20 @@ private class LinkageUnionFind private(n: Int) {
   private val parents = (0 until 2 * n - 1).toArray
   private val sizes = Array.fill(2 * n - 1)(1)
   private var nextLabel = n
+
+  private[LinkageUnionFind] def apply(z: HierarchyBuilder): Unit = {
+    for i <- 0 until n - 1 do
+      val node = z(i)
+      val x = find(node.cId1)
+      val y = find(node.cId2)
+      if x == y then
+        throw new RuntimeException(s"x=$x and y=$y are equal! i=$i, z=$z")
+      val size = merge(x, y)
+      if x < y then
+        z.update(i, node.copy(cId1 = x, cId2 = y, cardinality = size))
+      else
+        z.update(i, node.copy(cId1 = y, cId2 = x, cardinality = size))
+  }
 
   private def find(x: Int): Int = {
     var p = x
