@@ -1,6 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.{BloomFilter, CanGenerateHashFrom}
+import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterFactory, CanGenerateHashFrom}
 
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 import scala.math.*
@@ -18,7 +18,7 @@ class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, 
   override def approximateElementCount: Long = internalApproximateElementCount(bits)
 
   override def add(x: T): Unit =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash64(x)
     val hash1 = hash >>> 32
     val hash2 = (hash << 32) >> 32
 
@@ -59,7 +59,7 @@ class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, 
   }
 
   override def mightContain(x: T): Boolean =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash64(x)
     val hash1 = hash >>> 32
     val hash2 = (hash << 32) >> 32
     var i = 0
@@ -98,24 +98,13 @@ class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, 
   override def hashCode(): Int = 31 * (31 * numberOfBits.## + numberOfHashes.##) + bits.##
 }
 
-object BloomFilter64 {
-
-  def apply[T](numberOfItems: Long, falsePositiveRate: Double)(using CanGenerateHashFrom[T]): BloomFilter64[T] =
+object BloomFilter64 extends BloomFilterFactory {
+  def apply[T: CanGenerateHashFrom](numberOfItems: Long, falsePositiveRate: Double): BloomFilter64[T] =
     val nb = optimalNumberOfBits(numberOfItems, falsePositiveRate)
     val nh = optimalNumberOfHashes(numberOfItems, nb)
     new BloomFilter64[T](nb, nh)
 
-  def optimalNumberOfBits(numberOfItems: Long, falsePositiveRate: Double): Long =
-    math.ceil(-1 * numberOfItems * math.log(falsePositiveRate) / math.log(2) / math.log(2)).toLong
-
-  def optimalNumberOfHashes(numberOfItems: Long, numberOfBits: Long): Int =
-    math.ceil(numberOfBits / numberOfItems * math.log(2)).toInt
-
-  def readFrom[T](in: InputStream)(using CanGenerateHashFrom[T]): BloomFilter64[T] =
-    val din = new DataInputStream(in)
-    val numberOfBits = din.readLong()
-    val numberOfHashes = din.readInt()
-    val bits = new UnsafeBitArray(numberOfBits)
-    bits.readFrom(in)
-    new BloomFilter64[T](numberOfBits, numberOfHashes, bits)
+  def readFrom[T: CanGenerateHashFrom](in: InputStream): BloomFilter64[T] =
+    val args = prepareBitArray(in)
+    new BloomFilter64[T](args.nBits, args.nHashes, args.bits)
 }

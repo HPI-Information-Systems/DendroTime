@@ -1,6 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.{BloomFilter, CanGenerate128HashFrom}
+import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterFactory, CanGenerateHashFrom}
 
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 import de.hpi.fgis.bloomfilter.mutable.UnsafeBitArray
@@ -9,9 +9,9 @@ import scala.math.*
 
 @SerialVersionUID(2L)
 class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int, private val bits: UnsafeBitArray)
-                               (using canGenerateHash: CanGenerate128HashFrom[T]) extends BloomFilter[T] {
+                               (using canGenerateHash: CanGenerateHashFrom[T]) extends BloomFilter[T] {
 
-  def this(numberOfBits: Long, numberOfHashes: Int)(using CanGenerate128HashFrom[T]) =
+  def this(numberOfBits: Long, numberOfHashes: Int)(using CanGenerateHashFrom[T]) =
     this(numberOfBits, numberOfHashes, new UnsafeBitArray(numberOfBits))
 
   override val expectedFalsePositiveRate: Double =
@@ -20,7 +20,7 @@ class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int,
   override def approximateElementCount: Long = internalApproximateElementCount(bits)
 
   override def add(x: T): Unit =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash128(x)
 
     var i = 0
     while (i < numberOfHashes)
@@ -59,7 +59,7 @@ class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int,
   }
 
   override def mightContain(x: T): Boolean =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash128(x)
 
     var i = 0
     while (i < numberOfHashes)
@@ -97,25 +97,13 @@ class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int,
   override def hashCode(): Int = 31 * (31 * numberOfBits.## + numberOfHashes.##) + bits.##
 }
 
-object BloomFilter128 {
-
-  def apply[T](numberOfItems: Long, falsePositiveRate: Double)(using CanGenerate128HashFrom[T]): BloomFilter128[T] =
+object BloomFilter128 extends BloomFilterFactory {
+  def apply[T](numberOfItems: Long, falsePositiveRate: Double)(using CanGenerateHashFrom[T]): BloomFilter128[T] =
     val nb = optimalNumberOfBits(numberOfItems, falsePositiveRate)
     val nh = optimalNumberOfHashes(numberOfItems, nb)
     new BloomFilter128[T](nb, nh)
 
-  def optimalNumberOfBits(numberOfItems: Long, falsePositiveRate: Double): Long =
-    math.ceil(-1 * numberOfItems * math.log(falsePositiveRate) / math.log(2) / math.log(2)).toLong
-
-  def optimalNumberOfHashes(numberOfItems: Long, numberOfBits: Long): Int =
-    math.ceil(numberOfBits / numberOfItems * math.log(2)).toInt
-
-  def readFrom[T](in: InputStream)(using CanGenerate128HashFrom[T]): BloomFilter128[T] =
-    val din = new DataInputStream(in)
-    val numberOfBits = din.readLong()
-    val numberOfHashes = din.readInt()
-    val bits = new UnsafeBitArray(numberOfBits)
-    bits.readFrom(in)
-    new BloomFilter128[T](numberOfBits, numberOfHashes, bits)
-
+  def readFrom[T](in: InputStream)(using CanGenerateHashFrom[T]): BloomFilter128[T] =
+    val args = prepareBitArray(in)
+    new BloomFilter128[T](args.nBits, args.nHashes, args.bits)
 }

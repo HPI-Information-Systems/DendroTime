@@ -12,7 +12,7 @@ class CuckooFilter[T](numberOfBuckets: Long, numberOfBitsPerItem: Int, private v
   import CuckooFilter.*
 
   def add(x: T): Unit =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash64(x)
     val index = indexHash(hash >> 32, numberOfBuckets)
     val tag = tagHash(hash, numberOfBitsPerItem)
     if (table.insert(index, tag))
@@ -30,7 +30,7 @@ class CuckooFilter[T](numberOfBuckets: Long, numberOfBitsPerItem: Int, private v
       i += 1
 
   def remove(x: T): Unit =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash64(x)
     val index = indexHash(hash >> 32, numberOfBuckets)
     val tag = tagHash(hash, numberOfBitsPerItem)
     if (table.remove(index, tag)) return
@@ -38,7 +38,7 @@ class CuckooFilter[T](numberOfBuckets: Long, numberOfBitsPerItem: Int, private v
     if (table.remove(index2, tag)) return
 
   def mightContain(x: T): Boolean =
-    val hash = canGenerateHash.generateHash(x)
+    val hash = canGenerateHash.generateHash64(x)
     val index = indexHash(hash >> 32, numberOfBuckets)
     val tag = tagHash(hash, numberOfBitsPerItem)
     if (table.find(index, tag)) return true

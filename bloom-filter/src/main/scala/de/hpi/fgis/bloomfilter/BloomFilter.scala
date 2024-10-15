@@ -62,3 +62,27 @@ trait BloomFilter[T] extends Serializable with AutoCloseable with Equals {
       z.toLong
   }
 }
+
+object BloomFilter extends BloomFilterFactory {
+  /**
+   * Creates a new BloomFilter with the given number of items and the implicitly supplied options.
+   * The default options are defined in [[de.hpi.fgis.bloomfilter.BloomFilterOptions$.DEFAULT_OPTIONS]].
+   *
+   * @param numberOfItems the expected number of elements to be inserted into the BloomFilter
+   * @param options the options to be used for the BloomFilter
+   * @tparam T the type of the elements to be inserted into the BloomFilter
+   * @return a new empty BloomFilter instance
+   */
+  def apply[T: CanGenerateHashFrom](numberOfItems: Long)(using options: BloomFilterOptions): BloomFilter[T] = options match {
+    case BloomFilterOptions(BFHashSize.BFH64, fpr, BFType.BloomFilter) =>
+      val nb = optimalNumberOfBits(numberOfItems, fpr)
+      val nh = optimalNumberOfHashes(numberOfItems, nb)
+      new mutable.BloomFilter64[T](nb, nh)
+    case BloomFilterOptions(BFHashSize.BFH128, fpr, BFType.BloomFilter) =>
+      val nb = optimalNumberOfBits(numberOfItems, fpr)
+      val nh = optimalNumberOfHashes(numberOfItems, nb)
+      new mutable._128bit.BloomFilter128[T](nb, nh)
+    case _ =>
+      throw new IllegalArgumentException("Unsupported BloomFilterOptions")
+  }
+}
