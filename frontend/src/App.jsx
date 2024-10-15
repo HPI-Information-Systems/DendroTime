@@ -2,21 +2,20 @@ import React from "react";
 import ClusteringPage from "./pages/ClusteringPage";
 import "react-toastify/dist/ReactToastify.min.css";
 import DendoTest from "./pages/DendoTest";
-import {
-  createBrowserRouter,
-  RouterProvider,
-} from "react-router-dom";
+import {createBrowserRouter, RouterProvider,} from "react-router-dom";
 import ErrorPage from "./pages/ErrorPage";
 import BarExample from "./pages/BarExample";
 import RootLayout from "./pages/RootLayout";
+import LineChartTest from "./pages/LineChartTest";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <RootLayout />,
-    errorElement: <ErrorPage />,
+    element: <RootLayout/>,
+    errorElement: <ErrorPage/>,
     children: [
-      {errorElement: <ErrorPage />,
+      {
+        errorElement: <ErrorPage/>,
         children: [
           {
             index: true,
@@ -24,11 +23,15 @@ const router = createBrowserRouter([
           },
           {
             path: "dendro-test",
-            element: <DendoTest />
+            element: <DendoTest/>
           },
           {
             path: "bar-example",
-            element: <BarExample />
+            element: <BarExample/>
+          },
+          {
+            path: "line-test",
+            element: <LineChartTest/>
           }
         ]
       }
@@ -37,7 +40,7 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  return <RouterProvider router={router}/>;
 }
 
 export default App;

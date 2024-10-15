@@ -1,11 +1,11 @@
-import React, { createContext, useRef } from "react";
-import { useDimensions } from "../util";
+import React, {createContext, useRef} from "react";
+import {useDimensions} from "../util";
 
 export const WidthContext = createContext(0);
 
 function WidthProvider({children}) {
   const ref = useRef(null);
-  const { width, height } = useDimensions(ref);
+  const {width, height} = useDimensions(ref);
 
   return (
     <div aria-hidden ref={ref}>

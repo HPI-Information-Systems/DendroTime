@@ -29,6 +29,7 @@ import { Link } from "react-router-dom";
 const examples = [
   {name: 'Bar Chart', description: 'Interactive bar chart with React and d3.js', href: '/bar-example', icon: ChartPieIcon},
   {name: 'Dendrogram Test', description: 'Dendrogram created using d3.js with demo data', href: '/dendro-test', icon: CursorArrowRaysIcon},
+  {name: 'LineChart Test', description: 'LineChart created using d3.js with demo data', href: '/line-test', icon: CursorArrowRaysIcon},
   // {name: 'Security', description: 'Your customers’ data will be safe and secure', href: '#', icon: FingerPrintIcon},
   // {name: 'Integrations', description: 'Connect with third-party tools', href: '#', icon: SquaresPlusIcon},
   // {name: 'Automations', description: 'Build strategic funnels that will convert', href: '#', icon: ArrowPathIcon},
