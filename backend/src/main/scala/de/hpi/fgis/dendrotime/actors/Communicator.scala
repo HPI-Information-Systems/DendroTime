@@ -14,7 +14,7 @@ object Communicator {
   sealed trait Command
   final case class NewStatus(status: Status) extends Command
   final case class ProgressUpdate(status: Status, progress: Int) extends Command
-  final case class NewHierarchy(hierarchy: Hierarchy, similarities: Seq[Double]) extends Command
+  final case class NewHierarchy(hierarchy: Hierarchy, similarities: Map[Int, Double]) extends Command
   final case class GetProgress(replyTo: ActorRef[ProgressMessage]) extends Command
   private case object Tick extends Command
   
@@ -27,14 +27,14 @@ object Communicator {
       Status.Finalizing -> 0,
       Status.Finished -> 100
     )
-    new Communicator(ctx).running(Status.Initializing, startProgress, Hierarchy.empty, Seq.empty)
+    new Communicator(ctx).running(Status.Initializing, startProgress, Hierarchy.empty, Map.empty)
   }}
 }
 
 private class Communicator private (ctx: ActorContext[Communicator.Command]) {
   import Communicator.*
   
-  private def running(status: Status, progress: Map[Status, Int], hierarchy: Hierarchy, similarities: Seq[Double]): Behavior[Command] =
+  private def running(status: Status, progress: Map[Status, Int], hierarchy: Hierarchy, similarities: Map[Int, Double]): Behavior[Command] =
     Behaviors.receiveMessage {
       case NewStatus(newStatus) =>
         // set all previous progresses to 100
@@ -47,7 +47,9 @@ private class Communicator private (ctx: ActorContext[Communicator.Command]) {
       case NewHierarchy(h, sims) =>
         running(status, progress, h, sims)
       case GetProgress(replyTo) =>
-        replyTo ! ProgressMessage.CurrentProgress(status, progress(status), hierarchy, similarities)
+        replyTo ! ProgressMessage.CurrentProgress(
+          status, progress(status), hierarchy, similarities.toSeq
+        )
         Behaviors.same
       case Tick =>
         ctx.log.info("Current status: {}, progress: {}, hierarchy: {}", status, progress, hierarchy)

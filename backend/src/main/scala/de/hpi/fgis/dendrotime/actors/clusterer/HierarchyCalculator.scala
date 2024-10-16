@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
+import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
@@ -9,7 +10,7 @@ import de.hpi.fgis.dendrotime.clustering.{PDist, hierarchy}
 
 private[clusterer] object HierarchyCalculator {
   sealed trait Command
-  case class ComputeHierarchy(distances: PDist) extends Command
+  case class ComputeHierarchy(index: Int, distances: PDist) extends Command
   case object ReportRuntime extends Command
 
   def apply(clusterer: ActorRef[Clusterer.Command],
@@ -34,6 +35,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   // debug counters
   private var runtime = 0L
   private var computations = 0
+  private given ClusterSimilarityOptions = Settings(ctx.system).clusterSimilarityOptions
 
   private def start(): Behavior[Command] = {
     clusterer ! Clusterer.GetDistances
@@ -41,8 +43,8 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   }
 
   private def running(state: HierarchyState): Behavior[Command] = Behaviors.receiveMessage {
-    case ComputeHierarchy(distances) =>
-      val newState = computeHierarchy(state, distances)
+    case ComputeHierarchy(index, distances) =>
+      val newState = computeHierarchy(state, index, distances)
       clusterer ! Clusterer.GetDistances
       running(newState)
     case ReportRuntime =>
@@ -53,10 +55,10 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       Behaviors.same
   }
 
-  private def computeHierarchy(state: HierarchyState, distances: PDist): HierarchyState = {
+  private def computeHierarchy(state: HierarchyState, index: Int, distances: PDist): HierarchyState = {
     val start = System.currentTimeMillis()
     val h = hierarchy.computeHierarchy(distances, linkage)
-    val newState = state.newHierarchy(h)
+    val newState = state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
 //    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
     communicator ! NewHierarchy(h, newState.similarities)

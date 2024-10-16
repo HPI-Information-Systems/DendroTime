@@ -11,8 +11,6 @@ function D3LineChart({data}) {
   const axisHeight = 50;
   const tDuration = 200;
 
-  // console.log(data);
-
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!
   useEffect(() => {
@@ -27,8 +25,9 @@ function D3LineChart({data}) {
       .attr("height", height)
       .attr("viewBox", viewPort);
 
+    const maxIndex = d3.max(data, d => d[0]);
     const xScale = d3.scaleLinear()
-      .domain([0, data.length])
+      .domain([0, maxIndex])
       .range([0, width-2*horizMargin]);
     const xAxis = d3.select(`#${id}-xaxis`)
       .attr("transform", `translate(0,${height - axisHeight/2})`)
@@ -43,11 +42,11 @@ function D3LineChart({data}) {
       .call(d3.axisLeft(yScale))
 
     const connection = d3.line()
-      .x((d, i) => xScale(i))
-      .y(d => yScale(d) + axisHeight/ 2);
+      .x((d, i) => xScale(d[0]))
+      .y(d => yScale(d[1]) + axisHeight/ 2);
 
     const lines = d3.select(`#${id}-line`).selectAll("path")
-      .data([data])
+      .data([data.sort((a, b) => a[0] - b[0])])
       .join(
         enter => enter.append("path")
           .transition().duration(tDuration)
@@ -61,7 +60,7 @@ function D3LineChart({data}) {
       .attr("stroke-opacity", 1)
       .attr("stroke-width", 1.5);
 
-  }, [id, data, height, width]);
+  }, [id, data, width]);
   /////////////////////////////////////////////////////////////////////////////
 
   return (

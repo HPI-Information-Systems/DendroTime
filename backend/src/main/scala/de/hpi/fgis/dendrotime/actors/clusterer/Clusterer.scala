@@ -56,7 +56,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       approxCount += 1
       distances(t1, t2) = dist
       if waiting then
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(distances) // NNChain creates a copy internally
+        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
@@ -65,18 +65,18 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       fullCount += 1
       distances(t1, t2) = dist
       if waiting then
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(distances) // NNChain creates a copy internally
+        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
     case GetDistances if hasWork =>
-      calculatorActor ! HierarchyCalculator.ComputeHierarchy(distances) // NNChain creates a copy internally
+      calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       running(hasWork = false, waiting = false)
     case GetDistances =>
       running(hasWork = false, waiting = true)
     case ReportFinished(replyTo) if waiting =>
       if hasWork then
-        calculatorActor !HierarchyCalculator.ComputeHierarchy(distances) // NNChain creates a copy internally
+        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       finished(replyTo)
     case ReportFinished(replyTo) =>
       waitingForFinish(hasWork, replyTo)
@@ -85,7 +85,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
   private def waitingForFinish(hasWork: Boolean, replyTo: ActorRef[ClusteringFinished.type]): Behavior[Command] =
     Behaviors.receiveMessage {
       case GetDistances if hasWork =>
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(distances) // NNChain creates a copy internally
+        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         waitingForFinish(hasWork = false, replyTo = replyTo)
       case GetDistances =>
         finished(replyTo)

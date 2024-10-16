@@ -19,7 +19,7 @@ object StateModel {
                                     state: Status,
                                     progress: Int,
                                     hierarchy: Hierarchy,
-                                    similarities: Seq[Double]
+                                    similarities: Seq[(Int, Double)]
                                     ) extends ProgressMessage
 //    final case class StateUpdate(id: Long, newState: Status) extends ProgressMessage
 //    final case class ProgressUpdate(id: Long, progress: Int) extends ProgressMessage

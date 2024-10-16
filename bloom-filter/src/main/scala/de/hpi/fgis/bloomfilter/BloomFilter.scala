@@ -74,11 +74,11 @@ object BloomFilter extends BloomFilterFactory {
    * @return a new empty BloomFilter instance
    */
   def apply[T: CanGenerateHashFrom](numberOfItems: Long)(using options: BloomFilterOptions): BloomFilter[T] = options match {
-    case BloomFilterOptions(BFHashSize.BFH64, fpr, BFType.BloomFilter) =>
+    case BloomFilterOptions(BloomFilterOptions.BFHashSize.BFH64, fpr, BloomFilterOptions.BFType.BloomFilter) =>
       val nb = optimalNumberOfBits(numberOfItems, fpr)
       val nh = optimalNumberOfHashes(numberOfItems, nb)
       new mutable.BloomFilter64[T](nb, nh)
-    case BloomFilterOptions(BFHashSize.BFH128, fpr, BFType.BloomFilter) =>
+    case BloomFilterOptions(BloomFilterOptions.BFHashSize.BFH128, fpr, BloomFilterOptions.BFType.BloomFilter) =>
       val nb = optimalNumberOfBits(numberOfItems, fpr)
       val nh = optimalNumberOfHashes(numberOfItems, nb)
       new mutable._128bit.BloomFilter128[T](nb, nh)

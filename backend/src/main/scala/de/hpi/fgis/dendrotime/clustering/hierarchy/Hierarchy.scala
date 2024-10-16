@@ -15,7 +15,7 @@ object Hierarchy {
   /** Create a new hierarchy using the builder pattern. */
   def newBuilder(n: Int): HierarchyBuilder = new HierarchyBuilder(n)
 
-  class HierarchyBuilder private[Hierarchy] (n: Int) extends IndexedSeq[Hierarchy.Node] {
+  class HierarchyBuilder private[Hierarchy](n: Int) extends IndexedSeq[Hierarchy.Node] {
     private val z = Array.ofDim[Double](n - 1, 4)
     private var i = 0
 
@@ -69,7 +69,7 @@ object Hierarchy {
  *   - Z[i, 2]: distance between Z[i, 0] and Z[i, 1]
  *   - Z[i, 3]: number of original observations in the newly formed cluster (cardinality)
  */
-case class Hierarchy private (private val z: Array[Array[Double]], n: Int)
+case class Hierarchy private(private val z: Array[Array[Double]], n: Int)
   extends Iterable[Hierarchy.Node] with IndexedSeq[Hierarchy.Node] {
 
   def cId1(i: Int): Int = z(i)(0).toInt
@@ -91,12 +91,12 @@ case class Hierarchy private (private val z: Array[Array[Double]], n: Int)
     val s = StringBuilder("Hierarchy:\n    C1 C2 SIZE DISTANCE\n")
 
     for i <- z.indices.take(9) do
-      val node = this(i)
+      val node = this (i)
       s.append("%02d  %2d %2d %4d %8.6f\n".formatted(i, node.cId1, node.cId2, node.cardinality, node.distance))
 
     if z.length > 10 then
       s.append("    ...\n")
-      val node = this(z.length-1)
+      val node = this (z.length - 1)
       s.append("%02d  %2d %2d %4d %8.6f\n".formatted(node.idx, node.cId1, node.cId2, node.cardinality, node.distance))
     s.result
   }
