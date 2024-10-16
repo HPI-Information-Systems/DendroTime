@@ -65,7 +65,7 @@ function D3LineChart({data}) {
   /////////////////////////////////////////////////////////////////////////////
 
   return (
-    <div className="text-sm">
+    <div className="text-sm border-4 border-blue-500 bg-gray-100">
       <svg id={id} width={width} height={height}>
         <g id={`${id}-xaxis`}/>
         <g id={`${id}-yaxis`}/>

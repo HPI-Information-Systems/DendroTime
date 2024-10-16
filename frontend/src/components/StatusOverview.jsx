@@ -54,12 +54,12 @@ export default function StatusOverview({jobId, progress, activeState}) {
   }
 
   return (
-    <div className="flex m-1">
+    <div className="flex my-2">
       {statusList.map((item, i, _array) => (
         <React.Fragment key={item.name}>
           <StatusCard name={item.name} active={item.active} progress={item.active? progress : item.progress}/>
           {i !== statusList.length - 1 ? (
-            <svg className="rtl:rotate-180 w-32 h-32 text-gray-400 mx-1 m-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+            <svg className="rtl:rotate-180 w-32 h-32 text-gray-400 mx-2 my-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
               <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 9 4-4-4-4"/>
             </svg>
           ) : null}

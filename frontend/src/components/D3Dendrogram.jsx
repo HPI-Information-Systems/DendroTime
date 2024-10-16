@@ -171,12 +171,10 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
             .attr("transform", d => `translate(${fx(d)},${fy(d)})`)
             .attr("id", d => d.data.id);
           selection.filter(d => !d.children).append("text")
-              .attr("fill", "black")
               .attr("dy", "0.31em")
               .attr("x", d => d.children ? -6 : 6)
               .attr("text-anchor", d => d.children ? "end" : "start")
               .text(d => d.data.id)
-              .attr("stroke", "white")
               .attr("paint-order", "stroke");
           return selection;
         },
@@ -198,7 +196,7 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
   /////////////////////////////////////////////////////////////////////////////
 
   return (
-    <div className="text-sm border-4 border-blue-500">
+    <div className="text-sm border-4 border-blue-500 bg-gray-100">
       <svg id={id} width={width}>
         <g id={`${id}-axis`}/>
         <g id={`${id}-links`}/>

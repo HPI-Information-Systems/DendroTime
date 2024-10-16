@@ -10,7 +10,7 @@ export default function StatusCard({name, active, progress}) {
   const color = active ? undefined : (progress === 100 ? "green" : "gray");
 
   return (
-    <Card key={name} className="m-1">
+    <Card key={name} className="my-1">
       <dt className={classNames(
         active ? "font-bold text-tremor-content-strong dark:test-dark-tremor-content-strong"
                : "font-medium text-tremor-content dark:text-dark-tremor-content",
