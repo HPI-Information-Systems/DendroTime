@@ -54,6 +54,12 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
     case ApproximateDistance(t1, t2, dist) =>
       ctx.log.debug("Received new approx distance between {} and {}", t1, t2)
       approxCount += 1
+      // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
+      if distances(t1, t2) != Double.PositiveInfinity then
+        ctx.log.warn(
+          "Distance between {} and {} was already set to {}; not overwriting with received approximate distance!",
+          t1, t2, distances(t1, t2)
+        )
       distances(t1, t2) = dist
       if waiting then
         calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
