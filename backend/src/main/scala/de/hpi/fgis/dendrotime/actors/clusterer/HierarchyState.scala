@@ -35,10 +35,12 @@ object HierarchyState {
       BFClusters(Array.fill(n)(BloomFilter[Int](n + n - 1)))
   }
 
-  private case class BFClusters(bloomFilters: Array[BloomFilter[Int]]) {
+  private case class BFClusters(bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
     def length: Int = bloomFilters.length
 
     def apply(i: Int): BloomFilter[Int] = bloomFilters(i)
+
+    override def close(): Unit = bloomFilters.foreach(_.close())
   }
 }
 
@@ -56,18 +58,19 @@ case class HierarchyState private(n: Int,
 
   def hierarchy: Hierarchy = currentHierarchy
 
+  // FIXME: release memory!
   def newHierarchy(index: Int, hierarchy: Hierarchy): HierarchyState =
-    val prevClusters = this.currentClusters
-    val (currentClusters, similarity) = options.similarity match {
+    val (newClusters, similarity) = options.similarity match {
       case Similarity.SetJaccardSimilarity => computeClusterSimilaritySetJaccard(hierarchy)
       case _ => computeClusterSimilarityLevelwise(hierarchy)
     }
+    prevClusters.close()
     copy(
       similarities = similarities + (index -> similarity),
       computations = computations + 1,
       currentHierarchy = hierarchy,
-      prevClusters = prevClusters,
-      currentClusters = currentClusters
+      prevClusters = currentClusters,
+      currentClusters = newClusters
     )
 
   private def computeClusterSimilarityLevelwise(hierarchy: Hierarchy): (BFClusters, Double) = {

@@ -5,7 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import scala.util.{Failure, Success, Try}
 
 object DatasetRegistry {
@@ -67,7 +67,7 @@ private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command
   }
 
   private def loadExistingDatasets: Map[Int, Dataset] = {
-    val localDatasetsFolder = Paths.get(dataPath).toFile
+    val localDatasetsFolder = dataPath.toFile
     if !localDatasetsFolder.exists() then
       localDatasetsFolder.mkdir()
 
@@ -81,8 +81,8 @@ private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command
   }
 
   private def cacheNewDataset(dataset: Dataset, newId: Int): Try[Dataset] = Try {
-    val file = Paths.get(dataset.path).toRealPath()
-    val target = Paths.get(dataPath, newId.toString, file.getFileName.toString)
+    val file = Path.of(dataset.path).toRealPath()
+    val target = dataPath.resolve(newId.toString).resolve(file.getFileName.toString)
     target.getParent.toFile.mkdir()
     Files.copy(file, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     dataset.copy(id = newId, path = target.toRealPath().toString)

@@ -8,6 +8,7 @@ import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions
 import de.hpi.fgis.dendrotime.clustering.distances.Distance
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 
+import java.nio.file.{Path, Paths}
 import scala.concurrent.duration.FiniteDuration
 
 object Settings extends ExtensionId[Settings] {
@@ -23,7 +24,9 @@ class Settings private(config: Config) extends Extension {
   val host: String = config.getString(s"$namespace.host")
   val port: Int = config.getInt(s"$namespace.port")
 
-  val dataPath: String = config.getString(s"$namespace.data-path")
+  val dataPath: Path = Path.of(config.getString(s"$namespace.data-path"))
+  val resultsPath: Path = Path.of(config.getString(s"$namespace.results-path"))
+  val groundTruthPath: Path = Path.of(config.getString(s"$namespace.ground-truth-path"))
 
   val askTimeout: Timeout = {
     val duration = config.getDuration(s"$namespace.ask-timeout")
