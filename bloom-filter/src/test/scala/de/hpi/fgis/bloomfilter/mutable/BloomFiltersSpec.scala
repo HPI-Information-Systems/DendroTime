@@ -1,20 +1,17 @@
 package de.hpi.fgis.bloomfilter.mutable
 
 import de.hpi.fgis.bloomfilter.CanGenerateHashFrom
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Prop.forAll
-import org.scalacheck.Test.Parameters
-import org.scalacheck.commands.Commands
 import org.scalacheck.{Arbitrary, Gen, Prop, Properties}
 
 import scala.language.adhocExtensions
 
 class BloomFiltersSpec extends Properties("BloomFilters") {
 
-  val maxNumElems = 10
+  private val maxNumElems = 10
 
-  def genListOfMaxTenElems[A](implicit aGen: Gen[A]): Gen[List[A]] =
+  private def genListOfMaxTenElems[A](implicit aGen: Gen[A]) =
     Gen.posNum[Int].map(_ % maxNumElems).flatMap(Gen.listOfN(_, aGen))
 
   property("union") = forAll(genListOfMaxTenElems(arbitrary[Long]), genListOfMaxTenElems(arbitrary[Long])) {

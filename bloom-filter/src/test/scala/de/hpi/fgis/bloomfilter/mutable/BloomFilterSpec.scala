@@ -1,7 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable
 
 import de.hpi.fgis.bloomfilter.CanGenerateHashFrom
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Prop.forAll
 import org.scalacheck.Test.Parameters

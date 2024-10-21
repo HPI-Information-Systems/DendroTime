@@ -1,6 +1,5 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter128
 import org.scalacheck.Prop.forAll
 import org.scalacheck.{Gen, Properties}
 import org.scalatest.matchers.should
@@ -10,7 +9,7 @@ import scala.language.adhocExtensions
 
 class BloomFilterSerializationSpec extends Properties("BloomFilter_128bit") with should.Matchers {
 
-  def genListElems[A](max: Long)(implicit aGen: Gen[A]): Gen[List[A]] =
+  private def genListElems[A](max: Long)(implicit aGen: Gen[A]) =
     Gen.posNum[Int].map(_ % max).flatMap(i => Gen.listOfN(math.min(i, Int.MaxValue).toInt, aGen))
 
   private val gen = for {

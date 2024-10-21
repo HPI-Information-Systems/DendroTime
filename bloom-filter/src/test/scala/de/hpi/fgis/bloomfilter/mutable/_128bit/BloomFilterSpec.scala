@@ -1,7 +1,6 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.mutable._128bit.BloomFilter128
-import de.hpi.fgis.bloomfilter.{CanGenerate128HashFrom, CanGenerateHashFrom}
+import de.hpi.fgis.bloomfilter.CanGenerateHashFrom
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Test.Parameters
 import org.scalacheck.commands.Commands
@@ -20,7 +19,7 @@ class BloomFilterSpec extends Properties("BloomFilter_128bit") with matchers.sho
   override def overrideParameters(p: Parameters): Parameters =
     super.overrideParameters(p).withMinSuccessfulTests(100)
 
-  class BloomFilterCommands[T: Arbitrary](using CanGenerate128HashFrom[T]) extends Commands {
+  class BloomFilterCommands[T: Arbitrary](using CanGenerateHashFrom[T]) extends Commands {
     type Sut = BloomFilter128[T]
 
     case class State(expectedItems: Long, addedItems: Long)

@@ -1,6 +1,5 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpec
 

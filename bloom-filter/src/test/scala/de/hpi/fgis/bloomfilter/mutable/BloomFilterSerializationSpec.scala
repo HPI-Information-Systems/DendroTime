@@ -1,6 +1,5 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import org.scalacheck.Prop.forAll
 import org.scalacheck.{Gen, Properties}
 import org.scalatest.matchers.should.Matchers
@@ -9,13 +8,13 @@ import java.io.*
 import scala.language.adhocExtensions
 
 class BloomFilterSerializationSpec extends Properties("BloomFilter64") with Matchers {
-  def genListElems[A](max: Long)(implicit aGen: Gen[A]): Gen[List[A]] =
+  private def genListElems[A](max: Long)(implicit aGen: Gen[A]) =
     Gen
       .posNum[Int]
       .map(_ % max)
       .flatMap(i => Gen.listOfN(math.min(i, Int.MaxValue).toInt, aGen))
 
-  val gen = for {
+  private val gen = for {
     size <- Gen.oneOf[Long](1, 1000 /*, Int.MaxValue.toLong + 1*/)
     indices <- genListElems[Long](size)(Gen.chooseNum(0, size - 1))
   } yield (size, indices)

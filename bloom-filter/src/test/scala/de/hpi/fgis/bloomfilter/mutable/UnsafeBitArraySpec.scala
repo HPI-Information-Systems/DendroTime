@@ -1,6 +1,5 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import de.hpi.fgis.bloomfilter.mutable.UnsafeBitArray
 import org.scalacheck.Test.Parameters
 import org.scalacheck.commands.Commands
 import org.scalacheck.{Gen, Prop, Properties}
@@ -38,7 +37,7 @@ class UnsafeBitArraySpec extends Properties("UnsafeBitArray") with matchers.shou
 
     def genCommand(state: State): Gen[Command] =
       for {
-        i <- Gen.choose[Long](0, state.size)
+        i <- Gen.choose[Long](0, state.size - 1)
       } yield commandSequence(SetItem(i), GetItem(i))
 
     case class SetItem(i: Long) extends UnitCommand {
@@ -67,10 +66,10 @@ class UnsafeBitArraySpec extends Properties("UnsafeBitArray") with matchers.shou
   def serializationProp: Prop =
     case class State(sz: Int, included: Set[Long])
     val genState = for {
-      sz <- Gen.posNum[Long]
-      included <- Gen.listOf(Gen.choose(0L, sz - 1))
+      size <- Gen.posNum[Long]
+      included <- Gen.listOf(Gen.choose(0L, size - 1))
     } yield
-      State(sz.toInt, included.toSet)
+      State(size.toInt, included.toSet)
 
     Prop.forAll(genState) { case State(sz, included) =>
       val bits = new UnsafeBitArray(sz)
@@ -90,13 +89,14 @@ class UnsafeBitArraySpec extends Properties("UnsafeBitArray") with matchers.shou
         deserialized should be(a[UnsafeBitArray])
         val deserializedBits = deserialized.asInstanceOf[UnsafeBitArray]
         try
-          deserializedBits.numberOfBits should equal(bits.numberOfBits)
+          deserializedBits.numberOfBits shouldEqual bits.numberOfBits
           forAll(0L until bits.numberOfBits) { idx =>
-            bits.get(idx) should equal(deserializedBits.get(idx))
+            bits.get(idx) shouldEqual deserializedBits.get(idx)
           }
         finally
           deserializedBits.dispose()
-      finally bits.dispose()
+      finally
+        bits.dispose()
       Prop.passed
     }
 }

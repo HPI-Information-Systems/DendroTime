@@ -14,16 +14,18 @@ private[bloomfilter] final class UnsafeBitArray(val numberOfBits: Long) extends 
   private var bitCount = 0L
 
   def get(index: Long): Boolean =
+//    require(index >= 0 && index < numberOfBits, s"Index $index is out of bounds for an array of size $numberOfBits")
     (unsafe.getLong(ptr + (index >>> 6) * 8L) & (1L << index)) != 0
 
   def set(index: Long): Unit =
+//    require(index >= 0 && index < numberOfBits, s"Index $index is out of bounds for an array of size $numberOfBits")
     val offset = ptr + (index >>> 6) * 8L
     val long = unsafe.getLong(offset)
     if ((long & (1L << index)) == 0)
       unsafe.putLong(offset, long | (1L << index))
       bitCount += 1
 
-  def combine(that: UnsafeBitArray, combiner: (Long, Long) => Long): UnsafeBitArray =
+  private def combine(that: UnsafeBitArray, combiner: (Long, Long) => Long): UnsafeBitArray =
     val result = new UnsafeBitArray(this.numberOfBits)
     var index = 0L
     while (index < numberOfBits)
@@ -47,8 +49,7 @@ private[bloomfilter] final class UnsafeBitArray(val numberOfBits: Long) extends 
 
     combine(that, _ & _)
 
-  def getBitCount: Long =
-    bitCount
+  def getBitCount: Long = bitCount
 
   def writeTo(out: OutputStream): Unit =
     val dout = new DataOutputStream(out)
