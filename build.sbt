@@ -47,6 +47,7 @@ lazy val `backend` = project.in(file("backend"))
       "org.scalatest" %% "scalatest" % "3.2.18" % Test
     ),
     javacOptions += "-Xlint:deprecation",
+    javaOptions += "-Xmx2G",
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 

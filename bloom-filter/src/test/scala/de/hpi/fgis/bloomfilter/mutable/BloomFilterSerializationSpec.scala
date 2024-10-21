@@ -25,12 +25,10 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter64") with Matc
       indices.foreach(initial.add)
 
       val file = File.createTempFile("bloomFilterSerialized", ".tmp")
-      val out =
-        new BufferedOutputStream(new FileOutputStream(file), 10 * 1000 * 1000)
+      val out = new BufferedOutputStream(new FileOutputStream(file), 10 * 1000 * 1000)
       initial.writeTo(out)
       out.close()
-      val in =
-        new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
+      val in = new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
       val sut = BloomFilter64.readFrom[Long](in)
       in.close()
 
@@ -50,14 +48,12 @@ class BloomFilterSerializationSpec extends Properties("BloomFilter64") with Matc
       val initial = BloomFilter64[Long](size, 0.01)
       indices.foreach(initial.add)
       val file = File.createTempFile("bloomFilterSerialized", ".tmp")
-      val out =
-        new BufferedOutputStream(new FileOutputStream(file), 10 * 1000 * 1000)
+      val out = new BufferedOutputStream(new FileOutputStream(file), 10 * 1000 * 1000)
       val oos = new ObjectOutputStream(out)
       oos.writeObject(initial)
       oos.close()
       out.close()
-      val in =
-        new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
+      val in = new BufferedInputStream(new FileInputStream(file), 10 * 1000 * 1000)
       val ois = new ObjectInputStream(in)
       val desrialized = ois.readObject()
       ois.close()

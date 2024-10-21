@@ -1,7 +1,6 @@
-package de.hpi.fgis.dendrotime.io
+package de.hpi.fgis.dendrotime.io.hierarchies
 
-import com.univocity.parsers.common.ParsingContext
-import com.univocity.parsers.common.processor.AbstractRowProcessor
+import com.univocity.parsers.common.{IterableResult, ParsingContext}
 import com.univocity.parsers.csv.{CsvParser, CsvParserSettings}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 
@@ -13,26 +12,16 @@ import scala.collection.mutable
  * CSV Parser for reading input files and parsing them into a table representation.
  */
 object HierarchyCSVReader {
-
   def apply(): HierarchyCSVReader = new HierarchyCSVReader()
 
-  private class ColumnProcessor extends AbstractRowProcessor {
-
-    private val data: mutable.ArrayBuilder[Array[Double]] = mutable.ArrayBuilder.make[Array[Double]]
-    private val reusableLineBuilder: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
-
-    def hierarchy: Array[Array[Double]] = data.result()
-
-    override def rowProcessed(row: Array[String], context: ParsingContext): Unit = {
-      for (j <- row.indices)
-        reusableLineBuilder.addOne(row(j).toDouble)
-      data.addOne(reusableLineBuilder.result())
-      reusableLineBuilder.clear()
-    }
-  }
+  extension [T](result: IterableResult[T, ParsingContext])
+    def foreach(f: T => Unit): Unit =
+      result.forEach(f(_))
 }
 
 class HierarchyCSVReader private {
+
+  import HierarchyCSVReader.*
 
   private val parserSettings = {
     val s = new CsvParserSettings
@@ -56,13 +45,15 @@ class HierarchyCSVReader private {
    * @return the parsed hierarchy
    */
   def parse(file: File): Hierarchy = {
-    val p = HierarchyCSVReader.ColumnProcessor()
-    val s = parserSettings.clone()
-    s.setProcessor(p)
-    val parser = new CsvParser(s)
+    val parser = new CsvParser(parserSettings)
+    val data = mutable.ArrayBuilder.make[Array[Double]]
+    val reusableLineBuilder = mutable.ArrayBuilder.ofDouble()
 
-    // parse and return result
-    parser.parse(file)
-    Hierarchy.fromArray(p.hierarchy)
+    for row <- parser.iterate(file) do
+      reusableLineBuilder.addAll(row.map(_.toDouble))
+      data.addOne(reusableLineBuilder.result())
+      reusableLineBuilder.clear()
+
+    Hierarchy.fromArray(data.result())
   }
 }
