@@ -39,6 +39,9 @@ lazy val `backend` = project.in(file("backend"))
       // logging
       "ch.qos.logback" % "logback-classic" % "1.5.6",
 
+      // csv parsing
+      "com.univocity" % "univocity-parsers" % "2.9.1",
+
       // test
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.2.18" % Test

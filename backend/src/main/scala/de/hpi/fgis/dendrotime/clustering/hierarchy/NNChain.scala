@@ -122,6 +122,7 @@ def main(): Unit = {
   val dists = PDist.empty(5)
   val linkage = Linkage.WardLinkage
   val hierarchy = NNChain(dists, linkage, adjustLabels = true)
+  println()
   for node <- hierarchy do
-    println(node)
+    println(s"${node.idx}, ${node.cId1}, ${node.cId2}, ${node.distance}, ${node.cardinality}")
 }

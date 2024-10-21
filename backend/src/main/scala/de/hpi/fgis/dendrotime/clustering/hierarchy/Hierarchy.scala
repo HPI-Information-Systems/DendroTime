@@ -15,6 +15,9 @@ object Hierarchy {
   /** Create a new hierarchy using the builder pattern. */
   def newBuilder(n: Int): HierarchyBuilder = new HierarchyBuilder(n)
 
+  /** Create a hierarchy from an existing 2D array representation. */
+  def fromArray(z: Array[Array[Double]]): Hierarchy = Hierarchy(z, z.length + 1)
+
   class HierarchyBuilder private[Hierarchy](n: Int) extends IndexedSeq[Hierarchy.Node] {
     private val z = Array.ofDim[Double](n - 1, 4)
     private var i = 0

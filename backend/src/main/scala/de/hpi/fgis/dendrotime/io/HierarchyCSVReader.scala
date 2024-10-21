@@ -1,9 +1,12 @@
 package de.hpi.fgis.dendrotime.io
 
+import com.univocity.parsers.common.ParsingContext
+import com.univocity.parsers.common.processor.AbstractRowProcessor
 import com.univocity.parsers.csv.{CsvParser, CsvParserSettings}
-import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 
-import scala.io.Codec
+import java.io.File
+import scala.collection.mutable
 
 
 /**
@@ -11,13 +14,25 @@ import scala.io.Codec
  */
 object HierarchyCSVReader {
 
-  def apply(): CSVParser = new HierarchyCSVReader()
+  def apply(): HierarchyCSVReader = new HierarchyCSVReader()
 
+  private class ColumnProcessor extends AbstractRowProcessor {
+
+    private val data: mutable.ArrayBuilder[Array[Double]] = mutable.ArrayBuilder.make[Array[Double]]
+    private val reusableLineBuilder: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
+
+    def hierarchy: Array[Array[Double]] = data.result()
+
+    override def rowProcessed(row: Array[String], context: ParsingContext): Unit = {
+      for (j <- row.indices)
+        reusableLineBuilder.addOne(row(j).toDouble)
+      data.addOne(reusableLineBuilder.result())
+      reusableLineBuilder.clear()
+    }
+  }
 }
 
-class HierarchyCSVReader private() {
-
-  private given fileCodec: Codec = Codec.UTF8
+class HierarchyCSVReader private {
 
   private val parserSettings = {
     val s = new CsvParserSettings
@@ -27,36 +42,27 @@ class HierarchyCSVReader private() {
   }
 
   /**
-   * Reads a CSV file and parses it.
+   * Reads a CSV file containing a hierarchy and parses it.
    *
    * @param file file name, can contain relative or absolute paths, see [[java.io.File]] for more infos
-   * @return
+   * @return the parsed hierarchy
    */
-  def parse(file: String): Table = parse(new File(file))
+  def parse(file: String): Hierarchy = parse(new File(file))
 
   /**
-   * Reads a CSV file and parses it.
+   * Reads a CSV file containing a hierarchy  and parses it.
    *
    * @param file [[java.io.File]] pointing to the dataset
-   * @return
+   * @return the parsed hierarchy
    */
-  def parse(file: File): Table = {
-    val p = ColumnProcessor(settings)
+  def parse(file: File): Hierarchy = {
+    val p = HierarchyCSVReader.ColumnProcessor()
     val s = parserSettings.clone()
     s.setProcessor(p)
     val parser = new CsvParser(s)
 
     // parse and return result
     parser.parse(file)
-    Table(
-      name = extractFileName(settings.filePath),
-      headers = p.headers,
-      columns = p.columns
-    )
-  }
-
-  private def extractFileName(path: String): String = {
-    val filename = new File(path).getName
-    filename.substring(0, filename.lastIndexOf("."))
+    Hierarchy.fromArray(p.hierarchy)
   }
 }
