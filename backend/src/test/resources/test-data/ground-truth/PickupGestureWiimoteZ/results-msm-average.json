@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-msm-average", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "msm", "linkage": "average", "estimator_kwargs": {"linkage": "average", "metric": "msm", "n_clusters": 10}, "runtime_s": 0.965686864, "adjusted_rand_score": 0.2388455458671154}

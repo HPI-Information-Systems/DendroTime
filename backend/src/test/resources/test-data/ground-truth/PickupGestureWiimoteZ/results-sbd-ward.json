@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-sbd-ward", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "sbd", "linkage": "ward", "estimator_kwargs": {"linkage": "ward", "metric": "sbd", "n_clusters": 10}, "runtime_s": 0.783799728, "adjusted_rand_score": 0.3391713747645951}

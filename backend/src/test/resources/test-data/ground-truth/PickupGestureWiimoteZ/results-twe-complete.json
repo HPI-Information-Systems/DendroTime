@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-twe-complete", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "twe", "linkage": "complete", "estimator_kwargs": {"linkage": "complete", "metric": "twe", "n_clusters": 10}, "runtime_s": 1.627374982, "adjusted_rand_score": 0.36866981769074947}

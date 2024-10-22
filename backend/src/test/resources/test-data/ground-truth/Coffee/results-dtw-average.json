@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-dtw-average", "status": "OK", "dataset": "Coffee", "estimator": "TimeSeriesHAC", "metric": "dtw", "linkage": "average", "estimator_kwargs": {"linkage": "average", "metric": "dtw", "n_clusters": 2}, "runtime_s": 0.324829775, "adjusted_rand_score": 0.015782825130691378}

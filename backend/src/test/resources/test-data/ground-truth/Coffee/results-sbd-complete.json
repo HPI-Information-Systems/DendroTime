@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-sbd-complete", "status": "OK", "dataset": "Coffee", "estimator": "TimeSeriesHAC", "metric": "sbd", "linkage": "complete", "estimator_kwargs": {"linkage": "complete", "metric": "sbd", "n_clusters": 2}, "runtime_s": 0.250530282, "adjusted_rand_score": 0.015782825130691378}

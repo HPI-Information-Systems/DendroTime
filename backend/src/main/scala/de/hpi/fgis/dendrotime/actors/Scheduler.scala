@@ -92,11 +92,11 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       case ProcessingResponse(Coordinator.ProcessingStarted(_, _), _) =>
         ctx.log.warn("Received duplicated processing started message, ignoring")
         Behaviors.same
-      case ProcessingResponse(m @ Coordinator.ProcessingStatus(`jobId`, Status.Finished), _) =>
+      case ProcessingResponse(Coordinator.ProcessingStatus(`jobId`, Status.Finished), _) =>
         ctx.log.debug("Processing finished, waiting for stop message")
         ctx.unwatch(coordinator)
         finished(jobId, dataset, coordinator, communicator)
-      case GetProgress(id, replyTo) =>
+      case GetProgress(_, replyTo) =>
         communicator ! Communicator.GetProgress(replyTo)
         Behaviors.same
     }
@@ -155,7 +155,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
     case GetStatus(replyTo) =>
       replyTo ! ProcessingStatus(jobId, Some(dataset))
       Behaviors.same
-    case GetProgress(id, replyTo) =>
+    case GetProgress(_, replyTo) =>
       communicator ! Communicator.GetProgress(replyTo)
       Behaviors.same
     case CancelProcessing(id, replyTo) =>
@@ -169,14 +169,14 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
         replyTo ! ProcessingCancelled(id, s"The job with id $id is currently not being processed (current=$jobId)")
         Behaviors.same
 
-    case ProcessingResponse(Coordinator.ProcessingStarted(id, _), replyTo) =>
+    case ProcessingResponse(Coordinator.ProcessingStarted(_, _), _) =>
       ctx.log.warn("Received duplicated processing started message, ignoring")
       Behaviors.same
-    case ProcessingResponse(Coordinator.ProcessingEnded(id), replyTo) =>
+    case ProcessingResponse(Coordinator.ProcessingEnded(id), _) =>
       ctx.log.info("Successfully processed dataset job={}", id)
       //        replyTo ! ProcessingFinished(d)
       idle(jobId)
-    case ProcessingResponse(Coordinator.ProcessingFailed(id), replyTo) =>
+    case ProcessingResponse(Coordinator.ProcessingFailed(id), _) =>
       ctx.log.error("Failed to process dataset job={}", id)
       //        replyTo ! ProcessingFailed(d)
       Behaviors.same
@@ -184,7 +184,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       ctx.log.debug("Ignored status message: {}", m)
       // ignore
       Behaviors.same
-    case StopProcessing(id, replyTo) =>
+    case StopProcessing(_, replyTo) =>
       coordinator ! Stop
       replyTo ! Success[Unit](())
       Behaviors.same
