@@ -11,11 +11,11 @@ import scala.util.Using
 
 object FFTWReal {
 
-  final type FFTWProvider = Array[Int] => FFTWReal
+  private final type FFTWProvider = Array[Int] => FFTWReal
 
-  given defaultFfftwProvider: FFTWProvider = FFTWReal.apply(_)
+  final given defaultFfftwProvider: FFTWProvider = FFTWReal.apply(_)
 
-  private val SIZE_OF_DOUBLE: Int = 8
+  private final val SIZE_OF_DOUBLE: Int = 8
 
   /** Convolve array `b` over array `b` using the FFTW native library.
    *
@@ -25,7 +25,7 @@ object FFTWReal {
    *          The second array to convolve.
    * @return The convolution of a and b of length n + m - 1.
    */
-  final def fftwConvolve(a: Array[Double], b: Array[Double])(using fftProvider: FFTWProvider): Array[Double] = {
+  def fftwConvolve(a: Array[Double], b: Array[Double])(using fftProvider: FFTWProvider): Array[Double] = {
     if a.length == 0 || b.length == 0 then
       return Array.empty
 
@@ -55,7 +55,7 @@ object FFTWReal {
     }
   }
 
-  private final def nextFastLength(n: Int): Int = {
+  private def nextFastLength(n: Int): Int = {
     val FACTORS = Array(2, 3, 5)
     var m = n
     while true do
@@ -70,7 +70,7 @@ object FFTWReal {
     m
   }
 
-  private final def multiplyFourierArrays(src1: Array[Double], src2: Array[Double], dst: Array[Double]): Unit = {
+  private def multiplyFourierArrays(src1: Array[Double], src2: Array[Double], dst: Array[Double]): Unit = {
     for (i <- 0 until src1.length / 2) {
       // src and dst arrays might be aliased; create temporary variables
       val re = src1(2 * i + 0) * src2(2 * i + 0) - src1(2 * i + 1) * src2(2 * i + 1)
@@ -130,19 +130,19 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
     ap
   }
 
-  def convolve(a: Array[Double], b: Array[Double]): Array[Double] = {
-    require(a.length == n && b.length == n)
-
-    val ap = Array.ofDim[Double](nRecip)
-    val bp = Array.ofDim[Double](nRecip)
-    forward(a, ap)
-    forward(b, bp)
-    // conjugateFourierArray(bp, bp) // affects sign: c(j) = \sum_i a(i) b(i-j)
-    multiplyFourierArrays(ap, bp, ap)
-    val dst = Array.ofDim[Double](n)
-    backward(ap, dst)
-    dst
-  }
+//  def convolve(a: Array[Double], b: Array[Double]): Array[Double] = {
+//    require(a.length == n && b.length == n)
+//
+//    val ap = Array.ofDim[Double](nRecip)
+//    val bp = Array.ofDim[Double](nRecip)
+//    forward(a, ap)
+//    forward(b, bp)
+//    // conjugateFourierArray(bp, bp) // affects sign: c(j) = \sum_i a(i) b(i-j)
+//    multiplyFourierArrays(ap, bp, ap)
+//    val dst = Array.ofDim[Double](n)
+//    backward(ap, dst)
+//    dst
+//  }
 
   def close(): Unit =
     destroy()
