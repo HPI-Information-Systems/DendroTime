@@ -41,7 +41,7 @@ class HierarchyCSVWriter private {
    * @param h    the hierarchy to write
    */
   def write(file: File, h: Hierarchy): Unit = {
-    val writer = new CsvWriter(parserSettings)
+    val writer = new CsvWriter(file, parserSettings)
 
     h.fastForeach { level =>
       writer.writeRow(level.map(_.toString))

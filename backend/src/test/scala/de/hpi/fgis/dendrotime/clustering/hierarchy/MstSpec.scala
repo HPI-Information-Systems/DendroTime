@@ -1,13 +1,27 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage.SingleLinkage
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpec
 
 class MstSpec extends AnyWordSpec with should.Matchers {
   // expected values were generated using
   // scipy.cluster.hierarchy.linkage(distances, method="single", metric="something")
-  
+
+  "The hierarchy factory" should {
+    "call the MST algorithm for single linkage" in {
+      val n = 4
+      val distances = PDist(n)(1.0, 3.0, 4.0, 2.0, 5.0, 3.0)
+      val h = computeHierarchy(distances, SingleLinkage)
+      h.size shouldEqual n - 1
+      h.toList shouldEqual List(
+        Hierarchy.Node(0, 0, 1, 1.0, 2),
+        Hierarchy.Node(1, 2, 4, 2.0, 3),
+        Hierarchy.Node(2, 3, 5, 3.0, 4)
+      )
+    }
+  }
   "The MST algorithm" should {
     "compute the hierarchy for 4 TS correctly" in {
       val n = 4

@@ -37,10 +37,20 @@ class PDistSpec extends AnyWordSpec with should.Matchers {
       }
     }
 
+    "reject non-square distance matrix" in {
+      for arr <- Seq(Array(Array(0.0, 1.0, 3.0), Array(1.0, 0.0, 1.0)), Array(Array(0.0, 1.0))) do
+        val ex = intercept[RuntimeException] {
+          PDist(arr, 2)
+        }
+        ex shouldBe a[IllegalArgumentException]
+        ex.getMessage should include ("matrix must be square")
+    }
+
     "create a new empty pairwise distance vector of correct length" in {
       val dists = PDist.empty(n)
       dists.length shouldEqual n * (n - 1) / 2
       dists.n shouldEqual n
+      dists.knownSize shouldEqual dists.length
       dists.foreach(_ shouldEqual Double.PositiveInfinity)
     }
 
@@ -48,6 +58,7 @@ class PDistSpec extends AnyWordSpec with should.Matchers {
       val dists = PDist(matrix, n)
       dists.length shouldEqual n * (n - 1) / 2
       dists.n shouldEqual n
+      dists.knownSize shouldEqual dists.length
       for i <- 0 until n do
         for j <- i + 1 until n do
           dists(i, j) shouldEqual matrix(i)(j)
@@ -55,17 +66,28 @@ class PDistSpec extends AnyWordSpec with should.Matchers {
 
     "create a new pairwise distance vector from a sparse matrix" in {
       val sparseMatrix = Array(
-      Array(0.0, 0.0, 0.0, 0.0),
-      Array(1.0, 0.0, 0.0, 0.0),
-      Array(2.0, 4.0, 0.0, 0.0),
-      Array(3.0, 5.0, 6.0, 0.0)
-    )
+        Array(0.0, 0.0, 0.0, 0.0),
+        Array(1.0, 0.0, 0.0, 0.0),
+        Array(2.0, 4.0, 0.0, 0.0),
+        Array(3.0, 5.0, 6.0, 0.0)
+      )
       val dists = PDist(sparseMatrix, n)
       dists.length shouldEqual n * (n - 1) / 2
       dists.n shouldEqual n
+      dists.knownSize shouldEqual dists.length
       for i <- 0 until n do
         for j <- i + 1 until n do
           dists(i, j) shouldEqual sparseMatrix(i)(j)
+    }
+
+    "create a new pairwise distance vector from a dense matrix without explicit n" in {
+      val dists = PDist(matrix)
+      dists.length shouldEqual n * (n - 1) / 2
+      dists.n shouldEqual n
+      dists.knownSize shouldEqual dists.length
+      for i <- 0 until n do
+        for j <- i + 1 until n do
+          dists(i, j) shouldEqual matrix(i)(j)
     }
   }
 

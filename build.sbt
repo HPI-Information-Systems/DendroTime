@@ -6,7 +6,7 @@ lazy val akkaHttpVersion = "10.6.3"
 lazy val targetScalaVersion = "3.3.3"
 
 ThisBuild / organization := "de.hpi.fgis"
-ThisBuild / version := "0.1.0-SNAPSHOT"
+//ThisBuild / version := "0.1.0-SNAPSHOT" // automatically filled by plugin
 ThisBuild / scalaVersion := targetScalaVersion
 
 ThisBuild / resolvers += "Akka library repository".at("https://repo.akka.io/maven")
@@ -16,6 +16,9 @@ ThisBuild / resolvers += "Akka library repository".at("https://repo.akka.io/mave
 // If you want to keep the application running while executing other
 // sbt tasks, consider https://github.com/spray/sbt-revolver/
 ThisBuild / fork := true
+
+// enable test coverage collection
+ThisBuild / coverageEnabled := true
 
 lazy val `DendroTime` = project.in(file("."))
   .dependsOn(`backend`, `frontend`)
@@ -48,7 +51,7 @@ lazy val `backend` = project.in(file("backend"))
     ),
     javacOptions += "-Xlint:deprecation",
     javaOptions += "-Xmx2G",
-    Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
+    Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer"),
   )
 
 lazy val `frontend` = project.in(file("./frontend"))

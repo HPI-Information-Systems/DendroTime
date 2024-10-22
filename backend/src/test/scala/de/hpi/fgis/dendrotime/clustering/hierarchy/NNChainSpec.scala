@@ -1,12 +1,27 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage.WardLinkage
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpec
 
 class NNChainSpec extends AnyWordSpec with should.Matchers {
   // expected values were generated using
   // scipy.cluster.hierarchy.linkage(distances, method=linkage, metric="something")
+
+  "The hierarchy factory" should {
+    "call the NNchain algorithm for non-single linkage" in {
+      val n = 4
+      val distances = PDist(n)(1.0, 3.0, 4.0, 2.0, 5.0, 3.0)
+      val h = computeHierarchy(distances, Linkage.WeightedLinkage)
+      h.size shouldEqual n - 1
+      h.toList shouldEqual List(
+        Hierarchy.Node(0, 0, 1, 1.0, 2),
+        Hierarchy.Node(1, 2, 4, 2.5, 3),
+        Hierarchy.Node(2, 3, 5, 3.75, 4)
+      )
+    }
+  }
 
   "The NNChain algorithm" should {
     "compute the hierarchy for 4 TS correctly" when {

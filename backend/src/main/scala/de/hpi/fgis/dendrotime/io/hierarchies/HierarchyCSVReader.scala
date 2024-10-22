@@ -25,8 +25,10 @@ class HierarchyCSVReader private {
 
   private val parserSettings = {
     val s = new CsvParserSettings
-    s.detectFormatAutomatically()
     s.setHeaderExtractionEnabled(false)
+    val f = s.getFormat
+    f.setDelimiter(",")
+    f.setLineSeparator("\n")
     s
   }
 
@@ -54,6 +56,7 @@ class HierarchyCSVReader private {
       data.addOne(reusableLineBuilder.result())
       reusableLineBuilder.clear()
 
+    parser.stopParsing()
     Hierarchy.fromArray(data.result())
   }
 }
