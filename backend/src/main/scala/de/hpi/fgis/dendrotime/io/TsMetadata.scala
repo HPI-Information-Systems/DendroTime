@@ -12,7 +12,7 @@ private[io] object TsMetadata {
     val timestamps = canonicalMetadata.getOrElse("timestamps", "false").toBoolean
     val missing = canonicalMetadata.getOrElse("missing", "false").toBoolean
     val univariate = canonicalMetadata.getOrElse("univariate", "true").toBoolean
-    val dimension = canonicalMetadata.getOrElse("dimension", "1").toInt
+    val dimension = canonicalMetadata.getOrElse("dimension", if (univariate) "1" else "0").toInt
     val equalLength = canonicalMetadata.getOrElse("equallength", "true").toBoolean
     val seriesLength = canonicalMetadata.getOrElse("serieslength", "0").toLong
     if canonicalMetadata.contains("targetlabel") then

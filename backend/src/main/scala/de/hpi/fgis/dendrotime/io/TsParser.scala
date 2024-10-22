@@ -5,23 +5,6 @@ import java.nio.charset.Charset
 import scala.collection.mutable
 import scala.util.Using
 
-
-@main def testParser(): Unit = {
-  val parser = TsParser(TsParser.TsParserSettings())
-  val processor = new TsParser.TsProcessor {
-    private var count = 0
-    override def processMetadata(metadata: TsMetadata): Unit = {
-      println(s"Metadata: $metadata")
-    }
-
-    override def processUnivariate(data: Array[Double], label: String): Unit = {
-      count += 1
-      println(s"Univariate TS $count with ${data.length} values and label '$label'")
-    }
-  }
-  parser.parse(File("data/ACSF1/ACSF1_TEST.ts"), processor)
-}
-
 object TsParser {
 
   case class TsFormat(
@@ -58,7 +41,7 @@ object TsParser {
 
 class TsParser(settings: TsParser.TsParserSettings) {
 
-  private final val EOF = (-1).toChar
+  private final val EOF = -1.toChar
   private val charset = Charset.forName(settings.encoding)
   private val newLine = settings.format.newLine
   private val valueDelimiter = settings.format.valueDelimiter

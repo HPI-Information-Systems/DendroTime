@@ -1,11 +1,11 @@
 package de.hpi.fgis.dendrotime.io
 
+import de.hpi.fgis.dendrotime.TestUtil
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 
 object Fixtures {
 
-  val hierarchyFile: String =
-    getClass.getClassLoader.getResource("test-data/hierarchy.csv").getPath
+  val hierarchyFile: String = TestUtil.findResource("test-data/hierarchy.csv")
 
   val hierarchyArray: Array[Array[Double]] = Array(
     Array(35,53,4.000000000000,2),

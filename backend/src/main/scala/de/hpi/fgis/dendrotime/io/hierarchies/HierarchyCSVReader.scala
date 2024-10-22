@@ -51,12 +51,13 @@ class HierarchyCSVReader private {
     val data = mutable.ArrayBuilder.make[Array[Double]]
     val reusableLineBuilder = mutable.ArrayBuilder.ofDouble()
 
-    for row <- parser.iterate(file) do
-      reusableLineBuilder.addAll(row.map(_.toDouble))
-      data.addOne(reusableLineBuilder.result())
-      reusableLineBuilder.clear()
-
-    parser.stopParsing()
-    Hierarchy.fromArray(data.result())
+    try
+      for row <- parser.iterate(file) do
+        reusableLineBuilder.addAll(row.map(_.toDouble))
+        data.addOne(reusableLineBuilder.result())
+        reusableLineBuilder.clear()
+      Hierarchy.fromArray(data.result())
+    finally
+      parser.stopParsing()
   }
 }
