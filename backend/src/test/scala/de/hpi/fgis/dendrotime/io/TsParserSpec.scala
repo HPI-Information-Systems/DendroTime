@@ -50,17 +50,6 @@ class TsParserSpec extends AnyWordSpec with should.Matchers {
       }
     }
 
-    "fastCountParsing is enabled" should {
-      "set nTimeseries correctly" in {
-        val parser = TsParser(TsParser.TsParserSettings(fastCountParsing = true))
-        val p = CountingProcessor()
-        parser.parse(variableLengthFile, p)
-        p.firstMethod shouldBe "processTSCount"
-        p.count shouldBe 50
-        p.nTimeseries shouldBe 50
-      }
-    }
-
     "metadata extraction is disabled" should {
       "skip metadata and set nTimeseries correctly" in {
         val parser = TsParser(TsParser.TsParserSettings(parseMetadata = false))

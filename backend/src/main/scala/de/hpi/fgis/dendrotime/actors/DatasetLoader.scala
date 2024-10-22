@@ -4,6 +4,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.io.TsParser
+import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import java.io.File
@@ -13,7 +14,7 @@ import scala.util.{Failure, Success, Try}
 
 object DatasetLoader {
   sealed trait Command
-  case class LoadDataset(id: Int, path: String, replyTo: ActorRef[Response]) extends Command
+  case class LoadDataset(d: Dataset, replyTo: ActorRef[Response]) extends Command
 
   sealed trait Response
   case class DatasetLoaded(id: Int, tsIds: NumericRange[Long]) extends Response
@@ -37,40 +38,49 @@ private class DatasetLoader private (
   private val settings = Settings(ctx.system)
   private val parser = TsParser(TsParser.TsParserSettings(
     parseMetadata = false,
-    tsLimit = settings.maxTimeseries,
-    fastCountParsing = true
+    tsLimit = settings.maxTimeseries
   ))
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial {
-    case LoadDataset(id, path, replyTo) =>
+    case LoadDataset(d, replyTo) =>
       val lastId = idGen
-      ctx.log.info("Loading dataset d-{} from {}", id, path)
-      loadDataset(id, path, replyTo) match {
+      ctx.log.info("Loading dataset d-{} from {}", d.id, d.testPath)
+      loadDataset(d, replyTo) match {
         case _: Success[Unit] =>
           val count = idGen - lastId
-          ctx.log.info("Dataset d-{} loaded with {} instances", id, count)
-          replyTo ! DatasetLoaded(id, lastId until idGen)
+          ctx.log.info("Dataset d-{} loaded with {} instances", d.id, count)
+          replyTo ! DatasetLoaded(d.id, lastId until idGen)
         case Failure(e) =>
-          ctx.log.error(s"Failed to load dataset d-$id", e)
-          replyTo ! DatasetNotLoaded(id, e.getMessage)
+          ctx.log.error(s"Failed to load dataset d-${d.id}", e)
+          replyTo ! DatasetNotLoaded(d.id, e.getMessage)
       }
       Behaviors.same
   }
 
-  private def loadDataset(id: Int, path: String, replyTo: ActorRef[Response]): Try[Unit] = Try {
-    val file = new File(path)
+  private def loadDataset(d: Dataset, replyTo: ActorRef[Response]): Try[Unit] = Try {
+    val testFile = new File(d.testPath)
+    val nTestTimeseries = parser.countTimeseries(testFile)
+    val nTrainTimeseries = d.trainPath match {
+      case Some(path) =>
+        parser.countTimeseries(new File(path))
+      case None =>
+        0
+    }
+    replyTo ! DatasetNTimeseries(nTestTimeseries + nTrainTimeseries)
+
     var idx = 0
-    parser.parse(file, new TsParser.TsProcessor {
-      override def processTSCount(nTimeseries: Int): Unit = {
-        replyTo ! DatasetNTimeseries(nTimeseries)
-      }
+    val processor = new TsParser.TsProcessor {
       override def processUnivariate(data: Array[Double], label: String): Unit = {
         val ts = LabeledTimeSeries(idGen, idx, data, label)
-        tsManager ! TimeSeriesManager.AddTimeSeries(id, ts)
-        replyTo ! NewTimeSeries(datasetId = id, tsId = idGen)
+        tsManager ! TimeSeriesManager.AddTimeSeries(d.id, ts)
+        replyTo ! NewTimeSeries(datasetId = d.id, tsId = idGen)
         idGen += 1
         idx += 1
       }
-    })
+    }
+    parser.parse(testFile, processor)
+    d.trainPath.foreach { path =>
+      parser.parse(new File(path), processor)
+    }
   }
 }

@@ -72,20 +72,42 @@ private class DatasetRegistry private (ctx: ActorContext[DatasetRegistry.Command
       localDatasetsFolder.mkdirs()
 
     ctx.log.info("Loading existing datasets from {}", localDatasetsFolder)
-    localDatasetsFolder.listFiles(_.isDirectory).sorted.flatMap { file =>
-      file.listFiles()
+    val dataFiles = localDatasetsFolder.listFiles(_.isDirectory).flatMap { file =>
+      val files = file.listFiles()
           .filter(_.getName.endsWith(".ts"))
           .filter(_.isFile)
-    }.zipWithIndex.map((file, i) =>
-      (i, Dataset(i, file.getName, file.getCanonicalPath))
-    ).toMap
+      files.groupBy(_.getName.stripSuffix(".ts").stripSuffix("_TEST").stripSuffix("_TRAIN")).flatMap {
+        case (name, Array(f1, f2)) =>
+          if f1.getName.contains("TEST") then
+            Some((name, f1.getCanonicalPath, Some(f2.getCanonicalPath)))
+          else if f2.getName.contains("TEST") then
+            Some((name, f2.getCanonicalPath, Some(f1.getCanonicalPath)))
+          else
+            None
+        case (name, Array(testFile)) =>
+          Some((name, testFile.getCanonicalPath, None))
+        case _ => None
+      }
+    }
+
+    dataFiles.sorted.zipWithIndex.map { case ((name, test, train), i) =>
+      (i, Dataset(i, name, test, train))
+    }.toMap
   }
 
   private def cacheNewDataset(dataset: Dataset, newId: Int): Try[Dataset] = Try {
-    val file = Path.of(dataset.path).toRealPath()
-    val target = dataPath.resolve(newId.toString).resolve(file.getFileName.toString)
-    target.getParent.toFile.mkdir()
-    Files.copy(file, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-    dataset.copy(id = newId, path = target.toRealPath().toString)
+    val testSource = Path.of(dataset.testPath).toRealPath()
+    val testTarget = copyFile(testSource, newId).toString
+    val trainTarget = dataset.trainPath.map { trainPath =>
+      val trainSource = Path.of(trainPath).toRealPath()
+      copyFile(trainSource, newId).toString
+    }
+    dataset.copy(id = newId, testPath = testTarget, trainPath = trainTarget)
+  }
+  
+  private def copyFile(source: Path, newId: Int): Path = {
+    val target = dataPath.resolve(newId.toString).resolve(source.getFileName.toString)
+    target.getParent.toFile.mkdirs()
+    Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
   }
 }

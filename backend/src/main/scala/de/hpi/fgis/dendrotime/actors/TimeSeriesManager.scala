@@ -108,7 +108,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
               ctx.log.info("Dataset d-{} not found, starting loading process", d.id)
               val loadingHandler = ctx.spawn(DatasetLoadingHandler(Set(replyTo)), f"loading-handler-${d.id}")
               ctx.watch(loadingHandler)
-              loader ! DatasetLoader.LoadDataset(d.id, d.path, loadingHandler)
+              loader ! DatasetLoader.LoadDataset(d, loadingHandler)
               running(timeseries, datasetMapping, handlers + (d.id -> loadingHandler))
           }
       }

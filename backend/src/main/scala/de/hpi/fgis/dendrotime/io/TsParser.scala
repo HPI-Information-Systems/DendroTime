@@ -20,7 +20,6 @@ object TsParser {
                                parseMetadata: Boolean = true,
                                encoding: String = "UTF-8",
                                tsLimit: Option[Int] = None,
-                               fastCountParsing: Boolean = false,
                              )
 
   object TsProcessor {
@@ -48,15 +47,10 @@ class TsParser(settings: TsParser.TsParserSettings) {
   private val channelDelimiter = settings.format.channelDelimiter
   private val metadataIdentifier = settings.format.metadataIdentifier
   private val commentIdentifier = settings.format.commentIdentifier
-  private val fastCountParsing = settings.fastCountParsing
 
   def parse(file: File, processor: TsParser.TsProcessor = TsParser.TsProcessor.default): Unit = {
     var parsingData = false
     val metadata: mutable.Map[String, String] = mutable.Map.empty
-    
-    if fastCountParsing then
-      val nTimeseries = parseTimeseriesCount(file)
-      processor.processTSCount(nTimeseries)
     
 //    println(s"Starting parsing file ${file.getName}")
     Using.resource(new BufferedReader(new FileReader(file, charset))) { input =>
@@ -88,14 +82,13 @@ class TsParser(settings: TsParser.TsParserSettings) {
           processor.processMetadata(TsMetadata(metadata.toMap))
         // parse data
         val nTimeseries = parseData(input, processor)
-        if !fastCountParsing then
-          processor.processTSCount(nTimeseries)
+        processor.processTSCount(nTimeseries)
       else
         throw new IOException("Whitespace after @data annotation is not allowed!")
     }
   }
   
-  private def parseTimeseriesCount(file: File): Int = {
+  def countTimeseries(file: File): Int = {
     Using.resource(new BufferedReader(new FileReader(file, charset))) { input =>
       // find @data annotation and then count the number lines
       var lineCounter = 0

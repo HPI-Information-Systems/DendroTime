@@ -14,7 +14,8 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
 
   import testKit.internalSystem.executionContext
 
-  private val coffeeDataset = TestUtil.findResource("test-data/datasets/Coffee/Coffee_TEST.ts")
+  private val coffeeDatasetTest = TestUtil.findResource("test-data/datasets/Coffee/Coffee_TEST.ts")
+  private val coffeeDatasetTrain = TestUtil.findResource("test-data/datasets/Coffee/Coffee_TRAIN.ts")
   private val pickupGestureDataset = TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TRAIN.ts")
 
   private def performSystemTest(dataset: Dataset, gtFile: String): Unit = {
@@ -22,17 +23,17 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
 //    val gtHierarchy = TestUtil.loadHierarchy(gtFile)
 
     // start DendroTime
-    val guardianProbe = createTestProbe[Scheduler.Response]("guarding")
-    val dendroTimeScheduler = spawn(Scheduler(), "scheduler")
+    val guardianProbe = createTestProbe[Scheduler.Response]()
+    val dendroTimeScheduler = spawn(Scheduler(), s"scheduler-${dataset.id}")
     dendroTimeScheduler ! Scheduler.StartProcessing(dataset, guardianProbe.ref)
     guardianProbe.expectMessageType[Scheduler.ProcessingStarted](100 millis)
 
     // wait for processing to finish and return final hierarchy
-    val progressProbe = createTestProbe[ProgressMessage]("progress")
+    val progressProbe = createTestProbe[ProgressMessage]()
     val timer = testKit.scheduler.scheduleWithFixedDelay(0 seconds, 50 millis) { () =>
       dendroTimeScheduler ! Scheduler.GetProgress(dataset.id, progressProbe.ref)
     }
-    val messages = progressProbe.fishForMessage(1 seconds) {
+    val messages = progressProbe.fishForMessage(5 seconds) {
       case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _) =>
         timer.cancel()
         FishingOutcomes.complete
@@ -55,10 +56,10 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
 
   "DendroTime" should {
     "produce correct hierarchy for Coffee dataset" in {
-      val dataset = Dataset(0, "Coffee", coffeeDataset)
+      val dataset = Dataset(0, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
       performSystemTest(dataset, "test-data/ground-truth/Coffee/hierarchy-msm-ward.csv")
     }
-    "produce correct hierarchy for PickupGestureWiimoteZ dataset" in {
+    "produce correct hierarchy for PickupGestureWiimoteZ (TEST) dataset" in {
       val dataset = Dataset(1, "PickupGestureWiimoteZ_TEST", pickupGestureDataset)
       performSystemTest(dataset, "test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-msm-ward.csv")
     }
