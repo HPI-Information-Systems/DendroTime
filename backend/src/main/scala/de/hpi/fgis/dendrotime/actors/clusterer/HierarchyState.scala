@@ -15,7 +15,6 @@ object HierarchyState {
     HierarchyState(
       n = n,
       currentHierarchy = Hierarchy.empty,
-      prevClusters = BFClusters.empty,
       currentClusters = BFClusters.emptyBFs(n),
       initialClusters = BFClusters.initial(n),
       similarities = Map.empty,
@@ -48,7 +47,6 @@ case class HierarchyState private(n: Int,
                                   similarities: Map[Int, Double],
                                   computations: Int,
                                   private val currentHierarchy: Hierarchy,
-                                  private val prevClusters: HierarchyState.BFClusters,
                                   private val currentClusters: HierarchyState.BFClusters,
                                   private val initialClusters: HierarchyState.BFClusters)
                                  (using options: ClusterSimilarityOptions) {
@@ -58,18 +56,16 @@ case class HierarchyState private(n: Int,
 
   def hierarchy: Hierarchy = currentHierarchy
 
-  // FIXME: release memory!
   def newHierarchy(index: Int, hierarchy: Hierarchy): HierarchyState =
     val (newClusters, similarity) = options.similarity match {
       case Similarity.SetJaccardSimilarity => computeClusterSimilaritySetJaccard(hierarchy)
       case _ => computeClusterSimilarityLevelwise(hierarchy)
     }
-    prevClusters.close()
+    currentClusters.close()
     copy(
       similarities = similarities + (index -> similarity),
       computations = computations + 1,
       currentHierarchy = hierarchy,
-      prevClusters = currentClusters,
       currentClusters = newClusters
     )
 
