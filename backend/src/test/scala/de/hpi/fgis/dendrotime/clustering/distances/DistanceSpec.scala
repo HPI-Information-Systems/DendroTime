@@ -12,7 +12,7 @@ class DistanceSpec extends AnyWordSpec with should.Matchers {
       val msm = d.asInstanceOf[MSM]
       msm.c shouldEqual MSM.DEFAULT_COST
       msm.window.isNaN shouldBe true
-      msm.itakuraMaxSlope shouldEqual MSM.DEFAULT_ITAKURA_MAX_SLOPE
+      msm.itakuraMaxSlope.isNaN shouldBe true
     }
     "create an SBD distance" in {
       val d = Distance("sbd")

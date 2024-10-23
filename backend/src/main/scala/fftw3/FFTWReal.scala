@@ -144,7 +144,7 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
 //    dst
 //  }
 
-  def close(): Unit =
+  override def close(): Unit =
     destroy()
 
   @inline

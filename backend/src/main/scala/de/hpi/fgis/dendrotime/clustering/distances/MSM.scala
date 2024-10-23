@@ -13,19 +13,23 @@ object MSM {
       (d * factor).round / factor
     }
   }
-  
-  val DEFAULT_COST: Double = 1.0
+
+  val DEFAULT_COST: Double = 0.5
   val DEFAULT_WINDOW: Double = Double.NaN
-  val DEFAULT_ITAKURA_MAX_SLOPE: Double = 0.8
-  
+  val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
+
   private def createBoundingMatrix(n: Int, m: Int, window: Double = DEFAULT_WINDOW, itakuraMaxSlope: Double = DEFAULT_ITAKURA_MAX_SLOPE): Array[Array[Boolean]] = {
     require(!(itakuraMaxSlope.isFinite && window.isFinite), "itakuraMaxSlope and window cannot be set at the same time")
     if itakuraMaxSlope.isFinite then
       require(0 < itakuraMaxSlope && itakuraMaxSlope < 1, "itakuraMaxSlope must be between 0 and 1")
+      require(n == m, "itakuraMaxSlope can only be used for equal length time series")
       itakuraParallelogram(n, m, itakuraMaxSlope)
     else if window.isFinite then
       require(0 < window && window < 1, "window must be between 0 and 1")
-      sakoeChibaBounding(n, m, window)
+      if n <= m then
+        sakoeChibaBounding(n, m, window)
+      else
+        sakoeChibaBounding(m, n, window).transpose
     else
       Array.tabulate(n, m)((_, _) => true)
   }
@@ -57,14 +61,17 @@ object MSM {
     minSlope *= n.toDouble / m
 
     @inline
-    def computeBound(i: Int, upper: Boolean): Int = {
-      val slope = if upper then minSlope else maxSlope
-      val bound = Math.max(
-        (i * minSlope).roundTo(2),
-        ((n - 1) - maxSlope * (m - 1) + maxSlope * i).roundTo(2)
-      ).ceil.toInt
-      if upper then bound + 1 else bound
-    }
+    def computeBound(i: Int, upper: Boolean): Int =
+      if upper then
+        Math.min(
+          (i * maxSlope).roundTo(2),
+          ((n - 1) - minSlope * (m - 1) + minSlope * i).roundTo(2)
+        ).floor.toInt + 1
+      else
+        Math.max(
+          (i * minSlope).roundTo(2),
+          ((n - 1) - maxSlope * (m - 1) + maxSlope * i).roundTo(2)
+        ).ceil.toInt
 
     val boundingMatrix = Array.ofDim[Boolean](n, m)
     for i <- 0 until m do
@@ -116,8 +123,8 @@ object MSM {
  * MSM satisfies triangular inequality and is a metric.
  *
  * @constructor Create a new configured instance to compute the MSM distance.
- * @param c Cost for split or merge operation. Default is 1.0.
- * @param window Window size for the Sakoe-Chiba bounding method. Default is NaN.
+ * @param c               Cost for split or merge operation. Default is 1.0.
+ * @param window          Window size for the Sakoe-Chiba bounding method. Default is NaN.
  * @param itakuraMaxSlope Maximum slope as a proportion of the number of time points used to create
  *                        Itakura parallelogram on the bounding matrix. Must be between 0. and 1. Default is 0.8.
  * @note Paper reference: [1] Stefan A., Athitsos V., Das G.: The Move-Split-Merge metric for time
@@ -210,7 +217,9 @@ class MSM(
   private final def costMatrix(x: Array[Double], y: Array[Double], boundingMatrix: Array[Array[Boolean]], c: Double): Array[Array[Double]] = {
     val n = x.length
     val m = y.length
-    val costMatrix = Array.ofDim[Double](n, m)
+    val costMatrix = Array.fill[Double](n, m) {
+      Double.PositiveInfinity
+    }
     costMatrix(0)(0) = Math.abs(x(0) - y(0))
 
     for i <- 1 until n do
