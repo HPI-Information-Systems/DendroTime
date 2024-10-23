@@ -78,9 +78,9 @@ private class DatasetLoader private (
         idx += 1
       }
     }
-    parser.parse(testFile, processor)
     d.trainPath.foreach { path =>
       parser.parse(new File(path), processor)
     }
+    parser.parse(testFile, processor)
   }
 }

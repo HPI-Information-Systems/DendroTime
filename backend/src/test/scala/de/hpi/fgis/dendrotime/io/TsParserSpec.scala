@@ -13,10 +13,9 @@ class TsParserSpec extends AnyWordSpec with should.Matchers {
     "default settings" should {
       "parse equal-length classification .ts-files from aeon successfully" in {
         val parser = TsParser(TsParser.TsParserSettings())
-        val p = CountingProcessor()
+        val p = Processor()
         parser.parse(equalLengthFile, p)
         p.firstMethod shouldBe "processMetadata"
-        p.count shouldBe 28
         p.nTimeseries shouldBe 28
         p.metadata.get shouldEqual TsClassificationMetadata(
           missing = false,
@@ -28,14 +27,16 @@ class TsParserSpec extends AnyWordSpec with should.Matchers {
           seriesLength = 286,
           classLabel = true
         )
+        p.timeseries.length shouldBe 28
+        for ts <- p.timeseries do
+          ts.length shouldBe 286
       }
 
       "parse variable-length classification .ts-files from aeon successfully" in {
         val parser = TsParser(TsParser.TsParserSettings())
-        val p = CountingProcessor()
+        val p = Processor()
         parser.parse(variableLengthFile, p)
         p.firstMethod shouldBe "processMetadata"
-        p.count shouldBe 50
         p.nTimeseries shouldBe 50
         p.metadata.get shouldEqual TsClassificationMetadata(
           missing = false,
@@ -47,38 +48,42 @@ class TsParserSpec extends AnyWordSpec with should.Matchers {
           seriesLength = 0,
           classLabel = true
         )
+        p.timeseries.length shouldBe 50
       }
     }
 
     "metadata extraction is disabled" should {
       "skip metadata and set nTimeseries correctly" in {
         val parser = TsParser(TsParser.TsParserSettings(parseMetadata = false))
-        val p = CountingProcessor()
+        val p = Processor()
         parser.parse(variableLengthFile, p)
         p.firstMethod shouldBe "processUnivariate"
-        p.count shouldBe 50
         p.nTimeseries shouldBe 50
         p.metadata shouldBe None
+        p.timeseries.length shouldBe 50
       }
     }
 
     "a time series limit is set" should {
       "stop parsing after the limit is reached" in {
         val parser = TsParser(TsParser.TsParserSettings(tsLimit = Some(10)))
-        val p = CountingProcessor()
+        val p = Processor()
         parser.parse(variableLengthFile, p)
         p.firstMethod shouldBe "processMetadata"
-        p.count shouldBe 10
         p.nTimeseries shouldBe 10
+        p.timeseries.length shouldBe 10
       }
     }
   }
 
-  private final class CountingProcessor extends TsParser.TsProcessor {
+  private final class Processor extends TsParser.TsProcessor {
     var firstMethod = ""
-    var count: Int = 0
     var metadata: Option[TsMetadata] = None
     var nTimeseries: Int = _
+
+    private val tsBuilder = Array.newBuilder[Array[Double]]
+
+    lazy val timeseries: Array[Array[Double]] = tsBuilder.result()
 
     override def processMetadata(metadata: TsMetadata): Unit = {
       this.metadata = Some(metadata)
@@ -86,7 +91,7 @@ class TsParserSpec extends AnyWordSpec with should.Matchers {
     }
 
     override def processUnivariate(data: Array[Double], label: String): Unit = {
-      count += 1
+      tsBuilder.addOne(data)
       if (firstMethod.isEmpty) firstMethod = "processUnivariate"
     }
 

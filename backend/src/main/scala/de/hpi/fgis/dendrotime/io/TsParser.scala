@@ -81,7 +81,7 @@ class TsParser(settings: TsParser.TsParserSettings) {
         if settings.parseMetadata then
           processor.processMetadata(TsMetadata(metadata.toMap))
         // parse data
-        val nTimeseries = parseData(input, processor)
+        val nTimeseries = parseData(input, processor, ch)
         processor.processTSCount(nTimeseries)
       else
         throw new IOException("Whitespace after @data annotation is not allowed!")
@@ -121,9 +121,9 @@ class TsParser(settings: TsParser.TsParserSettings) {
     (key.toString(), value.toString())
   }
 
-  private def parseData(input: BufferedReader, processor: TsParser.TsProcessor): Int = {
+  private def parseData(input: BufferedReader, processor: TsParser.TsProcessor, currentCh: Char): Int = {
     val ts = mutable.ListBuffer.empty[Double]
-    var ch = input.read().toChar
+    var ch = currentCh
     var nTimeseries = 0
     while ch != EOF do
       if ch != newLine && ch != ' ' then
@@ -132,8 +132,9 @@ class TsParser(settings: TsParser.TsParserSettings) {
           value.append(ch)
           ch = input.read().toChar
         if ch == valueDelimiter then
-          ts.append(value.toString().strip.toDouble)
+          ts.append(value.toString().toDouble)
         else if ch == channelDelimiter then
+          ts.append(value.toString().toDouble)
           // FIXME: only supports univariate TS at the moment
           val label = input.readLine()
           processor.processUnivariate(ts.toArray, label)
