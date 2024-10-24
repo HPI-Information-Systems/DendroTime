@@ -1,5 +1,6 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
+import de.hpi.fgis.dendrotime.TestUtil
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage.SingleLinkage
 import org.scalatest.matchers.should
@@ -49,6 +50,16 @@ class MstSpec extends AnyWordSpec with should.Matchers {
         Hierarchy.Node(2, 2, 6, 0.04960794, 4),
         Hierarchy.Node(3, 3, 7, 0.56610106, 5)
       )
+    }
+    "compare to reference for PGWZ dataset" in {
+      val pairwiseDistances = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-PGWZ-sbd.csv"))
+      val expectedHierarchy = TestUtil.loadHierarchy("test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-single.csv")
+      val distances = PDist.apply(pairwiseDistances)
+      val h = singleLinkageHierarchyMST(distances, adjustLabels = true)
+      h.size shouldEqual expectedHierarchy.size
+
+      import TestUtil.ImplicitEqualities.given
+      h shouldEqual expectedHierarchy
     }
   }
 }

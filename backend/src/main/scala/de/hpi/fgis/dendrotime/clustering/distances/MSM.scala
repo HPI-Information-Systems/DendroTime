@@ -197,6 +197,8 @@ class MSM(
   override def multiPairwise(x: Array[Array[Double]], y: Array[Array[Double]]): Array[Array[Double]] =
     x.map(xi => y.map(yi => apply(xi, yi)))
 
+  override def toString: String = s"MSM(c=$c, window=$window, itakuraMaxSlope=$itakuraMaxSlope)"
+
   @inline
   private final def fastPairwiseDistance(x: Array[Array[Double]], n_timesteps: Int) = {
     val n_instances = x.length

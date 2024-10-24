@@ -12,4 +12,9 @@ object Distance {
     case "sbd" => new SBD()
     case other => throw new IllegalArgumentException(s"Distance $other is not implemented. Use one of 'MSM' or 'SBD'")
   }
+  def unapply(distance: Distance): String = distance match {
+    case _: MSM => "msm"
+    case _: SBD => "sbd"
+    case _ => throw new IllegalArgumentException("Unknown distance type")
+  }
 }

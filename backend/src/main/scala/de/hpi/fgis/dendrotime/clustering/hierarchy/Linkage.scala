@@ -33,6 +33,17 @@ object Linkage {
     case _ => throw new IllegalArgumentException(s"Unknown linkage method: $method")
   }
 
+  def unapply(linkage: Linkage): String = linkage match {
+    case SingleLinkage => "single"
+    case CompleteLinkage => "complete"
+    case AverageLinkage => "average"
+    case WardLinkage => "ward"
+    case WeightedLinkage => "weighted"
+    case MedianLinkage => "median"
+    case CentroidLinkage => "centroid"
+    case null => throw new IllegalArgumentException("Unknown linkage method")
+  }
+
   case object SingleLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
       Math.min(dXi, dYi)

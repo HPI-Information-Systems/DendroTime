@@ -1,8 +1,9 @@
 package de.hpi.fgis.dendrotime
 
+import com.univocity.parsers.csv.{CsvParser, CsvParserSettings}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVReader
+import de.hpi.fgis.dendrotime.io.{CSVReader, TsParser}
 import org.scalactic.{Equality, TolerantNumerics, TripleEquals}
 
 import java.io.File
@@ -60,4 +61,8 @@ object TestUtil {
     })
     timeseries.result()
   }
+
+  /** Loads a csv 2D array from disk, using DendroTime production code. */
+  def loadCSVFile(path: String): Array[Array[Double]] =
+    CSVReader.parse(new File(path))
 }
