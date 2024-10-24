@@ -13,7 +13,7 @@ object FFTWReal {
 
   private final type FFTWProvider = Array[Int] => FFTWReal
 
-  final given defaultFfftwProvider: FFTWProvider = FFTWReal.apply(_)
+  final given defaultFfftwProvider: FFTWProvider = new FFTWReal(_)
 
   private final val SIZE_OF_DOUBLE: Int = 8
 
