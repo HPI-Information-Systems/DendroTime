@@ -11,7 +11,7 @@ object SBD {
     x.map(xi => (xi - xMean) / xStd)
   }
 
-  val DEFAULT_STANDARDIZE: Boolean = true
+  val DEFAULT_STANDARDIZE: Boolean = false
 }
 
 /** Compute the shape-based distance (SBD) between two time series.

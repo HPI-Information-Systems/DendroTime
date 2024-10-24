@@ -11,7 +11,7 @@ import scala.util.Using
 
 object FFTWReal {
 
-  private final type FFTWProvider = Array[Int] => FFTWReal
+  final type FFTWProvider = Array[Int] => FFTWReal
 
   final given defaultFfftwProvider: FFTWProvider = new FFTWReal(_)
 
@@ -86,6 +86,7 @@ object FFTWReal {
 // Thus, if indices are computed as (i = Lx*y + x) then one should use dim(Ly, Lx)
 final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends AutoCloseable {
   // optimization ideas:
+  // - re-use the FFTWReal instance for multiple convolutions (avoids re-creating the plan and re-allocation of memory)
   // - store wisdom to disk on close and load from disk on open (if exists) (survives JVM restarts):
   //   int fftw_export_wisdom_to_filename(const char *filename);
   //   int fftw_import_wisdom_from_filename(const char *filename);
@@ -111,8 +112,15 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
   private val inbuf = in.getByteBuffer(0, inBytes).asDoubleBuffer()
   private val outbuf = out.getByteBuffer(0, outBytes).asDoubleBuffer()
 
-  private val planForward = fftw.fftw_plan_dft_r2c(dims.length, IntBuffer.wrap(dims), inbuf, outbuf, flags | FFTW.FFTW_DESTROY_INPUT)
-  private val planBackward = fftw.fftw_plan_dft_c2r(dims.length, IntBuffer.wrap(dims), outbuf, inbuf, flags | FFTW.FFTW_DESTROY_INPUT)
+  // Synchronize access to all methods of the FFTW library because they are not thread-safe:
+  // https://www.fftw.org/doc/Thread-safety.html
+  // ONLY EXCEPTION is the fftw_execute method
+  private val planForward = fftw.synchronized {
+    fftw.fftw_plan_dft_r2c(dims.length, IntBuffer.wrap(dims), inbuf, outbuf, flags | FFTW.FFTW_DESTROY_INPUT)
+  }
+  private val planBackward = fftw.synchronized{
+    fftw.fftw_plan_dft_c2r(dims.length, IntBuffer.wrap(dims), outbuf, inbuf, flags | FFTW.FFTW_DESTROY_INPUT)
+  }
 
   def forwardTransform(a: Array[Double]): Array[Double] = {
     require(a.length == n)
@@ -173,10 +181,11 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
     for (i <- dst.indices) dst(i) *= scale
   }
 
-  private def destroy(): Unit = {
-    fftw.fftw_destroy_plan(planForward)
-    fftw.fftw_destroy_plan(planBackward)
+  private def destroy(): Unit =
+    fftw.synchronized {
+      fftw.fftw_destroy_plan(planForward)
+      fftw.fftw_destroy_plan(planBackward)
+    }
     fftw.fftw_free(in)
     fftw.fftw_free(out)
-  }
 }

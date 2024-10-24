@@ -9,7 +9,7 @@ class SBDSpec extends AnyWordSpec with should.Matchers {
   import TestUtil.ImplicitEqualities.given
 
   "The SBD distance" when {
-    val sbd = SBD()
+    val sbd = SBD(standardize = true)
     "given two equal-length arrays" should {
       "be 0 for two empty arrays" in {
         val x = Array.empty[Double]
@@ -56,7 +56,7 @@ class SBDSpec extends AnyWordSpec with should.Matchers {
   }
 
   "The SBD pairwise distance" when {
-    val sbd = SBD()
+    val sbd = SBD(standardize = true)
     "given two equal-length arrays" should {
       "be empty for two empty arrays" in {
         val x = Array.empty[Array[Double]]
@@ -100,7 +100,7 @@ class SBDSpec extends AnyWordSpec with should.Matchers {
       val coffeeTrainData = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/Coffee/Coffee_TRAIN.ts"))
       val coffeeTestData = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/Coffee/Coffee_TEST.ts"))
       val data = coffeeTrainData ++ coffeeTestData
-      val sbd = SBD(standardize = true)
+      val sbd = SBD(standardize = false)
 
       val single01 = sbd(data(0), data(1))
       single01 shouldEqual expectedDistanceMatrix(0)(1)
@@ -114,7 +114,7 @@ class SBDSpec extends AnyWordSpec with should.Matchers {
       val dataTrain = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TRAIN.ts"))
       val dataTest = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TEST.ts"))
       val data = dataTrain ++ dataTest
-      val sbd = SBD(standardize = true)
+      val sbd = SBD(standardize = false)
 
       val single01 = sbd(data(0), data(1))
       single01 shouldEqual expectedDistanceMatrix(0)(1)

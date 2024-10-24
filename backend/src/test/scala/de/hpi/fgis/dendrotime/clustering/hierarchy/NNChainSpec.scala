@@ -1,5 +1,6 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
+import de.hpi.fgis.dendrotime.TestUtil
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage.WardLinkage
 import org.scalatest.matchers.should
@@ -8,6 +9,8 @@ import org.scalatest.wordspec.AnyWordSpec
 class NNChainSpec extends AnyWordSpec with should.Matchers {
   // expected values were generated using
   // scipy.cluster.hierarchy.linkage(distances, method=linkage, metric="something")
+
+  import TestUtil.ImplicitEqualities.given
 
   "The hierarchy factory" should {
     "call the NNchain algorithm for non-single linkage" in {
@@ -117,6 +120,18 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
         Hierarchy.Node(4, 7, 9, 0.7699155396277603, 4),
         Hierarchy.Node(5, 10, 11, 1.1342381287202643, 7)
       )
+    }
+    "compare to reference for PGWZ dataset" when {
+      val pairwiseDistances = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-PGWZ-sbd.csv"))
+      val distances = PDist.apply(pairwiseDistances)
+
+      for linkage <- Seq("single", "complete", "average", "ward") do
+        s"using single $linkage" in {
+          val expectedHierarchy = TestUtil.loadHierarchy(s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-$linkage.csv")
+          val h = NNChain(distances, Linkage(linkage), adjustLabels = true)
+          h.size shouldEqual expectedHierarchy.size
+          h shouldEqual expectedHierarchy
+        }
     }
   }
 }

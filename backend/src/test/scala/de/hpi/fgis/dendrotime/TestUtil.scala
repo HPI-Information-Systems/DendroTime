@@ -6,21 +6,26 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVReader
 import de.hpi.fgis.dendrotime.io.{CSVReader, TsParser}
 import org.scalactic.{Equality, TolerantNumerics, TripleEquals}
 
-import java.io.File
+import java.io.{File, FileNotFoundException}
 import scala.collection.mutable
 
 object TestUtil {
   /** Defines triple-equals implicits to mixin. */
   trait ImplicitEqualitySupport extends TripleEquals {
-    given Equality[Double] = TolerantNumerics.tolerantDoubleEquality(1e-9)
+    given tolDoubleEquality: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(1e-9)
 
-    given Equality[Array[Array[Double]]] = (a: Array[Array[Double]], b: Any) => b match {
+    given tolDouble1DArrayEquality: Equality[Array[Double]] = (a: Array[Double], b: Any) => b match {
+      case bArray: Array[Double] => a.corresponds(bArray)(_ === _)
+      case _ => false
+    }
+
+    given tolDouble2DArrayEquality: Equality[Array[Array[Double]]] = (a: Array[Array[Double]], b: Any) => b match {
       case bArray: Array[Array[Double]] =>
         a.length == bArray.length && a.zip(bArray).forall { case (x, y) => x.corresponds(y)(_ === _) }
       case _ => false
     }
 
-    given Equality[Hierarchy] = (a: Hierarchy, b: Any) => {
+    given tolDoubleHierarchyEquality: Equality[Hierarchy] = (a: Hierarchy, b: Any) => {
       b match {
         case bHierarchy: Hierarchy =>
           a.n == bHierarchy.n && a.length === bHierarchy.length &&
@@ -40,7 +45,9 @@ object TestUtil {
 
   /** Returns the path to a file in the test-resources folder. */
   def findResource(filepath: String): String =
-    getClass.getClassLoader.getResource(filepath).getPath
+    val url = getClass.getClassLoader.getResource(filepath)
+    if url == null then throw new FileNotFoundException(s"Resource not found: $filepath")
+    url.getPath
 
   /** Load an existing hierarchy (CSV) from disk using DendroTime production code. */
   def loadHierarchy(filepath: String): Hierarchy =
