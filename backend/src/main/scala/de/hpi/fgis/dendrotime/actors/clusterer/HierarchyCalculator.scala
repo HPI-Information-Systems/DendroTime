@@ -7,6 +7,7 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
 import de.hpi.fgis.dendrotime.clustering.{PDist, hierarchy}
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
 private[clusterer] object HierarchyCalculator {
   sealed trait Command
@@ -15,11 +16,12 @@ private[clusterer] object HierarchyCalculator {
 
   def apply(clusterer: ActorRef[Clusterer.Command],
             communicator: ActorRef[Communicator.Command],
-            n: Int
+            n: Int,
+            params: DendroTimeParams
            ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(ReportRuntime, Settings(ctx.system).reportingInterval)
-      new HierarchyCalculator(ctx, clusterer, communicator, n).start()
+      new HierarchyCalculator(ctx, clusterer, communicator, n, params).start()
     }
   }
 }
@@ -27,11 +29,11 @@ private[clusterer] object HierarchyCalculator {
 private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculator.Command],
                                              clusterer: ActorRef[Clusterer.Command],
                                              communicator: ActorRef[Communicator.Command],
-                                             n: Int) {
+                                             n: Int,
+                                             params: DendroTimeParams) {
 
   import HierarchyCalculator.*
 
-  private val linkage = Settings(ctx.system).linkage
   // debug counters
   private var runtime = 0L
   private var computations = 0
@@ -49,7 +51,8 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       running(newState)
     case ReportRuntime =>
       val newComps = state.computations - computations
-      ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
+      if newComps > 0 then
+        ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
       runtime = 0L
       computations = state.computations
       Behaviors.same
@@ -57,7 +60,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
   private def computeHierarchy(state: HierarchyState, index: Int, distances: PDist): HierarchyState = {
     val start = System.currentTimeMillis()
-    val h = hierarchy.computeHierarchy(distances, linkage)
+    val h = hierarchy.computeHierarchy(distances, params.linkage)
     val newState = state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
 //    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))

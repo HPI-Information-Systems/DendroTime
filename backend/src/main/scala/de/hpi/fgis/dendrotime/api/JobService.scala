@@ -1,28 +1,29 @@
 package de.hpi.fgis.dendrotime.api
 
-import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.actor.typed.scaladsl.AskPattern.*
+import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Directives, Route}
 import akka.util.Timeout
 import de.hpi.fgis.dendrotime.Settings
-
-import scala.concurrent.duration.given
 import de.hpi.fgis.dendrotime.actors.Scheduler
-import de.hpi.fgis.dendrotime.model.{DatasetModel, StateModel}
 import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
+import de.hpi.fgis.dendrotime.model.{DatasetModel, ParametersModel, StateModel}
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
 import scala.util.{Failure, Success, Try}
 
 object JobService {
   final case class Job(id: Long, dataset: DatasetModel.Dataset)
+  final case class ProcessingRequestBody(dataset: DatasetModel.Dataset, params: ParametersModel.DendroTimeParams)
 
   trait JsonSupport
     extends SprayJsonSupport
-      with DefaultJsonProtocol with DatasetModel.JsonSupport with StateModel.JsonSupport {
+      with DefaultJsonProtocol with DatasetModel.JsonSupport
+      with StateModel.JsonSupport with ParametersModel.JsonSupport {
     given RootJsonFormat[Job] = jsonFormat2(Job.apply)
+    given RootJsonFormat[ProcessingRequestBody] = jsonFormat2(ProcessingRequestBody.apply)
   }
 }
 
@@ -44,10 +45,9 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
             }
           },
           post {
-            entity(as[DatasetModel.Dataset]) { dataset =>
-              // store job
-              onSuccess(scheduler.ask(Scheduler.StartProcessing(dataset, _))) {
-                case Scheduler.ProcessingStarted(id) => complete(StatusCodes.Created, Job(id, dataset))
+            entity(as[ProcessingRequestBody]) { body =>
+              onSuccess(scheduler.ask(Scheduler.StartProcessing(body.dataset, body.params, _))) {
+                case Scheduler.ProcessingStarted(id) => complete(StatusCodes.Created, Job(id, body.dataset))
                 case Scheduler.ProcessingRejected => complete(StatusCodes.Conflict, "Already processing a dataset")
               }
             }
@@ -91,7 +91,7 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
             }
           }
         )
-      },
+      }
     )
   }
 }

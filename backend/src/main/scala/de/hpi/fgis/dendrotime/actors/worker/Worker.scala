@@ -2,9 +2,9 @@ package de.hpi.fgis.dendrotime.actors.worker
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
 private val SLEEP_TIME = 100
@@ -18,17 +18,16 @@ object Worker {
   def apply(tsManager: ActorRef[TimeSeriesManager.Command],
             coordinator: ActorRef[Coordinator.Command],
             communicator: ActorRef[Communicator.Command],
-            datasetId: Int): Behavior[Command] = Behaviors.setup { ctx =>
-    new Worker(WorkerContext(ctx, tsManager, coordinator, communicator), datasetId).start()
+            params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
+    new Worker(WorkerContext(ctx, tsManager, coordinator, communicator), params).start()
   }
 }
 
-private class Worker private(ctx: WorkerContext, datasetId: Int) {
+private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   import Worker.*
 
   private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
-  private val distance = Settings(ctx.context.system).distance
 
   private def start(): Behavior[Command] =
     ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
@@ -64,13 +63,13 @@ private class Worker private(ctx: WorkerContext, datasetId: Int) {
   }
 
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
-    val dist = distance(ts1.data.slice(0, 10), ts2.data.slice(0, 10))
+    val dist = params.metric(ts1.data.slice(0, params.approxLength), ts2.data.slice(0, params.approxLength))
 //    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 
   private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
-    val dist = distance(ts1.data, ts2.data)
+    val dist = params.metric(ts1.data, ts2.data)
 //    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }

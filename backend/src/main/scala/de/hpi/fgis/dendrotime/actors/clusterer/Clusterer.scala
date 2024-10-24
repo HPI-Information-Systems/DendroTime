@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.ClusteringFinished
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
 
 object Clusterer {
@@ -15,11 +16,11 @@ object Clusterer {
   case class ReportFinished(replyTo: ActorRef[ClusteringFinished.type]) extends Command
   private[clusterer] case object GetDistances extends Command
 
-  def apply(communicator: ActorRef[Communicator.Command]): Behavior[Command] = {
+  def apply(communicator: ActorRef[Communicator.Command], params: DendroTimeParams): Behavior[Command] = {
     def uninitialized(stash: StashBuffer[Command]): Behavior[Command] = Behaviors.receiveMessage {
       case Initialize(n) =>
         stash.unstashAll(Behaviors.setup(ctx =>
-          new Clusterer(ctx, communicator, n).start()
+          new Clusterer(ctx, communicator, n, params).start()
         ))
       case m =>
         stash.stash(m)
@@ -32,12 +33,13 @@ object Clusterer {
 
 private class Clusterer private(ctx: ActorContext[Clusterer.Command],
                                 communicator: ActorRef[Communicator.Command],
-                                n: Int) {
+                                n: Int,
+                                params: DendroTimeParams) {
 
   import Clusterer.*
 
   private val distances: MutablePDist = PDist.empty(n).mutable
-  private val calculatorActor = ctx.spawn(HierarchyCalculator(ctx.self, communicator, n), "hierarchy-calculator")
+  private val calculatorActor = ctx.spawn(HierarchyCalculator(ctx.self, communicator, n, params), "hierarchy-calculator")
   // debug counters
   private var approxCount = 0L
   private var fullCount = 0L

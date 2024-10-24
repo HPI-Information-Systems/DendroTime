@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.Stop
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
 
 import scala.util.{Failure, Success, Try}
@@ -12,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 object Scheduler {
 
   sealed trait Command
-  case class StartProcessing(dataset: Dataset, replyTo: ActorRef[Response]) extends Command
+  case class StartProcessing(dataset: Dataset, params: DendroTimeParams, replyTo: ActorRef[Response]) extends Command
   case class StopProcessing(id: Long, replyTo: ActorRef[Try[Unit]]) extends Command
   case class GetStatus(replyTo: ActorRef[ProcessingStatus]) extends Command
   case class CancelProcessing(id: Long, replyTo: ActorRef[ProcessingCancelled]) extends Command
@@ -43,11 +44,11 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
   private def start(): Behavior[Command] = idle(0)
 
   private def idle(jobId: Long): Behavior[Command] = Behaviors.receiveMessagePartial[Command] {
-    case StartProcessing(d, replyTo) =>
+    case StartProcessing(d, params, replyTo) =>
       ctx.log.info("Start processing dataset {}", d)
       val newJobId = jobId + 1
       replyTo ! ProcessingStarted(newJobId)
-      val coordinator = startNewJob(newJobId, d, replyTo)
+      val coordinator = startNewJob(newJobId, d, params, replyTo)
       starting(newJobId, d, coordinator)
     case GetStatus(replyTo) =>
       replyTo ! ProcessingStatus(jobId, None)
@@ -109,7 +110,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
 
   private def commonProcessing(jobId: Long, dataset: Dataset,
                                coordinator: ActorRef[Coordinator.Command]): PartialFunction[Command, Behavior[Command]] = {
-    case StartProcessing(d, replyTo) =>
+    case StartProcessing(d, _, replyTo) =>
       ctx.log.warn("Already processing a dataset, ignoring request to start processing dataset {}", d)
       replyTo ! ProcessingRejected
       Behaviors.same
@@ -148,7 +149,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
   private def finished(jobId: Long, dataset: Dataset,
                        coordinator: ActorRef[Coordinator.Command],
                        communicator: ActorRef[Communicator.Command]): Behavior[Command] = Behaviors.receiveMessage{
-    case StartProcessing(d, replyTo) =>
+    case StartProcessing(d, _, replyTo) =>
       ctx.log.warn("Already processing a dataset, ignoring request to start processing dataset {}", d)
       replyTo ! ProcessingRejected
       Behaviors.same
@@ -190,9 +191,9 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
       Behaviors.same
   }
   
-  private def startNewJob(id: Long, dataset: Dataset, replyTo: ActorRef[ProcessingOutcome]): ActorRef[Coordinator.Command] = {
+  private def startNewJob(id: Long, dataset: Dataset, params: DendroTimeParams, replyTo: ActorRef[ProcessingOutcome]): ActorRef[Coordinator.Command] = {
     val msgAdapter = ctx.messageAdapter(ProcessingResponse(_, replyTo))
-    val coordinator = ctx.spawn(Coordinator(tsManager, id, dataset, msgAdapter), s"coordinator-$id")
+    val coordinator = ctx.spawn(Coordinator(tsManager, id, dataset, params, msgAdapter), s"coordinator-$id")
     ctx.watch(coordinator)
     coordinator
   }

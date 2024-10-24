@@ -2,7 +2,10 @@ package de.hpi.fgis.dendrotime
 
 import akka.actor.testkit.typed.scaladsl.{FishingOutcomes, ScalaTestWithActorTestKit}
 import de.hpi.fgis.dendrotime.actors.Scheduler
+import de.hpi.fgis.dendrotime.clustering.distances.{Distance, MSM, SBD}
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -20,14 +23,14 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
   private val pickupGestureDatasetTest = TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TEST.ts")
   private val pickupGestureDatasetTrain = TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TRAIN.ts")
 
-  private def performSystemTest(dataset: Dataset, gtFile: String): Unit = {
+  private def performSystemTest(dataset: Dataset, params: DendroTimeParams, gtFile: String): Unit = {
     // load ground truth
     val gtHierarchy = TestUtil.loadHierarchy(gtFile)
 
     // start DendroTime
     val guardianProbe = createTestProbe[Scheduler.Response]()
     val dendroTimeScheduler = spawn(Scheduler(), s"scheduler-${dataset.id}")
-    dendroTimeScheduler ! Scheduler.StartProcessing(dataset, guardianProbe.ref)
+    dendroTimeScheduler ! Scheduler.StartProcessing(dataset, params, guardianProbe.ref)
     guardianProbe.expectMessageType[Scheduler.ProcessingStarted](100 millis)
 
     // wait for processing to finish and return final hierarchy
@@ -56,15 +59,19 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
     guardianProbe.expectTerminated(dendroTimeScheduler, 100 millis)
   }
 
-  "DendroTime" should {
-    "produce correct hierarchy for Coffee dataset" in {
-      val dataset = Dataset(0, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
-      performSystemTest(dataset, "test-data/ground-truth/Coffee/hierarchy-msm-single.csv")
+//    for metric <- Seq(MSM(), SBD()) do
+  val metric = "sbd"
+  for (linkage, i) <- Seq("single", "complete", "average", "ward").zipWithIndex do
+    s"DendroTime with $metric distance and $linkage linkage" should {
+      "produce correct hierarchy for Coffee dataset" in {
+        val dataset = Dataset(i, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
+        val params = DendroTimeParams(Distance(metric), Linkage(linkage))
+        performSystemTest(dataset, params, s"test-data/ground-truth/Coffee/hierarchy-$metric-$linkage.csv")
+      }
+      "produce correct hierarchy for PickupGestureWiimoteZ dataset" in {
+        val dataset = Dataset(100+i, "PickupGestureWiimoteZ", pickupGestureDatasetTest, Some(pickupGestureDatasetTrain))
+        val params = DendroTimeParams(Distance(metric), Linkage(linkage))
+        performSystemTest(dataset, params, s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$metric-$linkage.csv")
+      }
     }
-    "produce correct hierarchy for PickupGestureWiimoteZ (TEST) dataset" in {
-      val dataset = Dataset(1, "PickupGestureWiimoteZ", pickupGestureDatasetTest, Some(pickupGestureDatasetTrain))
-      performSystemTest(dataset, "test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-msm-single.csv")
-    }
-  }
-
 }

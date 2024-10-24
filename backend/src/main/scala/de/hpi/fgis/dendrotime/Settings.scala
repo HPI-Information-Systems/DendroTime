@@ -45,9 +45,6 @@ class Settings private(config: Config) extends Extension {
     else
       None
 
-  val linkage: Linkage = Linkage(config.getString(s"$namespace.linkage"))
-  val distance: Distance = Distance(config.getString(s"$namespace.distance"))
-
   val reportingInterval: FiniteDuration = {
     val duration = config.getDuration(s"$namespace.reporting-interval")
     FiniteDuration(duration.toMillis, "milliseconds")

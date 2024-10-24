@@ -7,6 +7,7 @@ import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
 
 import scala.concurrent.duration.*
@@ -39,12 +40,13 @@ object Coordinator {
              tsManager: ActorRef[TimeSeriesManager.Command],
              id: Long,
              dataset: Dataset,
+             params: DendroTimeParams,
              reportTo: ActorRef[Response]): Behavior[Command] = Behaviors.setup { ctx =>
     val settings = Settings(ctx.system)
     val stashSize = settings.numberOfWorkers * 5
 
     Behaviors.withStash(stashSize) { stash =>
-      new Coordinator(ctx, tsManager, id, dataset, reportTo, stash).start()
+      new Coordinator(ctx, tsManager, id, dataset, params, reportTo, stash).start()
     }
   }
 }
@@ -54,6 +56,7 @@ private class Coordinator private (
                    tsManager: ActorRef[TimeSeriesManager.Command],
                    id: Long,
                    dataset: Dataset,
+                   params: DendroTimeParams,
                    reportTo: ActorRef[Coordinator.Response],
                    stash: StashBuffer[Coordinator.Command]
                  ) {
@@ -63,11 +66,11 @@ private class Coordinator private (
   private val settings = Settings(ctx.system)
   private val communicator = ctx.spawn(Communicator(), s"communicator-$id")
   ctx.watch(communicator)
-  private val clusterer = ctx.spawn(Clusterer(communicator), s"clusterer-$id")
+  private val clusterer = ctx.spawn(Clusterer(communicator, params), s"clusterer-$id")
   ctx.watch(clusterer)
   private val workers = {
     val supervisedWorkerBehavior = Behaviors
-      .supervise(Worker(tsManager, ctx.self, communicator, dataset.id))
+      .supervise(Worker(tsManager, ctx.self, communicator, params))
       .onFailure[Exception](SupervisorStrategy.restart)
     val router = Routers.pool(settings.numberOfWorkers)(supervisedWorkerBehavior)
       .withRouteeProps(DispatcherSelector.blocking())
