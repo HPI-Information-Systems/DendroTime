@@ -1,4 +1,4 @@
-import {Button, Divider, Switch} from "@tremor/react";
+import {Button, Divider, Select, SelectItem, Switch} from "@tremor/react";
 import React, {useState, useEffect, useCallback} from "react";
 import DatasetPicker from "../components/DatasetPicker";
 import StatusOverview from "../components/StatusOverview";
@@ -6,6 +6,7 @@ import {toast} from "react-toastify";
 import D3Dendrogram from "../components/D3Dendrogram";
 import WidthProvider from "../components/WidthProvider";
 import D3LineChart from "../components/D3LineChart";
+import {Label} from "@headlessui/react";
 
 const defaultState = {
   "hierarchy": {
@@ -19,17 +20,26 @@ const defaultState = {
 
 function ClusteringPage() {
   const [dataset, setDataset] = useState(undefined);
+  const [metric, setMetric] = useState("msm");
+  const [linkage, setLinkage] = useState("ward");
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
   const [useEqualNodeDistance, setUseEqualNodeDistance] = useState(false);
   const pollingInterval = 200;
 
-  const startDemoJob = useCallback(() => {
+  const startJob = useCallback(() => {
     fetch("/api/jobs", {
       method: "POST",
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(dataset)
+      body: JSON.stringify({
+        "dataset": dataset,
+        "params": {
+          "metric": metric,
+          "linkage": linkage,
+          "approxLength": 10,
+        }
+      })
     })
       .then(resp => {
         if (resp.status >= 300) {
@@ -46,7 +56,7 @@ function ClusteringPage() {
         startPolling(jobId);
       })
       .catch(toast.error);
-  }, [dataset, setJobId, setState]);
+  }, [dataset, metric, linkage, setJobId, setState]);
 
   const startPolling = useCallback((jobId) => {
     toast.info("Starting job " + jobId + " and polling ...");
@@ -102,12 +112,27 @@ function ClusteringPage() {
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold m-5 mx-auto">Clustering</h1>
-      <div className="flex flex-auto mx-auto">
-        <DatasetPicker onSelect={dataset => setDataset(dataset)}/>
+      <div className="flex flex-auto items-center my-1">
+        <label htmlFor="dataset-picker" className="mr-2">Dataset:</label>
+        <DatasetPicker id="dataset-picker" onSelect={dataset => setDataset(dataset)}/>
+      </div>
+      <div className="flex flex-nowrap items-center my-1">
+        <label htmlFor="metric-picker" className="mr-2">Metric:</label>
+        <Select id="metric-picker" value={metric} onValueChange={setMetric}>
+          <SelectItem key="msm" value="msm">MSM</SelectItem>
+          <SelectItem key="sbd" value="sbd">SBD</SelectItem>
+        </Select>
+        <label htmlFor="linkage-picker" className="ml-2 mr-2">Linkage:</label>
+        <Select id="linkage-picker" value={linkage} onValueChange={setLinkage}>
+          <SelectItem key="single" value="single">Single Linkage</SelectItem>
+          <SelectItem key="complete" value="complete">Complete Linkage</SelectItem>
+          <SelectItem key="ward" value="ward">Ward Linkage</SelectItem>
+          <SelectItem key="average" value="average">Average Linkage</SelectItem>
+        </Select>
       </div>
       <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>
       <div className="flex justify-center items-center mt-5">
-        <Button className="mx-auto" variant="primary" size="lg" disabled={!!polling || !dataset} onClick={startDemoJob}>
+        <Button className="mx-auto" variant="primary" size="lg" disabled={!!polling || !dataset} onClick={startJob}>
           Start Clustering
         </Button>
         <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
