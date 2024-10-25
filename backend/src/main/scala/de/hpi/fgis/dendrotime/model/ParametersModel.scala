@@ -7,9 +7,12 @@ import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsVa
 
 object ParametersModel {
   
-  case class DendroTimeParams(metric: Distance, linkage: Linkage, approxLength: Int = 10)
+  case class DendroTimeParams(metricName: String, linkageName: String, approxLength: Int = 10) {
+    lazy val metric: Distance = Distance(metricName)
+    lazy val linkage: Linkage = Linkage(linkageName)
+  }
 
-  val DefaultParams: DendroTimeParams = DendroTimeParams(Distance("msm"), Linkage("average"))
+  val DefaultParams: DendroTimeParams = DendroTimeParams("msm", "average")
   
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     given RootJsonFormat[Distance] = new RootJsonFormat[Distance] {

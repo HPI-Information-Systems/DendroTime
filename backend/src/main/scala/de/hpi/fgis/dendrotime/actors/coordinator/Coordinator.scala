@@ -66,7 +66,7 @@ private class Coordinator private (
   private val settings = Settings(ctx.system)
   private val communicator = ctx.spawn(Communicator(), s"communicator-$id")
   ctx.watch(communicator)
-  private val clusterer = ctx.spawn(Clusterer(communicator, params), s"clusterer-$id")
+  private val clusterer = ctx.spawn(Clusterer(communicator, dataset, params), s"clusterer-$id")
   ctx.watch(clusterer)
   private val workers = {
     val supervisedWorkerBehavior = Behaviors

@@ -5,10 +5,8 @@ import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigException}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions
-import de.hpi.fgis.dendrotime.clustering.distances.Distance
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
 
 object Settings extends ExtensionId[Settings] {
@@ -48,6 +46,13 @@ class Settings private(config: Config) extends Extension {
   val reportingInterval: FiniteDuration = {
     val duration = config.getDuration(s"$namespace.reporting-interval")
     FiniteDuration(duration.toMillis, "milliseconds")
+  }
+  
+  object ProgressIndicators {
+    private val internalNamespace = s"$namespace.progress-indicators"
+    val computeHierarchySimilarity: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-similarity")
+    val computeHierarchyQuality: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-quality")
+    val computeClusterQuality: Boolean = config.getBoolean(s"$internalNamespace.cluster-quality")
   }
 
   given bloomFilterOptions: BloomFilterOptions = {
