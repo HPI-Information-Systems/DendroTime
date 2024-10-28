@@ -9,6 +9,7 @@ function D3LineChart({data}) {
   const height = 200;
   const horizMargin = 50;
   const axisHeight = 50;
+  const legendWidth = 150;
   const tDuration = 200;
 
   /////////////////////////////////////////////////////////////////////////////
@@ -25,10 +26,23 @@ function D3LineChart({data}) {
       .attr("height", height)
       .attr("viewBox", viewPort);
 
-    const maxIndex = d3.max(data, d => d[0]);
+    const array = [
+      data.hierarchySimilarity.sort((a, b) => a[0] - b[0]),
+      data.hierarchyQuality.sort((a, b) => a[0] - b[0]),
+      data.clusterQuality.sort((a, b) => a[0] - b[0]),
+    ];
+    const allLabels = ["Hierarchy Similarity", "Hierarchy Quality", "Cluster Quality"];
+    const labels = [];
+    if (data.hierarchySimilarity.length > 0) labels.push(allLabels[0]);
+    if (data.hierarchyQuality.length > 0) labels.push(allLabels[1]);
+    if (data.clusterQuality.length > 0) labels.push(allLabels[2]);
+
+    const maxIndex = array
+      .map(x => d3.max(x, d => d[0]) || 0)
+      .reduce((a, b) => Math.max(a, b), 0);
     const xScale = d3.scaleLinear()
       .domain([0, maxIndex])
-      .range([0, width-2*horizMargin]);
+      .range([0, width-2*horizMargin-legendWidth]);
     const xAxis = d3.select(`#${id}-xaxis`)
       .attr("transform", `translate(0,${height - axisHeight/2})`)
       .transition().duration(tDuration)
@@ -41,12 +55,34 @@ function D3LineChart({data}) {
       .attr("transform", `translate(0,${top + axisHeight/2})`)
       .call(d3.axisLeft(yScale))
 
+    const colorScale = d3.scaleOrdinal()
+      .domain(allLabels)
+      .range(d3.schemeSet2);
+    const legend = d3.select(`#${id}-legend`).selectAll("g")
+      .data(labels)
+      .join(
+        enter => {
+          const g = enter.append("g").attr("id", d => d);
+          g.append("circle")
+            .attr("r", 5);
+          g.append("text")
+            .attr("dy", "0.31em")
+            .attr("x", 10)
+            .attr("text-anchor", "start")
+            .attr("paint-order", "stroke");
+          return g;
+        }
+      )
+      .attr("transform", (d, i) => `translate(${width-legendWidth-2*horizMargin+25},${top + axisHeight + i*30})`);
+    legend.select("circle").attr("fill", d => colorScale(d));
+    legend.select("text").text(d => d);
+
     const connection = d3.line()
       .x((d, i) => xScale(d[0]))
       .y(d => yScale(d[1]) + axisHeight/ 2);
 
     const lines = d3.select(`#${id}-line`).selectAll("path")
-      .data([data.sort((a, b) => a[0] - b[0])])
+      .data(array)
       .join(
         enter => enter.append("path")
           .transition().duration(tDuration)
@@ -56,10 +92,9 @@ function D3LineChart({data}) {
           .attr("d", connection)
       )
       .attr("fill", "none")
-      .attr("stroke", "#2c3986")
+      .attr("stroke", (d, i) => colorScale(allLabels[i]))
       .attr("stroke-opacity", 1)
       .attr("stroke-width", 1.5);
-
   }, [id, data, width]);
   /////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +104,7 @@ function D3LineChart({data}) {
         <g id={`${id}-xaxis`}/>
         <g id={`${id}-yaxis`}/>
         <g id={`${id}-line`}/>
+        <g id={`${id}-legend`}/>
       </svg>
     </div>
   );

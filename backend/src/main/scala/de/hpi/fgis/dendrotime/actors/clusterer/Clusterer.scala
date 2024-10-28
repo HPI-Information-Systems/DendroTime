@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.Communicator
+import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.ClusteringFinished
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
@@ -22,56 +22,44 @@ object Clusterer {
   case class ReportFinished(replyTo: ActorRef[ClusteringFinished.type]) extends Command
   private[clusterer] case object GetDistances extends Command
 
-  def apply(communicator: ActorRef[Communicator.Command], dataset: Dataset, params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
-    // preload the ground truths if available
-    val settings = Settings(ctx.system)
-    val gtHierarchy: Option[Hierarchy] = loadGtHierarchy(dataset, params, settings.groundTruthPath)
-    val gtClasses: Option[Array[String]] = loadGtClasses(dataset, settings.groundTruthPath)
-
-    if settings.ProgressIndicators.computeHierarchyQuality && gtHierarchy.isEmpty then
-      ctx.log.warn("Ground truth hierarchy not available, but hierarchy quality computation is enabled!")
-    if settings.ProgressIndicators.computeClusterQuality && gtClasses.isEmpty then
-      ctx.log.warn("Ground truth classes not available, but cluster quality computation is enabled!")
+  def apply(tsManager: ActorRef[TimeSeriesManager.Command],
+            communicator: ActorRef[Communicator.Command],
+            dataset: Dataset,
+            params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
 
     def uninitialized(stash: StashBuffer[Command]): Behavior[Command] = Behaviors.receiveMessage {
       case Initialize(n) =>
         stash.unstashAll(
-          new Clusterer(ctx, communicator, n, params, gtHierarchy, gtClasses).start()
+          new Clusterer(ctx, communicator, tsManager, n, dataset: Dataset, params).start()
         )
       case m =>
         stash.stash(m)
         Behaviors.same
     }
-    Behaviors.withStash(100)(uninitialized)
-  }
 
-  private def loadGtHierarchy(dataset: Dataset, params: DendroTimeParams, gtPath: Path): Option[Hierarchy] = {
-    // load the ground truth hierarchy if available
-    val path = gtPath.resolve(s"${dataset.name}/hierarchy-${params.metricName}-${params.linkageName}.csv").toFile
-    try
-      Some(HierarchyCSVReader().parse(path))
-    catch case _ =>
-      None
-  }
-  // FIXME: implement this method and then forward the GT information to the clusterer and potentially also the HCalc
-  private def loadGtClasses(dataset: Dataset, gtPath: Path): Option[Array[String]] = {
-    // load the ground truth classes if available
-    None
+    Behaviors.withStash(100)(uninitialized)
   }
 }
 
 private class Clusterer private(ctx: ActorContext[Clusterer.Command],
                                 communicator: ActorRef[Communicator.Command],
+                                tsManager: ActorRef[TimeSeriesManager.Command],
                                 n: Int,
+                                dataset: Dataset,
                                 params: DendroTimeParams,
-                                gtHierarchy: Option[Hierarchy],
-                                gtClasses: Option[Array[String]],
                                ) {
 
   import Clusterer.*
 
+  private val settings = Settings(ctx.system)
   private val distances: MutablePDist = PDist.empty(n).mutable
-  private val calculatorActor = ctx.spawn(HierarchyCalculator(ctx.self, communicator, n, params), "hierarchy-calculator")
+  private val calculator = ctx.spawn(
+    HierarchyCalculator(ctx.self, communicator, n, params),
+    "hierarchy-calculator"
+  )
+  // start loading ground truth information
+  if settings.ProgressIndicators.computeHierarchyQuality || settings.ProgressIndicators.computeClusterQuality then
+    ctx.spawn(GroundTruthLoader(calculator, tsManager, dataset, params), "gt-loader")
   // debug counters
   private var approxCount = 0L
   private var fullCount = 0L
@@ -96,7 +84,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         )
       distances(t1, t2) = dist
       if waiting then
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
+        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
@@ -105,18 +93,18 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       fullCount += 1
       distances(t1, t2) = dist
       if waiting then
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
+        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
     case GetDistances if hasWork =>
-      calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
+      calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       running(hasWork = false, waiting = false)
     case GetDistances =>
       running(hasWork = false, waiting = true)
     case ReportFinished(replyTo) if waiting =>
       if hasWork then
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
+        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       finished(replyTo)
     case ReportFinished(replyTo) =>
       waitingForFinish(hasWork, replyTo)
@@ -125,7 +113,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
   private def waitingForFinish(hasWork: Boolean, replyTo: ActorRef[ClusteringFinished.type]): Behavior[Command] =
     Behaviors.receiveMessage {
       case GetDistances if hasWork =>
-        calculatorActor ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
+        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         waitingForFinish(hasWork = false, replyTo = replyTo)
       case GetDistances =>
         finished(replyTo)

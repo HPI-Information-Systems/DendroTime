@@ -16,14 +16,33 @@ object StateModel {
   object ProgressMessage extends DefaultJsonProtocol {
     case object Unchanged extends ProgressMessage
     final case class CurrentProgress(
-                                    state: Status,
-                                    progress: Int,
-                                    hierarchy: Hierarchy,
-                                    similarities: Seq[(Int, Double)]
+                                      state: Status,
+                                      progress: Int,
+                                      hierarchy: Hierarchy,
+                                      hierarchySimilarity: Seq[(Int, Double)],
+                                      hierarchyQuality: Seq[(Int, Double)] = Seq.empty,
+                                      clusterQuality: Seq[(Int, Double)] = Seq.empty,
                                     ) extends ProgressMessage
 //    final case class StateUpdate(id: Long, newState: Status) extends ProgressMessage
 //    final case class ProgressUpdate(id: Long, progress: Int) extends ProgressMessage
+
+    def progressFromClusteringState(status: Status, progress: Int, state: ClusteringState): ProgressMessage =
+      CurrentProgress(
+        state=status,
+        progress=progress,
+        hierarchy=state.hierarchy,
+        hierarchySimilarity=state.hierarchySimilarity.toSeq,
+        hierarchyQuality=state.hierarchyQuality.toSeq,
+        clusterQuality=state.clusterQuality.toSeq
+      )
   }
+  
+  final case class ClusteringState(
+                                    hierarchy: Hierarchy = Hierarchy.empty,
+                                    hierarchySimilarity: Map[Int, Double] = Map.empty,
+                                    hierarchyQuality: Map[Int, Double] = Map.empty,
+                                    clusterQuality: Map[Int, Double] = Map.empty,
+                                  )
 
   sealed trait Status
 
@@ -187,7 +206,7 @@ object StateModel {
       }
     }
 
-    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat4(ProgressMessage.CurrentProgress.apply)
+    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat6(ProgressMessage.CurrentProgress.apply)
 //    given RootJsonFormat[ProgressMessage.StateUpdate] = jsonFormat2(ProgressMessage.StateUpdate.apply)
 //    given RootJsonFormat[ProgressMessage.ProgressUpdate] = jsonFormat2(ProgressMessage.ProgressUpdate.apply)
 

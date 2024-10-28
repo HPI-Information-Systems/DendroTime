@@ -53,6 +53,10 @@ class Settings private(config: Config) extends Extension {
     val computeHierarchySimilarity: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-similarity")
     val computeHierarchyQuality: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-quality")
     val computeClusterQuality: Boolean = config.getBoolean(s"$internalNamespace.cluster-quality")
+    val loadingDelay: FiniteDuration = {
+      val duration = config.getDuration(s"$internalNamespace.ground-truth-loading-delay")
+      FiniteDuration(duration.toMillis, "milliseconds")
+    }
   }
 
   given bloomFilterOptions: BloomFilterOptions = {

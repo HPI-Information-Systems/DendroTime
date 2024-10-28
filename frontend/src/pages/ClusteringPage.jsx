@@ -15,7 +15,9 @@ const defaultState = {
   },
   "state": "Initializing",
   "progress": 0,
-  "similarities": []
+  "hierarchySimilarity": [],
+  "hierarchyQuality": [],
+  "clusterQuality": []
 }
 
 function ClusteringPage() {
@@ -35,8 +37,8 @@ function ClusteringPage() {
       body: JSON.stringify({
         "dataset": dataset,
         "params": {
-          "metric": metric,
-          "linkage": linkage,
+          "metricName": metric,
+          "linkageName": linkage,
           "approxLength": 10,
         }
       })
@@ -160,11 +162,15 @@ function ClusteringPage() {
         </div>
         <Divider/>
         <div className={"grid grid-cols-1 my-auto"}>
-          {state.similarities.length === 0 ? (<></>) : (<>
+          {state.hierarchySimilarity.length === 0 ? (<></>) : (<>
               <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
                 Changes over Time
               </h3>
-              <D3LineChart data={state.similarities}/>
+              <D3LineChart data={{
+                "hierarchySimilarity": state.hierarchySimilarity,
+                "hierarchyQuality": state.hierarchyQuality,
+                "clusterQuality": state.clusterQuality
+              }}/>
           </>)}
           {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (<>
             <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">

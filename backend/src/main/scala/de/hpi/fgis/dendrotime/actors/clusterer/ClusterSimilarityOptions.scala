@@ -4,7 +4,7 @@ import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 
 object ClusterSimilarityOptions {
   /**
-   * Similarity function for two BloomFilters representing a level of the hierarchy.
+   * Similarity function for two hierarchies represented by two Arrays of BloomFilters.
    */
   sealed trait Similarity extends ((BloomFilter[Int], BloomFilter[Int]) => Double)
 

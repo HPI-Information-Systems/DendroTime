@@ -8,8 +8,8 @@ import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsVa
 object ParametersModel {
   
   case class DendroTimeParams(metricName: String, linkageName: String, approxLength: Int = 10) {
-    lazy val metric: Distance = Distance(metricName)
-    lazy val linkage: Linkage = Linkage(linkageName)
+    def metric: Distance = Distance(metricName)
+    def linkage: Linkage = Linkage(linkageName)
   }
 
   val DefaultParams: DendroTimeParams = DendroTimeParams("msm", "average")

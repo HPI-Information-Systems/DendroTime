@@ -3,73 +3,127 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions.Similarity
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
+import de.hpi.fgis.dendrotime.model.StateModel.ClusteringState
 
-import scala.collection.immutable.HashSet
 import scala.collection.mutable
 import scala.language.implicitConversions
 
 object HierarchyState {
-  def empty(n: Int)(using options: ClusterSimilarityOptions): HierarchyState =
+  def empty(n: Int)(using options: ClusterSimilarityOptions): HierarchyState = {
     given BloomFilterOptions = options.bfOptions
 
     HierarchyState(
       n = n,
-      currentHierarchy = Hierarchy.empty,
-      currentClusters = BFClusters.emptyBFs(n),
-      initialClusters = BFClusters.initial(n),
-      similarities = Map.empty,
-      computations = 0
+      initialClusters = initialBFs(n),
+      currentHierarchy = HierarchyWithBF.emptyBFs(n),
     )
-
-  private object BFClusters {
-    def empty: BFClusters = BFClusters(Array.empty)
-
-    def initial(n: Int)(using BloomFilterOptions): BFClusters =
-      val bloomFilters = Array.tabulate(n)(i =>
-        BloomFilter[Int](n + n - 1) += i
-      )
-      BFClusters(bloomFilters)
-
-    def emptyBFs(n: Int)(using BloomFilterOptions): BFClusters =
-      BFClusters(Array.fill(n)(BloomFilter[Int](n + n - 1)))
   }
 
-  private case class BFClusters(bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
+  private def initialBFs(n: Int)(using BloomFilterOptions): Array[BloomFilter[Int]] =
+    Array.tabulate(n)(i =>
+      BloomFilter[Int](n + n - 1) += i
+    )
+
+  private object HierarchyWithBF {
+    def empty: HierarchyWithBF = HierarchyWithBF(Hierarchy.empty, Array.empty)
+
+    def emptyBFs(n: Int)(using BloomFilterOptions): HierarchyWithBF =
+      HierarchyWithBF(Hierarchy.empty, Array.fill(n)(BloomFilter[Int](n + n - 1)))
+
+    def fromHierarchy(hierarchy: Hierarchy, initialClusters: Array[BloomFilter[Int]])(using BloomFilterOptions): HierarchyWithBF = {
+      val bfs = Array.ofDim[BloomFilter[Int]](hierarchy.length)
+
+      def getBF(i: Int): BloomFilter[Int] = if i < hierarchy.n then initialClusters(i) else bfs(i - hierarchy.n)
+
+      for i <- 0 until hierarchy.length do
+        val cid1 = hierarchy.cId1(i)
+        val cid2 = hierarchy.cId2(i)
+        bfs(i) = getBF(cid1) | getBF(cid2)
+      HierarchyWithBF(hierarchy, bfs)
+    }
+  }
+
+  private case class HierarchyWithBF(hierarchy: Hierarchy, bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
     def length: Int = bloomFilters.length
 
     def apply(i: Int): BloomFilter[Int] = bloomFilters(i)
 
-    override def close(): Unit = bloomFilters.foreach(_.close())
+    def dispose(): Unit = bloomFilters.foreach(_.close())
+
+    override def close(): Unit = dispose()
   }
 }
 
-case class HierarchyState private(n: Int,
-                                  similarities: Map[Int, Double],
-                                  computations: Int,
-                                  private val currentHierarchy: Hierarchy,
-                                  private val currentClusters: HierarchyState.BFClusters,
-                                  private val initialClusters: HierarchyState.BFClusters)
-                                 (using options: ClusterSimilarityOptions) {
+class HierarchyState private(val n: Int,
+                             private val initialClusters: Array[BloomFilter[Int]],
+                             private var currentHierarchy: HierarchyState.HierarchyWithBF,
+                            )(using options: ClusterSimilarityOptions) {
 
   import HierarchyState.*
-  import BFClusters.*
+  import HierarchyWithBF.*
 
-  def hierarchy: Hierarchy = currentHierarchy
+  private var ops: Int = 0
+  private var gtHierarchy: Option[HierarchyState.HierarchyWithBF] = None
+  private var gtClasses: Option[Array[String]] = None
+  private val similarities: mutable.Map[Int, Double] = mutable.Map.empty
+  private val gtSimilarities: mutable.Map[Int, Double] = mutable.Map.empty
+  private val clusterQualities: mutable.Map[Int, Double] = mutable.Map.empty
 
-  def newHierarchy(index: Int, hierarchy: Hierarchy): HierarchyState =
+  def computations: Int = ops
+
+  def hierarchy: Hierarchy = currentHierarchy.hierarchy
+
+  def hierarchySimilarity: Map[Int, Double] = similarities.toMap
+
+  def hierarchyQuality: Map[Int, Double] = gtSimilarities.toMap
+
+  def clusterQuality: Map[Int, Double] = clusterQualities.toMap
+
+  def toClusteringState: ClusteringState = ClusteringState(
+    hierarchy = hierarchy,
+    hierarchySimilarity = hierarchySimilarity,
+    hierarchyQuality = hierarchyQuality,
+    clusterQuality = clusterQuality,
+  )
+
+  def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
+    hierarchy.foreach(h => require(n == h.n, "N does not match!"))
+
+    given BloomFilterOptions = options.bfOptions
+
+    gtHierarchy = hierarchy.map(h => HierarchyWithBF.fromHierarchy(h, initialClusters))
+  }
+
+  def setGtClasses(classes: Option[Array[String]]): Unit = {
+    gtClasses = classes
+  }
+
+  def newHierarchy(index: Int, hierarchy: Hierarchy): Unit = {
     val (newClusters, similarity) = options.similarity match {
       case Similarity.SetJaccardSimilarity => computeClusterSimilaritySetJaccard(hierarchy)
       case _ => computeClusterSimilarityLevelwise(hierarchy)
     }
-    currentClusters.close()
-    copy(
-      similarities = similarities + (index -> similarity),
-      computations = computations + 1,
-      currentHierarchy = hierarchy,
-      currentClusters = newClusters
-    )
+    currentHierarchy.dispose()
+    currentHierarchy = newClusters
+    similarities += (index -> similarity)
+    ops += 1
 
-  private def computeClusterSimilarityLevelwise(hierarchy: Hierarchy): (BFClusters, Double) = {
+    if gtHierarchy.isDefined then
+      val gtSimilarity = computeGtHierarchySimilarity(gtHierarchy.get)
+      gtSimilarities += (index -> gtSimilarity)
+
+    if gtClasses.isDefined then
+      val clusterQuality = computeClusterQuality(gtClasses.get)
+      clusterQualities += (index -> clusterQuality)
+  }
+
+  def dispose(): Unit = {
+    initialClusters.foreach(_.dispose())
+    currentHierarchy.dispose()
+    gtHierarchy.foreach(_.dispose())
+  }
+
+  private def computeClusterSimilarityLevelwise(hierarchy: Hierarchy): (HierarchyWithBF, Double) = {
     require(hierarchy.n == n, "N does not match!")
     val bfs = Array.ofDim[BloomFilter[Int]](hierarchy.length)
     val sims = Array.ofDim[Double](hierarchy.length)
@@ -85,13 +139,13 @@ case class HierarchyState private(n: Int,
       val card = hierarchy.cardinality(i)
       if card >= options.cardLowerBound && card <= n - options.cardUpperBound then
         cards(j) = card
-        sims(j) = options.similarity(bf, currentClusters.bloomFilters(i))
+        sims(j) = options.similarity(bf, currentHierarchy.bloomFilters(i))
         j += 1
       bfs(i) = bf
-    (BFClusters(bfs), options.aggregation(Array.copyOf(sims, j), Array.copyOf(cards, j)))
+    (HierarchyWithBF(hierarchy, bfs), options.aggregation(Array.copyOf(sims, j), Array.copyOf(cards, j)))
   }
 
-  private def computeClusterSimilaritySetJaccard(hierarchy: Hierarchy): (BFClusters, Double) = {
+  private def computeClusterSimilaritySetJaccard(hierarchy: Hierarchy): (HierarchyWithBF, Double) = {
     require(hierarchy.n == n, "N does not match!")
     val bfs = Array.ofDim[BloomFilter[Int]](hierarchy.length)
     val previous = mutable.HashSet.empty[BloomFilter[Int]]
@@ -105,10 +159,24 @@ case class HierarchyState private(n: Int,
       bfs(i) = getBF(cid1) | getBF(cid2)
       val card = hierarchy.cardinality(i)
       if card >= options.cardLowerBound && card <= n - options.cardUpperBound then
-        previous.add(currentClusters.bloomFilters(i))
+        previous.add(currentHierarchy.bloomFilters(i))
         current.add(bfs(i))
 
     val similarity = (previous & current).size.toDouble / (previous | current).size
-    (BFClusters(bfs), similarity)
+    (HierarchyWithBF(hierarchy, bfs), similarity)
+  }
+
+  private def computeGtHierarchySimilarity(hierarchy: HierarchyWithBF): Double = {
+    // TODO: also filter by cardinality bounds?
+    val gt = hierarchy.bloomFilters.toSet
+    val current = currentHierarchy.bloomFilters.toSet
+    (gt & current).size.toDouble / (gt | current).size
+  }
+
+  private def computeClusterQuality(classes: Array[String]): Double = {
+    // 1. cut tree according to k = |distinct classes|
+    // 2. assign arbitrary class names (strings) to the clusters
+    // 3. use adjusted_rand_score to compare the clustering with the ground truth
+    0.0
   }
 }

@@ -1,23 +1,25 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PostStop}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
+import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.clustering.{PDist, hierarchy}
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
 private[clusterer] object HierarchyCalculator {
   sealed trait Command
   case class ComputeHierarchy(index: Int, distances: PDist) extends Command
+  case class GroundTruthLoaded(gtHierarchy: Option[Hierarchy], gtClassLabels: Option[Array[String]]) extends Command
   case object ReportRuntime extends Command
 
   def apply(clusterer: ActorRef[Clusterer.Command],
             communicator: ActorRef[Communicator.Command],
             n: Int,
-            params: DendroTimeParams
+            params: DendroTimeParams,
            ): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(ReportRuntime, Settings(ctx.system).reportingInterval)
@@ -38,17 +40,23 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   private var runtime = 0L
   private var computations = 0
   private given ClusterSimilarityOptions = Settings(ctx.system).clusterSimilarityOptions
+  private val state: HierarchyState = HierarchyState.empty(n)
 
   private def start(): Behavior[Command] = {
     clusterer ! Clusterer.GetDistances
-    running(HierarchyState.empty(n))
+    running()
   }
 
-  private def running(state: HierarchyState): Behavior[Command] = Behaviors.receiveMessage {
+  private def running(): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ComputeHierarchy(index, distances) =>
-      val newState = computeHierarchy(state, index, distances)
+      computeHierarchy(state, index, distances)
       clusterer ! Clusterer.GetDistances
-      running(newState)
+      Behaviors.same
+    case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
+      ctx.log.info("Ground truth loaded")
+      state.setGtHierarchy(gtHierarchy)
+      state.setGtClasses(gtClassLabels)
+      Behaviors.same
     case ReportRuntime =>
       val newComps = state.computations - computations
       if newComps > 0 then
@@ -56,15 +64,23 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       runtime = 0L
       computations = state.computations
       Behaviors.same
+  }.receiveSignal {
+    case (_, PostStop) =>
+      ctx.log.info("HierarchyCalculator stopped, releasing resources")
+      state.dispose()
+
+      val newComps = state.computations - computations
+      if newComps > 0 then
+        ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
+      Behaviors.stopped
   }
 
-  private def computeHierarchy(state: HierarchyState, index: Int, distances: PDist): HierarchyState = {
+  private def computeHierarchy(state: HierarchyState, index: Int, distances: PDist): Unit = {
     val start = System.currentTimeMillis()
     val h = hierarchy.computeHierarchy(distances, params.linkage)
-    val newState = state.newHierarchy(index, h)
+    state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
 //    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
-    communicator ! NewHierarchy(h, newState.similarities)
-    newState
+    communicator ! NewHierarchy(state.toClusteringState)
   }
 }

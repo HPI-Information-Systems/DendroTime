@@ -18,11 +18,17 @@ object TimeSeriesManager {
   case class GetTimeSeries(timeseriesId: Long, replyTo: ActorRef[GetTimeSeriesResponse]) extends Command
   case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
   case class EvictDataset(datasetId: Int) extends Command
+  case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
   private case object StatusTick extends Command
 
   sealed trait GetTimeSeriesResponse
   case class TimeSeriesFound(timeseries: TimeSeries) extends GetTimeSeriesResponse
   case class TimeSeriesNotFound(id: Long) extends GetTimeSeriesResponse
+
+  sealed trait DatasetClassLabelsResponse
+  case class DatasetClassLabels(labels: Array[String]) extends DatasetClassLabelsResponse
+  case object DatasetIsLoading extends DatasetClassLabelsResponse
+  case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
@@ -131,8 +137,24 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
       val newTimeseries = timeseries.filterNot{ case (id, _) => tsIds.contains(id) }
       ctx.log.info("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
       running(newTimeseries, datasetMapping - datasetId, handlers)
+    case GetDatasetClassLabels(datasetId, replyTo) =>
+      datasetMapping.get(datasetId) match {
+        case Some(ids) =>
+          val labels = ids.map(timeseries(_).label).toArray
+          replyTo ! DatasetClassLabels(labels)
+        case None =>
+          handlers.get(datasetId) match {
+            case Some(_) =>
+              ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
+              replyTo ! DatasetIsLoading
+            case None =>
+              ctx.log.warn("Dataset d-{} not found, cannot retrieve class labels", datasetId)
+              replyTo ! DatasetClassLabelsNotFound
+          }
+      }
+      Behaviors.same
   }.receiveSignal{
-    case (_, Terminated(loader)) =>
-      running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == loader))
+    case (_, Terminated(localLoader)) =>
+      running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == localLoader))
   }
 }
