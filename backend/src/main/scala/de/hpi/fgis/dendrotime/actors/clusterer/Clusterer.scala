@@ -57,6 +57,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
     HierarchyCalculator(ctx.self, communicator, n, params),
     "hierarchy-calculator"
   )
+  ctx.watch(calculator)
   // start loading ground truth information
   if settings.ProgressIndicators.computeHierarchyQuality || settings.ProgressIndicators.computeClusterQuality then
     ctx.spawn(GroundTruthLoader(calculator, tsManager, dataset, params), "gt-loader")

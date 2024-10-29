@@ -13,8 +13,11 @@ object AdjustedRandScore {
    * @tparam T type of the labels (e.g. String, Int)
    * @return Similarity score between -0.5 and 1.0. A random labeling has an ARI of 0.0. 1.0 is perfect.
    */
-  def apply[T <: AnyVal](trueLabels: Array[T], predLabels: Array[T])(using Ordering[T]): Double = {
-    require(trueLabels.length == predLabels.length, "Both label arrays must have the same length.")
+  def apply[T](trueLabels: Array[T], predLabels: Array[T])(using Ordering[T]): Double = {
+    require(
+      trueLabels.length == predLabels.length,
+      s"Both label arrays must have the same length (${trueLabels.length} != ${predLabels.length})."
+    )
 
     val classes = trueLabels.distinct.sorted.zipWithIndex.toMap
     val clusters = predLabels.distinct.sorted.zipWithIndex.toMap

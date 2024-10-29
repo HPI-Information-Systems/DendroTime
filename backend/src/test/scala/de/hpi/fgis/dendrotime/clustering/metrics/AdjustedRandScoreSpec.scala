@@ -41,5 +41,10 @@ class AdjustedRandScoreSpec extends AnyWordSpec with should.Matchers {
       score should be >= -0.5
       score should be <= 1.0
     }
+    "work for Strings" in {
+      val trueLabels = Array("a", "a", "b", "b")
+      val predLabels = Array("a", "a", "b", "b")
+      AdjustedRandScore(trueLabels, predLabels) shouldEqual 1.0
+    }
   }
 }

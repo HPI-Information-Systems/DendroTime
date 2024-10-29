@@ -138,15 +138,15 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
       ctx.log.info("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
       running(newTimeseries, datasetMapping - datasetId, handlers)
     case GetDatasetClassLabels(datasetId, replyTo) =>
-      datasetMapping.get(datasetId) match {
-        case Some(ids) =>
-          val labels = ids.map(timeseries(_).label).toArray
-          replyTo ! DatasetClassLabels(labels)
+      handlers.get(datasetId) match {
+        case Some(_) =>
+          ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
+          replyTo ! DatasetIsLoading
         case None =>
-          handlers.get(datasetId) match {
-            case Some(_) =>
-              ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
-              replyTo ! DatasetIsLoading
+          datasetMapping.get(datasetId) match {
+            case Some(ids) =>
+              val labels = ids.toArray.sorted.map(timeseries(_).label)
+              replyTo ! DatasetClassLabels(labels)
             case None =>
               ctx.log.warn("Dataset d-{} not found, cannot retrieve class labels", datasetId)
               replyTo ! DatasetClassLabelsNotFound

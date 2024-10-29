@@ -2,7 +2,8 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions.Similarity
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
+import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
+import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.model.StateModel.ClusteringState
 
 import scala.collection.mutable
@@ -175,8 +176,11 @@ class HierarchyState private(val n: Int,
 
   private def computeClusterQuality(classes: Array[String]): Double = {
     // 1. cut tree according to k = |distinct classes|
+    val nClusters = classes.distinct.length
+    val clusters = CutTree(currentHierarchy.hierarchy, nClusters)
     // 2. assign arbitrary class names (strings) to the clusters
+    val clusterLabels = clusters.map(_.toString)
     // 3. use adjusted_rand_score to compare the clustering with the ground truth
-    0.0
+    AdjustedRandScore(classes, clusterLabels)
   }
 }
