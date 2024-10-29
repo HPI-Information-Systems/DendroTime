@@ -3,8 +3,6 @@
 
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
-import de.hpi.fgis.bloomfilter.BloomFilter
-import de.hpi.fgis.bloomfilter.mutable.BloomFilter64
 import de.hpi.fgis.dendrotime.clustering.PDist
 
 import scala.util.boundary
