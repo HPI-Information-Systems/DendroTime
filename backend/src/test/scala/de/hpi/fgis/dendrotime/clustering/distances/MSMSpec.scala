@@ -162,7 +162,7 @@ class MSMSpec extends AnyWordSpec with should.Matchers {
     }
   }
   "compare to reference for Coffee dataset" in {
-    val expectedDistanceMatrix = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-coffee-msm.csv"))
+    val expectedDistanceMatrix = TestUtil.loadCSVFile("test-data/distance-matrix-coffee-msm.csv")
     val coffeeTrainData = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/Coffee/Coffee_TRAIN.ts"))
     val coffeeTestData = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/Coffee/Coffee_TEST.ts"))
     val data = coffeeTrainData ++ coffeeTestData
@@ -176,7 +176,7 @@ class MSMSpec extends AnyWordSpec with should.Matchers {
     distanceMatrix shouldEqual expectedDistanceMatrix
   }
   "compare to reference for PickupGestureWiimoteZ dataset" in {
-    val expectedDistanceMatrix = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-PGWZ-msm.csv"))
+    val expectedDistanceMatrix = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-msm.csv")
     val dataTrain = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TRAIN.ts"))
     val dataTest = TestUtil.loadDataset(TestUtil.findResource("test-data/datasets/PickupGestureWiimoteZ/PickupGestureWiimoteZ_TEST.ts"))
     val data = dataTrain ++ dataTest

@@ -41,7 +41,7 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
         dendroTimeScheduler ! Scheduler.GetProgress(dataset.id, progressProbe.ref)
       }
       val messages = progressProbe.fishForMessage(30 seconds) {
-        case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _) =>
+        case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _, _, _) =>
           timer.cancel()
           FishingOutcomes.complete
         case _ =>
@@ -71,12 +71,12 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
       s"DendroTime with $metric distance and $linkage linkage" should {
         "produce correct hierarchy for Coffee dataset" in {
           val dataset = Dataset(i*j+j, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
-          val params = DendroTimeParams(Distance(metric), Linkage(linkage))
+          val params = DendroTimeParams(metric, linkage)
           performSystemTest(dataset, params, s"test-data/ground-truth/Coffee/hierarchy-$metric-$linkage.csv")
         }
         "produce correct hierarchy for PickupGestureWiimoteZ dataset" in {
           val dataset = Dataset(100+i*j+j, "PickupGestureWiimoteZ", pickupGestureDatasetTest, Some(pickupGestureDatasetTrain))
-          val params = DendroTimeParams(Distance(metric), Linkage(linkage))
+          val params = DendroTimeParams(metric, linkage)
           performSystemTest(dataset, params, s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$metric-$linkage.csv")
         }
       }

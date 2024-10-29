@@ -122,7 +122,7 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
       )
     }
     "compare to reference for PGWZ dataset" when {
-      val pairwiseDistances = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-PGWZ-sbd.csv"))
+      val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
       val distances = PDist.apply(pairwiseDistances)
 
       for linkage <- Seq("single", "complete", "average", "ward") do

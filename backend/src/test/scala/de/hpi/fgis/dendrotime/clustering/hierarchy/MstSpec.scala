@@ -52,7 +52,7 @@ class MstSpec extends AnyWordSpec with should.Matchers {
       )
     }
     "compare to reference for PGWZ dataset" in {
-      val pairwiseDistances = TestUtil.loadCSVFile(TestUtil.findResource("test-data/distance-matrix-PGWZ-sbd.csv"))
+      val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
       val expectedHierarchy = TestUtil.loadHierarchy("test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-single.csv")
       val distances = PDist.apply(pairwiseDistances)
       val h = singleLinkageHierarchyMST(distances, adjustLabels = true)

@@ -71,5 +71,5 @@ object TestUtil {
 
   /** Loads a csv 2D array from disk, using DendroTime production code. */
   def loadCSVFile(path: String): Array[Array[Double]] =
-    CSVReader.parse(new File(path))
+    CSVReader.parse(new File(findResource(path)))
 }
