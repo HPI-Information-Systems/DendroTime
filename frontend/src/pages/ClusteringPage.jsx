@@ -17,7 +17,7 @@ const defaultState = {
   "progress": 0,
   "hierarchySimilarity": [],
   "hierarchyQuality": [],
-  "clusterQuality": []
+  "clusterQuality": [],
 }
 
 function ClusteringPage() {
@@ -40,7 +40,8 @@ function ClusteringPage() {
           "metricName": metric,
           "linkageName": linkage,
           "approxLength": 10,
-        }
+          "strategy": "fcfs"
+        },
       })
     })
       .then(resp => {

@@ -66,9 +66,11 @@ class HierarchyState private(val n: Int,
   private var ops: Int = 0
   private var gtHierarchy: Option[HierarchyState.HierarchyWithBF] = None
   private var gtClasses: Option[Array[String]] = None
-  private val similarities: mutable.Map[Int, Double] = mutable.Map.empty
-  private val gtSimilarities: mutable.Map[Int, Double] = mutable.Map.empty
-  private val clusterQualities: mutable.Map[Int, Double] = mutable.Map.empty
+  private val nComputations: mutable.ArrayBuilder[Int] = mutable.ArrayBuilder.ofInt()
+  private val timestamps: mutable.ArrayBuilder[Long] = mutable.ArrayBuilder.ofLong()
+  private val similarities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
+  private val gtSimilarities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
+  private val clusterQualities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
 
   def computations: Int = ops
 
