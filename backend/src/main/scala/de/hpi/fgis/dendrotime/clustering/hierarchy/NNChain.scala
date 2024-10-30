@@ -108,19 +108,3 @@ private[hierarchy] object NNChain {
       (x, y, currentMin, chainLength)
     }
 }
-
-@main
-def main(): Unit = {
-//  val dists = PDist(7)(0.1, Double.PositiveInfinity, Double.PositiveInfinity, 0.25, Double.PositiveInfinity, 0.1,
-//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
-//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
-//    Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
-//    Double.PositiveInfinity, Double.PositiveInfinity, 0.1,
-//  )
-  val dists = PDist.empty(5)
-  val linkage = Linkage.WardLinkage
-  val hierarchy = NNChain(dists, linkage, adjustLabels = true)
-  println()
-  for node <- hierarchy do
-    println(s"${node.idx}, ${node.cId1}, ${node.cId2}, ${node.distance}, ${node.cardinality}")
-}

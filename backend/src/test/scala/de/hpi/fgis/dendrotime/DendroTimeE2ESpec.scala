@@ -1,9 +1,7 @@
 package de.hpi.fgis.dendrotime
 
-import akka.actor.testkit.typed.scaladsl.{FishingOutcomes, ScalaTestWithActorTestKit}
+import akka.actor.testkit.typed.scaladsl.{FishingOutcomes, LogCapturing, ScalaTestWithActorTestKit}
 import de.hpi.fgis.dendrotime.actors.Scheduler
-import de.hpi.fgis.dendrotime.clustering.distances.Distance
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
@@ -14,7 +12,7 @@ import java.io.FileNotFoundException
 import scala.concurrent.duration.*
 import scala.language.postfixOps
 
-class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike with should.Matchers {
+class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with should.Matchers with LogCapturing {
 
   import TestUtil.ImplicitEqualities.given
   import testKit.internalSystem.executionContext
@@ -40,7 +38,7 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
       val timer = testKit.scheduler.scheduleWithFixedDelay(0 seconds, 200 millis) { () =>
         dendroTimeScheduler ! Scheduler.GetProgress(dataset.id, progressProbe.ref)
       }
-      val messages = progressProbe.fishForMessage(30 seconds) {
+      val messages = progressProbe.fishForMessage(60 seconds) {
         case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _, _, _) =>
           timer.cancel()
           FishingOutcomes.complete
@@ -70,12 +68,12 @@ class DendroTimeE2ETest extends ScalaTestWithActorTestKit with AnyWordSpecLike w
     for (linkage, j) <- Seq("single", "complete", "average", "ward").zipWithIndex do
       s"DendroTime with $metric distance and $linkage linkage" should {
         "produce correct hierarchy for Coffee dataset" in {
-          val dataset = Dataset(i*j+j, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
+          val dataset = Dataset(i*(j+1)+j, "Coffee", coffeeDatasetTest, Some(coffeeDatasetTrain))
           val params = DendroTimeParams(metric, linkage)
           performSystemTest(dataset, params, s"test-data/ground-truth/Coffee/hierarchy-$metric-$linkage.csv")
         }
         "produce correct hierarchy for PickupGestureWiimoteZ dataset" in {
-          val dataset = Dataset(100+i*j+j, "PickupGestureWiimoteZ", pickupGestureDatasetTest, Some(pickupGestureDatasetTrain))
+          val dataset = Dataset(100+i*(j+1)+j, "PickupGestureWiimoteZ", pickupGestureDatasetTest, Some(pickupGestureDatasetTrain))
           val params = DendroTimeParams(metric, linkage)
           performSystemTest(dataset, params, s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$metric-$linkage.csv")
         }

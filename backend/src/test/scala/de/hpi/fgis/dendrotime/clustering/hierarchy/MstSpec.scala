@@ -27,7 +27,7 @@ class MstSpec extends AnyWordSpec with should.Matchers {
     "compute the hierarchy for 4 TS correctly" in {
       val n = 4
       val distances = PDist(n)(1.0, 3.0, 4.0, 2.0, 5.0, 3.0)
-      val h = singleLinkageHierarchyMST(distances, adjustLabels = true)
+      val h = MST(distances, adjustLabels = true)
       h.size shouldEqual n - 1
       h.toList shouldEqual List(
         Hierarchy.Node(0, 0, 1, 1.0, 2),
@@ -42,7 +42,7 @@ class MstSpec extends AnyWordSpec with should.Matchers {
         0.56610106, 0.00637809, 0.91118529, 0.73390853, 0.91253817
       )
 
-      val h = singleLinkageHierarchyMST(distances, adjustLabels = true)
+      val h = MST(distances, adjustLabels = true)
       h.size shouldEqual n - 1
       h.toList shouldEqual List(
         Hierarchy.Node(0, 1, 4, 0.00637809, 2),
@@ -54,8 +54,8 @@ class MstSpec extends AnyWordSpec with should.Matchers {
     "compare to reference for PGWZ dataset" in {
       val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
       val expectedHierarchy = TestUtil.loadHierarchy("test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-single.csv")
-      val distances = PDist.apply(pairwiseDistances)
-      val h = singleLinkageHierarchyMST(distances, adjustLabels = true)
+      val distances = PDist(pairwiseDistances)
+      val h = MST(distances, adjustLabels = true)
       h.size shouldEqual expectedHierarchy.size
 
       import TestUtil.ImplicitEqualities.given

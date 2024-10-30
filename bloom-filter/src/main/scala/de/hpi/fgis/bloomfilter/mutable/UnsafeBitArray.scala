@@ -74,7 +74,7 @@ private[bloomfilter] final class UnsafeBitArray(val numberOfBits: Long) extends 
 
   override def canEqual(that: Any): Boolean = that.isInstanceOf[UnsafeBitArray]
 
-  override def equals(obj: Any): Boolean = obj match
+  override def equals(obj: Any): Boolean = obj.asInstanceOf[Matchable] match
     case that: UnsafeBitArray =>
       (this eq that) || (
         this.canEqual(that) && this.hashCode == that.hashCode &&

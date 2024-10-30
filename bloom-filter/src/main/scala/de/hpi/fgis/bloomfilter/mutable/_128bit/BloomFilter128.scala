@@ -80,10 +80,10 @@ class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int,
   override def toString: String =
     s"BloomFilter128(numberOfBits=$numberOfBits, numberOfHashes=$numberOfHashes, approximateElementCount=$approximateElementCount)"
     
-  override def canEqual(that: Any): Boolean = that.isInstanceOf[BloomFilter128[T]]
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[BloomFilter128[?]]
 
-  override def equals(that: Any): Boolean = that match {
-    case otherFilter: BloomFilter128[T] =>
+  override def equals(that: Any): Boolean = that.asInstanceOf[Matchable] match {
+    case otherFilter: BloomFilter128[?] =>
       (this eq otherFilter) || (
         otherFilter.canEqual(this) &&
           this.hashCode == otherFilter.hashCode &&

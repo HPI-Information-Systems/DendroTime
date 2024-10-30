@@ -6,7 +6,7 @@ import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 import scala.math.*
 
 @SerialVersionUID(2L)
-class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, private val bits: UnsafeBitArray)
+final class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, private val bits: UnsafeBitArray)
                               (using canGenerateHash: CanGenerateHashFrom[T]) extends BloomFilter[T] {
 
   def this(numberOfBits: Long, numberOfHashes: Int)(using CanGenerateHashFrom[T]) =
@@ -81,10 +81,10 @@ class BloomFilter64[T] private(val numberOfBits: Long, val numberOfHashes: Int, 
   override def toString: String =
     s"BloomFilter64(numberOfBits=$numberOfBits, numberOfHashes=$numberOfHashes, approximateElementCount=$approximateElementCount)"
 
-  override def canEqual(that: Any): Boolean = that.isInstanceOf[BloomFilter64[T]]
+  override def canEqual(that: Any): Boolean = that.isInstanceOf[BloomFilter64[?]]
   
-  override def equals(that: Any): Boolean = that match {
-    case otherFilter: BloomFilter64[T] =>
+  override def equals(that: Any): Boolean = that.asInstanceOf[Matchable] match {
+    case otherFilter: BloomFilter64[?] =>
       (this eq otherFilter) || (
         otherFilter.canEqual(this) &&
         this.hashCode == otherFilter.hashCode &&
