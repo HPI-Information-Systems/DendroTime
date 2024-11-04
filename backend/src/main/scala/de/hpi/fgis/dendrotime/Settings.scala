@@ -59,6 +59,7 @@ class Settings private(config: Config) extends Extension {
       val duration = config.getDuration(s"$internalNamespace.ground-truth-loading-delay")
       FiniteDuration(duration.toMillis, "milliseconds")
     }
+    val disabled: Boolean = !computeHierarchySimilarity && !computeHierarchyQuality && !computeClusterQuality
   }
 
   given bloomFilterOptions: BloomFilterOptions = {

@@ -35,12 +35,15 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
   import HierarchyCalculator.*
 
+  private given ClusterSimilarityOptions = settings.clusterSimilarityOptions
+
   // debug counters
+  private val settings: Settings = Settings(ctx.system)
+  private val state: HierarchyState =
+    if settings.ProgressIndicators.disabled then HierarchyState.nonTracking(n)
+    else HierarchyState.tracking(n)
   private var runtime = 0L
   private var computations = 0
-  private val state: HierarchyState = HierarchyState.empty(n)
-
-  private given ClusterSimilarityOptions = Settings(ctx.system).clusterSimilarityOptions
 
   private def start(): Behavior[Command] = {
     clusterer ! Clusterer.GetDistances
@@ -66,12 +69,12 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       Behaviors.same
   }.receiveSignal {
     case (_, PostStop) =>
-      ctx.log.info("HierarchyCalculator stopped, releasing resources")
-      state.dispose()
-
       val newComps = state.computations - computations
       if newComps > 0 then
         ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
+
+      ctx.log.info("HierarchyCalculator stopped, releasing resources")
+      state.dispose()
       Behaviors.stopped
   }
 
