@@ -1,30 +1,16 @@
 package de.hpi.fgis.dendrotime.io.hierarchies
 
-import com.univocity.parsers.csv.{CsvWriter, CsvWriterSettings}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
+import de.hpi.fgis.dendrotime.io.CSVWriter
 
 import java.io.File
+import scala.util.Using
 
 
 /**
  * CSV Parser for reading input files and parsing them into a table representation.
  */
 object HierarchyCSVWriter {
-  def apply(): HierarchyCSVWriter = new HierarchyCSVWriter()
-}
-
-class HierarchyCSVWriter private {
-
-  import HierarchyCSVWriter.*
-
-  private val parserSettings = {
-    val s = new CsvWriterSettings
-    s.setHeaderWritingEnabled(false)
-    val f = s.getFormat
-    f.setDelimiter(",")
-    f.setLineSeparator("\n")
-    s
-  }
 
   /**
    * Writes a hierarchy to a CSV file.
@@ -40,13 +26,6 @@ class HierarchyCSVWriter private {
    * @param file [[java.io.File]] pointing to the dataset
    * @param h    the hierarchy to write
    */
-  def write(file: File, h: Hierarchy): Unit = {
-    val writer = new CsvWriter(file, parserSettings)
-    try
-      h.fastForeach { level =>
-        writer.writeRow(level.map(_.toString))
-      }
-    finally
-      writer.close()
-  }
+  def write(file: File, h: Hierarchy): Unit =
+    CSVWriter.write(file, h.backingArray)
 }

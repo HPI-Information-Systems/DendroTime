@@ -5,6 +5,7 @@ import com.univocity.parsers.csv.{CsvParser, CsvParserSettings}
 
 import java.io.File
 import scala.collection.mutable
+import scala.util.Using
 
 
 /**
@@ -16,6 +17,9 @@ object CSVReader {
   extension [T](result: IterableResult[T, ParsingContext])
     def foreach(f: T => Unit): Unit =
       result.forEach(f(_))
+
+  given Using.Releasable[CsvParser] with
+    def release(resource: CsvParser): Unit = resource.stopParsing()
 
   private val parserSettings = {
     val s = new CsvParserSettings
@@ -41,17 +45,15 @@ object CSVReader {
    * @return the parsed dataset as a 2D array
    */
   def parse(file: File): Array[Array[Double]] = {
-    val parser = new CsvParser(parserSettings)
     val data = mutable.ArrayBuilder.make[Array[Double]]
     val reusableLineBuilder = mutable.ArrayBuilder.ofDouble()
 
-    try
+    Using.resource(new CsvParser(parserSettings)) { parser =>
       for row <- parser.iterate(file) do
         reusableLineBuilder.addAll(row.map(_.toDouble))
         data.addOne(reusableLineBuilder.result())
         reusableLineBuilder.clear()
-      data.result()
-    finally
-      parser.stopParsing()
+    }
+    data.result()
   }
 }

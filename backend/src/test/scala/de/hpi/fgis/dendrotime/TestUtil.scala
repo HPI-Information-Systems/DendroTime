@@ -51,7 +51,7 @@ object TestUtil {
 
   /** Load an existing hierarchy (CSV) from disk using DendroTime production code. */
   def loadHierarchy(filepath: String): Hierarchy =
-    HierarchyCSVReader().parse(findResource(filepath))
+    HierarchyCSVReader.parse(findResource(filepath))
 
   /** Load time series from a .ts-file using DendroTime production code. */
   def loadDataset(path: String, maxTimeseries: Option[Int] = None): Array[Array[Double]] = {

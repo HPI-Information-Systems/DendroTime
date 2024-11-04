@@ -10,10 +10,6 @@ import java.io.File
  * CSV Parser for reading input files and parsing them into a table representation.
  */
 object HierarchyCSVReader {
-  def apply(): HierarchyCSVReader = new HierarchyCSVReader()
-}
-
-class HierarchyCSVReader private {
 
   /**
    * Reads a CSV file containing a hierarchy and parses it.

@@ -39,7 +39,7 @@ class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike w
         dendroTimeScheduler ! Scheduler.GetProgress(dataset.id, progressProbe.ref)
       }
       val messages = progressProbe.fishForMessage(60 seconds) {
-        case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _, _, _) =>
+        case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _, _, _, _, _) =>
           timer.cancel()
           FishingOutcomes.complete
         case _ =>

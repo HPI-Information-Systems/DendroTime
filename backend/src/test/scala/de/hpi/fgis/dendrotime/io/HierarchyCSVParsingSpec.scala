@@ -18,8 +18,7 @@ class HierarchyCSVParsingSpec extends AnyWordSpec with should.Matchers {
 
   "HierarchyCSVReader" should {
     "parse a hierarchy CSV file" in {
-      val reader = HierarchyCSVReader()
-      val hierarchy = reader.parse(Fixtures.hierarchyFile)
+      val hierarchy = HierarchyCSVReader.parse(Fixtures.hierarchyFile)
       hierarchy should not be null
       hierarchy.n shouldBe 135
       hierarchy.length shouldBe 134
@@ -29,23 +28,20 @@ class HierarchyCSVParsingSpec extends AnyWordSpec with should.Matchers {
     }
 
     "parse a file written with HierarchyCSVWriter" in {
-      val writer = HierarchyCSVWriter()
       val file = Files.createTempFile("tmp-hierarchy", ".csv").toFile
       file.deleteOnExit()
-      writer.write(file.getCanonicalPath, Fixtures.hierarchy)
+      HierarchyCSVWriter.write(file.getCanonicalPath, Fixtures.hierarchy)
 
-      val reader = HierarchyCSVReader()
-      val hierarchy = reader.parse(file)
+      val hierarchy = HierarchyCSVReader.parse(file)
       hierarchy shouldEqual Fixtures.hierarchy
     }
   }
 
   "HierarchyCSVWriter" should {
     "write a CSV file" in {
-      val writer = HierarchyCSVWriter()
       val file = Files.createTempFile("tmp-hierarchy", ".csv").toFile
       file.deleteOnExit()
-      writer.write(file, Fixtures.hierarchy)
+      HierarchyCSVWriter.write(file, Fixtures.hierarchy)
 
       val reader = new BufferedReader(new FileReader(file))
       val lines = reader.lines().collect(Collectors.toList()).asScala.toArray

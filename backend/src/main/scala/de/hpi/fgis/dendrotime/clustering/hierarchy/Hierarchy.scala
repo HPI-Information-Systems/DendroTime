@@ -83,7 +83,7 @@ case class Hierarchy private(private val z: Array[Array[Double]], n: Int)
 
   def cardinality(i: Int): Int = z(i)(3).toInt
 
-  def fastForeach(f: Array[Double] => Unit): Unit = z.foreach(f)
+  def backingArray: Array[Array[Double]] = z
 
   override def iterator: Iterator[Hierarchy.Node] =
     z.iterator.zipWithIndex.map((arr, i) => Hierarchy.nodeFromArray(i, arr))

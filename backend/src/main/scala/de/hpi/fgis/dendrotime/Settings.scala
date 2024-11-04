@@ -26,6 +26,8 @@ class Settings private(config: Config) extends Extension {
   val resultsPath: Path = Path.of(config.getString(s"$namespace.results-path"))
   val groundTruthPath: Path = Path.of(config.getString(s"$namespace.ground-truth-path"))
 
+  val storeResults: Boolean = config.getBoolean(s"$namespace.store-results")
+
   val askTimeout: Timeout = {
     val duration = config.getDuration(s"$namespace.ask-timeout")
     FiniteDuration(duration.toMillis, "milliseconds")

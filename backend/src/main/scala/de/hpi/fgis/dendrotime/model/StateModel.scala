@@ -53,7 +53,11 @@ object StateModel {
                                  similarities: Seq[Double],
                                  gtSimilarities: Seq[Double],
                                  clusterQualities: Seq[Double],
-                               )
+                               ) {
+    def hasGtSimilarities: Boolean = gtSimilarities.nonEmpty
+    def hasClusterQualities: Boolean = clusterQualities.nonEmpty
+    def size: Int = indices.length
+  }
 
   object QualityTrace {
     def newBuilder: QualityTraceBuilder = new QualityTraceBuilder

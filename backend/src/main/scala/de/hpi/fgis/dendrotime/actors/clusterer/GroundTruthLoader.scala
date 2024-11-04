@@ -92,7 +92,7 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
     val gtPath = settings.groundTruthPath
     val path = gtPath.resolve(s"${dataset.name}/hierarchy-${params.metricName}-${params.linkageName}.csv").toFile
     try
-      Some(HierarchyCSVReader().parse(path))
+      Some(HierarchyCSVReader.parse(path))
     catch case _ =>
       None
   }
