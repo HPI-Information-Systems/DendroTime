@@ -4,7 +4,7 @@ import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions.Similarity
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
-import de.hpi.fgis.dendrotime.model.StateModel.ClusteringState
+import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, QualityTrace}
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -66,27 +66,17 @@ class HierarchyState private(val n: Int,
   private var ops: Int = 0
   private var gtHierarchy: Option[HierarchyState.HierarchyWithBF] = None
   private var gtClasses: Option[Array[String]] = None
-  private val nComputations: mutable.ArrayBuilder[Int] = mutable.ArrayBuilder.ofInt()
-  private val timestamps: mutable.ArrayBuilder[Long] = mutable.ArrayBuilder.ofLong()
-  private val similarities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
-  private val gtSimilarities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
-  private val clusterQualities: mutable.ArrayBuilder[Double] = mutable.ArrayBuilder.ofDouble()
+  private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
 
   def computations: Int = ops
 
   def hierarchy: Hierarchy = currentHierarchy.hierarchy
 
-  def hierarchySimilarity: Map[Int, Double] = similarities.toMap
-
-  def hierarchyQuality: Map[Int, Double] = gtSimilarities.toMap
-
-  def clusterQuality: Map[Int, Double] = clusterQualities.toMap
+  def qualityTrace: QualityTrace = traceBuilder.result()
 
   def toClusteringState: ClusteringState = ClusteringState(
     hierarchy = hierarchy,
-    hierarchySimilarity = hierarchySimilarity,
-    hierarchyQuality = hierarchyQuality,
-    clusterQuality = clusterQuality,
+    qualityTrace = traceBuilder.result()
   )
 
   def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
@@ -108,16 +98,16 @@ class HierarchyState private(val n: Int,
     }
     currentHierarchy.dispose()
     currentHierarchy = newClusters
-    similarities += (index -> similarity)
+    traceBuilder.addStep(index, similarity)
     ops += 1
 
     if gtHierarchy.isDefined then
       val gtSimilarity = computeGtHierarchySimilarity(gtHierarchy.get)
-      gtSimilarities += (index -> gtSimilarity)
+      traceBuilder.withGtSimilarity(gtSimilarity)
 
     if gtClasses.isDefined then
       val clusterQuality = computeClusterQuality(gtClasses.get)
-      clusterQualities += (index -> clusterQuality)
+      traceBuilder.withClusterQuality(clusterQuality)
   }
 
   def dispose(): Unit = {

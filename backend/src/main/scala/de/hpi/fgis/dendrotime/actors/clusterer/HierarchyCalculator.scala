@@ -38,8 +38,9 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   // debug counters
   private var runtime = 0L
   private var computations = 0
-  private given ClusterSimilarityOptions = Settings(ctx.system).clusterSimilarityOptions
   private val state: HierarchyState = HierarchyState.empty(n)
+
+  private given ClusterSimilarityOptions = Settings(ctx.system).clusterSimilarityOptions
 
   private def start(): Behavior[Command] = {
     clusterer ! Clusterer.GetDistances
@@ -79,7 +80,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
     val h = hierarchy.computeHierarchy(distances, params.linkage)
     state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
-//    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
+    //    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
     communicator ! NewHierarchy(state.toClusteringState)
   }
 }

@@ -2,7 +2,7 @@ import React, {useContext, useEffect, useId} from "react";
 import * as d3 from "d3";
 import {WidthContext} from "./WidthProvider";
 
-function D3LineChart({data}) {
+function D3LineChart({data, useTimestamps}) {
   const id = useId().replaceAll(":", "");
   // use width of outer div
   const width = useContext(WidthContext);
@@ -26,16 +26,18 @@ function D3LineChart({data}) {
       .attr("height", height)
       .attr("viewBox", viewPort);
 
+    const index = useTimestamps? data.timestamps : data.steps;
+    const minIndex = useTimestamps? data.timestamps[0] : 0;
     const array = [
-      data.hierarchySimilarity.sort((a, b) => a[0] - b[0]),
-      data.hierarchyQuality.sort((a, b) => a[0] - b[0]),
-      data.clusterQuality.sort((a, b) => a[0] - b[0]),
+      data.hierarchySimilarities.map((x, i) => [index[i] - minIndex, x]),
+      data.hierarchyQualities.map((x, i) => [index[i] - minIndex, x]),
+      data.clusterQualities.map((x, i) => [index[i] - minIndex, x]),
     ];
     const allLabels = ["Hierarchy Similarity", "Hierarchy Quality", "Cluster Quality"];
     const labels = [];
-    if (data.hierarchySimilarity.length > 0) labels.push(allLabels[0]);
-    if (data.hierarchyQuality.length > 0) labels.push(allLabels[1]);
-    if (data.clusterQuality.length > 0) labels.push(allLabels[2]);
+    if (data.hierarchySimilarities.length > 0) labels.push(allLabels[0]);
+    if (data.hierarchyQualities.length > 0) labels.push(allLabels[1]);
+    if (data.clusterQualities.length > 0) labels.push(allLabels[2]);
 
     const maxIndex = array
       .map(x => d3.max(x, d => d[0]) || 0)
@@ -43,10 +45,21 @@ function D3LineChart({data}) {
     const xScale = d3.scaleLinear()
       .domain([0, maxIndex])
       .range([0, width-2*horizMargin-legendWidth]);
-    const xAxis = d3.select(`#${id}-xaxis`)
-      .attr("transform", `translate(0,${height - axisHeight/2})`)
+    const xAxis = d3.select(`#${id}-xaxis`);
+    xAxis.attr("transform", `translate(0,${height - axisHeight/2})`)
       .transition().duration(tDuration)
       .call(d3.axisBottom(xScale));
+    // add axis label
+    const xLabel = xAxis.select(".label").node() ?
+      xAxis.select(".label").select("text")
+      : xAxis.append("g").attr("class", "label").append("text");
+    xLabel
+      .attr("text-anchor", "start")
+      .attr("x", width-legendWidth-2*horizMargin + 10)
+      .attr("dy", "10")
+      .attr("fill", "currentColor")
+      .text(useTimestamps? "Timestamps in ms" : "Steps");
+
 
     const yScale = d3.scaleLinear()
       .domain([0, 1])

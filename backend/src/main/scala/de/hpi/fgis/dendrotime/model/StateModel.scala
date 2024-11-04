@@ -6,6 +6,7 @@ import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, Linkage, computeH
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsArray, JsNumber, JsObject, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 /**
  * All models related to the state of one clustering job and their marshalling.
@@ -19,9 +20,11 @@ object StateModel {
                                       state: Status,
                                       progress: Int,
                                       hierarchy: Hierarchy,
-                                      hierarchySimilarity: Seq[(Int, Double)],
-                                      hierarchyQuality: Seq[(Int, Double)] = Seq.empty,
-                                      clusterQuality: Seq[(Int, Double)] = Seq.empty,
+                                      steps: Seq[Int],
+                                      timestamps: Seq[Long],
+                                      hierarchySimilarities: Seq[Double],
+                                      hierarchyQualities: Seq[Double] = Seq.empty,
+                                      clusterQualities: Seq[Double] = Seq.empty,
                                     ) extends ProgressMessage
 //    final case class StateUpdate(id: Long, newState: Status) extends ProgressMessage
 //    final case class ProgressUpdate(id: Long, progress: Int) extends ProgressMessage
@@ -31,18 +34,114 @@ object StateModel {
         state=status,
         progress=progress,
         hierarchy=state.hierarchy,
-        hierarchySimilarity=state.hierarchySimilarity.toSeq,
-        hierarchyQuality=state.hierarchyQuality.toSeq,
-        clusterQuality=state.clusterQuality.toSeq
+        steps=state.qualityTrace.indices,
+        timestamps=state.qualityTrace.timestamps,
+        hierarchySimilarities=state.qualityTrace.similarities,
+        hierarchyQualities=state.qualityTrace.gtSimilarities,
+        clusterQualities=state.qualityTrace.clusterQualities
       )
   }
   
   final case class ClusteringState(
                                     hierarchy: Hierarchy = Hierarchy.empty,
-                                    hierarchySimilarity: Map[Int, Double] = Map.empty,
-                                    hierarchyQuality: Map[Int, Double] = Map.empty,
-                                    clusterQuality: Map[Int, Double] = Map.empty,
+                                    qualityTrace: QualityTrace = QualityTrace.empty,
                                   )
+
+  final case class QualityTrace private (
+                                 indices: Seq[Int],
+                                 timestamps: Seq[Long],
+                                 similarities: Seq[Double],
+                                 gtSimilarities: Seq[Double],
+                                 clusterQualities: Seq[Double],
+                               )
+
+  object QualityTrace {
+    def newBuilder: QualityTraceBuilder = new QualityTraceBuilder
+
+    def empty: QualityTrace = QualityTrace(
+      indices=Seq.empty,
+      timestamps=IndexedSeq.empty,
+      similarities=IndexedSeq.empty,
+      gtSimilarities=IndexedSeq.empty,
+      clusterQualities=IndexedSeq.empty
+    )
+
+    final class QualityTraceBuilder private[QualityTrace] {
+      private val nComputations: mutable.ArrayBuffer[Int] = mutable.ArrayBuffer.empty
+      private val timestamps: mutable.ArrayBuffer[Long] = mutable.ArrayBuffer.empty
+      private val similarities: mutable.ArrayBuffer[Double] = mutable.ArrayBuffer.empty
+      private val gtSimilarities: mutable.ArrayBuffer[Double] = mutable.ArrayBuffer.empty
+      private val clusterQualities: mutable.ArrayBuffer[Double] = mutable.ArrayBuffer.empty
+
+      def addStep(index: Int, similarity: Double): this.type =
+        addStep(index, System.currentTimeMillis(), similarity)
+
+      def addStep(index: Int, timestamp: Long, similarity: Double): this.type = {
+        nComputations += index
+        timestamps += timestamp
+        similarities += similarity
+        this
+      }
+
+      def addStep(index: Int, similarity: Double, gtSimilarity: Double, clusterQuality: Double): this.type =
+        addStep(index, System.currentTimeMillis(), similarity, gtSimilarity, clusterQuality)
+
+      def addStep(index: Int, timestamp: Long, similarity: Double, gtSimilarity: Double, clusterQuality: Double): this.type = {
+        fillMissingClusterQualities()
+        fillMissingClusterQualities()
+        nComputations += index
+        timestamps += timestamp
+        similarities += similarity
+        gtSimilarities += gtSimilarity
+        clusterQualities += clusterQuality
+        this
+      }
+
+      def withGtSimilarity(gtSimilarity: Double): this.type = {
+        if nComputations.length == gtSimilarities.length then
+          throw new IllegalStateException("Cannot add ground truth similarity without adding a new step first")
+        fillMissingGtSimilarities(offset = -1)
+        gtSimilarities += gtSimilarity
+        this
+      }
+
+      def withClusterQuality(clusterQuality: Double): this.type = {
+        if nComputations.length == clusterQualities.length then
+          throw new IllegalStateException("Cannot add cluster quality without adding a new step first")
+        fillMissingClusterQualities(offset = -1)
+        clusterQualities += clusterQuality
+        this
+      }
+
+      def result(): QualityTrace = QualityTrace(
+        indices=nComputations.toArray,
+        timestamps=timestamps.toArray,
+        similarities=similarities.toArray,
+        gtSimilarities=gtSimilarities.toArray,
+        clusterQualities=clusterQualities.toArray
+      )
+
+      def clear(): Unit = {
+        nComputations.clear()
+        timestamps.clear()
+        similarities.clear()
+        gtSimilarities.clear()
+        clusterQualities.clear()
+      }
+
+      private def fillMissingGtSimilarities(offset: Int = 0): Unit = {
+        if gtSimilarities.length < nComputations.length + offset then
+          val missing = nComputations.length + offset - gtSimilarities.length
+          gtSimilarities ++= Seq.fill(missing)(0.0)
+      }
+
+      private def fillMissingClusterQualities(offset: Int = 0): Unit = {
+        if clusterQualities.length < nComputations.length + offset then
+          val missing = nComputations.length + offset - clusterQualities.length
+          clusterQualities ++= Seq.fill(missing)(0.0)
+      }
+    }
+  }
 
   sealed trait Status
 
@@ -62,64 +161,10 @@ object StateModel {
     }
   }
 
-  // FIXME: Is too expensive to serialize!! Maybe perform the transformation in the Browser instead?
-  sealed trait DendrogramTree {
-    def id: Int
-    def distance: Double
-    def size: Int
-    def left: Option[DendrogramTree]
-    def right: Option[DendrogramTree]
-    def children: Seq[DendrogramTree] = Seq(left, right).flatten
-  }
-
-  object DendrogramTree {
-    case class Cluster(id: Int,
-                       distance: Double,
-                       size: Int,
-                       private val _left: DendrogramTree,
-                       private val _right: DendrogramTree) extends DendrogramTree {
-      override def left: Some[DendrogramTree] = Some(_left)
-      override def right: Some[DendrogramTree] = Some(_right)
-    }
-    case class Leaf(id: Int) extends DendrogramTree {
-      override def left: None.type = None
-      override def right: None.type = None
-      override def distance: Double = 0.0
-      override def size: Int = 1
-    }
-
-    def fromHierarchy(h: Hierarchy): DendrogramTree = {
-      val nodes = h.iterator
-      val tree = Array.ofDim[DendrogramTree](h.n + h.size)
-      for (i <- 0 until h.n) {
-        tree(i) = Leaf(i)
-      }
-      while (nodes.hasNext) {
-        val node = nodes.next()
-        val cluster = Cluster(
-          id=h.n + node.idx,
-          distance=node.distance,
-          size=node.cardinality,
-          _left=tree(node.cId1),
-          _right=tree(node.cId2)
-        )
-        tree(h.n + node.idx) = cluster
-      }
-      tree.last
-    }
-  }
-
-
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
     given RootJsonFormat[Hierarchy.Node] = jsonFormat5(Hierarchy.Node.apply)
 
-//    given RootJsonFormat[Hierarchy] = jsonFormat[List[Hierarchy.Node], Hierarchy](itr => {
-//      val h = Hierarchy.newBuilder(itr.size)
-//      itr.foreach(h.add)
-//      h.sort()
-//      h.build()
-//    }, "hierarchy")
     given RootJsonFormat[Hierarchy] = new RootJsonFormat[Hierarchy] {
       override def write(obj: Hierarchy): JsValue = JsObject(
         "hierarchy" -> JsArray(obj.map(summon[RootJsonFormat[Hierarchy.Node]].write).toVector),
@@ -136,50 +181,6 @@ object StateModel {
           h.build()
         case _ => throw DeserializationException("Invalid hierarchy")
       }
-    }
-
-    given RootJsonFormat[DendrogramTree] = new RootJsonFormat[DendrogramTree] {
-      override def write(obj: DendrogramTree): JsValue = obj match {
-        case l : DendrogramTree.Leaf =>
-          JsObject(
-            "type" -> JsString("DendrogramTree.Leaf"),
-            "id" -> JsNumber(l.id),
-            "distance" -> JsNumber(l.distance),
-            "size" -> JsNumber(l.size),
-            "children" -> JsArray.empty
-          )
-        case DendrogramTree.Cluster(id, distance, size, left, right) =>
-          JsObject(
-            "type" -> JsString("DendrogramTree.Cluster"),
-            "id" -> JsNumber(id),
-            "distance" -> JsNumber(distance),
-            "size" -> JsNumber(size),
-            "children" -> JsArray(
-              write(left),
-              write(right)
-            )
-          )
-      }
-
-      override def read(json: JsValue): DendrogramTree = json match {
-        case JsObject(fields) if fields.contains("type") =>
-          fields("type") match {
-            case JsString("DendrogramTree.Leaf") =>
-              val id = fields("id").convertTo[Int]
-              DendrogramTree.Leaf(id)
-            case JsString("DendrogramTree.Cluster") =>
-              val id = fields("id").convertTo[Int]
-              val distance = fields("distance").convertTo[Double]
-              val size = fields("size").convertTo[Int]
-              val children = fields("children").convertTo[Vector[DendrogramTree]]
-              val left = children(0)
-              val right = children(1)
-              DendrogramTree.Cluster(id, distance, size, left, right)
-            case _ => throw DeserializationException(s"Invalid dendrogram tree: type ${fields("type")} not known")
-          }
-        case _ => throw DeserializationException("Invalid dendrogram tree: type field missing")
-      }
-
     }
 
     given JsonFormat[Status] = new JsonFormat[Status] {
@@ -206,7 +207,7 @@ object StateModel {
       }
     }
 
-    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat6(ProgressMessage.CurrentProgress.apply)
+    given RootJsonFormat[ProgressMessage.CurrentProgress] = jsonFormat8(ProgressMessage.CurrentProgress.apply)
 //    given RootJsonFormat[ProgressMessage.StateUpdate] = jsonFormat2(ProgressMessage.StateUpdate.apply)
 //    given RootJsonFormat[ProgressMessage.ProgressUpdate] = jsonFormat2(ProgressMessage.ProgressUpdate.apply)
 
@@ -232,29 +233,4 @@ object StateModel {
       }
     }
   }
-}
-
-@main
-def main(): Unit = {
-  val inf = Double.PositiveInfinity
-  val distances = Array(
-    Array(0.0, 0.1, 0.2, inf),
-    Array(0.1, 0.0, inf, inf),
-    Array(0.2, inf, 0.0, inf),
-    Array(inf, inf, inf, 0.0),
-  )
-  val dists = PDist(distances)
-  val linkage = Linkage.CompleteLinkage
-  val hierarchy = computeHierarchy(dists, linkage)
-  println(hierarchy)
-  val tree = StateModel.DendrogramTree.fromHierarchy(hierarchy)
-  println(tree)
-
-  import StateModel.JsonSupport
-
-  val jsonSupport = new JsonSupport {}
-  import jsonSupport.given
-
-  val serialized = summon[RootJsonFormat[StateModel.DendrogramTree]].write(tree)
-  println(serialized)
 }

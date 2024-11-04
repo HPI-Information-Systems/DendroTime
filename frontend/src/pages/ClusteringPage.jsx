@@ -15,9 +15,11 @@ const defaultState = {
   },
   "state": "Initializing",
   "progress": 0,
-  "hierarchySimilarity": [],
-  "hierarchyQuality": [],
-  "clusterQuality": [],
+  "steps": [],
+  "timestamps": [],
+  "hierarchySimilarities": [],
+  "hierarchyQualities": [],
+  "clusterQualities": [],
 }
 
 function ClusteringPage() {
@@ -28,6 +30,7 @@ function ClusteringPage() {
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
   const [useEqualNodeDistance, setUseEqualNodeDistance] = useState(false);
+  const [useTimestamps, setUseTimestamps] = useState(false);
   const pollingInterval = 200;
 
   const startJob = useCallback(() => {
@@ -112,6 +115,10 @@ function ClusteringPage() {
     setUseEqualNodeDistance(!useEqualNodeDistance);
   }, [useEqualNodeDistance, setUseEqualNodeDistance]);
 
+  const handleTimestampSwitch = useCallback(() => {
+    setUseTimestamps(!useTimestamps);
+  }, [useTimestamps, setUseTimestamps]);
+
   return (
     <div className="m-5">
       <h1 className="text-3xl font-bold m-5 mx-auto">Clustering</h1>
@@ -141,12 +148,21 @@ function ClusteringPage() {
         <Button className="mx-auto" variant="secondary" disabled={!polling} size="lg" onClick={abortPolling}>
           Cancel Clustering
         </Button>
-        <div className="flex items-center space-x-3 m-5 mx-auto">
-          <Switch id="horiz-measure-switch" checked={useEqualNodeDistance} onChange={handleDistanceMetricSwitch}/>
-          <label htmlFor="horiz-measure-switch"
-                 className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
-            Use equal node distances
-          </label>
+        <div className="grid-cols-1 mx-auto">
+          <div className="flex items-center space-x-3 my-2">
+            <Switch id="horiz-measure-switch" checked={useEqualNodeDistance} onChange={handleDistanceMetricSwitch}/>
+            <label htmlFor="horiz-measure-switch"
+                   className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+              Use equal node distances
+            </label>
+          </div>
+          <div className="flex items-center space-x-3 mb-2">
+            <Switch id="timestamp-switch" checked={useTimestamps} onChange={handleTimestampSwitch}/>
+            <label htmlFor="timestamp-switch"
+                    className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+                Use timestamps
+            </label>
+          </div>
         </div>
       </div>
       <WidthProvider>
@@ -163,15 +179,17 @@ function ClusteringPage() {
         </div>
         <Divider/>
         <div className={"grid grid-cols-1 my-auto"}>
-          {state.hierarchySimilarity.length === 0 ? (<></>) : (<>
+          {state.hierarchySimilarities.length === 0 ? (<></>) : (<>
               <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
-                Changes over Time
+                Quality over Time
               </h3>
               <D3LineChart data={{
-                "hierarchySimilarity": state.hierarchySimilarity,
-                "hierarchyQuality": state.hierarchyQuality,
-                "clusterQuality": state.clusterQuality
-              }}/>
+                "steps": state.steps,
+                "timestamps": state.timestamps,
+                "hierarchySimilarities": state.hierarchySimilarities,
+                "hierarchyQualities": state.hierarchyQualities,
+                "clusterQualities": state.clusterQualities
+              }} useTimestamps={useTimestamps}/>
           </>)}
           {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (<>
             <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
