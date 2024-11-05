@@ -75,7 +75,7 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
         ctx.log.info("Successfully processed dataset job={}", id)
         ctx.unwatch(coordinator)
         idle(jobId)
-      case GetProgress(id, replyTo) =>
+      case GetProgress(_, replyTo) =>
         replyTo ! ProgressMessage.Unchanged
         Behaviors.same
     }
