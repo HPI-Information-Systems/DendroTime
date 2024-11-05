@@ -7,8 +7,6 @@ import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
-private val SLEEP_TIME = 100
-
 object Worker {
   sealed trait Command
   case class CheckApproximate(t1: Long, t2: Long) extends Command
@@ -44,33 +42,34 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
       waitingForTs(Map.empty, t1, t2, full = true)
   }
 
-  private def waitingForTs(tsMap: Map[Long, TimeSeries], t1: Long, t2: Long, full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def waitingForTs(tsMap: Map[Long, TimeSeries],
+                           t1: Long,
+                           t2: Long,
+                           full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesFound(ts)) =>
-        val newTs = tsMap + (ts.id -> ts)
-        if (newTs.size == 2)
-          if full then
-            checkFull(newTs(t1), newTs(t2))
-          else
-            checkApproximate(newTs(t1), newTs(t2))
-          ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
-          idle
+      val newTs = tsMap + (ts.id -> ts)
+      if (newTs.size == 2)
+        if full then
+          checkFull(newTs(t1), newTs(t2))
         else
-          waitingForTs(newTs, t1, t2, full)
+          checkApproximate(newTs(t1), newTs(t2))
+        ctx.coordinator ! Coordinator.DispatchWork(ctx.context.self)
+        idle
+      else
+        waitingForTs(newTs, t1, t2, full)
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesNotFound(id)) =>
-        ctx.context.log.error("Time series ts-{} not found", id)
-        // report failure to coordinator?
-        Behaviors.stopped
+      ctx.context.log.error("Time series ts-{} not found", id)
+      // report failure to coordinator?
+      Behaviors.stopped
   }
 
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = params.metric(ts1.data.slice(0, params.approxLength), ts2.data.slice(0, params.approxLength))
-//    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 
   private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = params.metric(ts1.data, ts2.data)
-//    Thread.sleep(SLEEP_TIME)
     ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 }

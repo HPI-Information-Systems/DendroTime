@@ -37,11 +37,11 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
   private given ClusterSimilarityOptions = settings.clusterSimilarityOptions
 
-  // debug counters
   private val settings: Settings = Settings(ctx.system)
   private val state: HierarchyState =
     if settings.ProgressIndicators.disabled then HierarchyState.nonTracking(n)
     else HierarchyState.tracking(n)
+  // debug counters
   private var runtime = 0L
   private var computations = 0
 

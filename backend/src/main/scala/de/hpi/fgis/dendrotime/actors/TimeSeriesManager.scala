@@ -42,21 +42,21 @@ object TimeSeriesManager {
     Behaviors.receiveMessage {
       case AddReceiver(replyTo) =>
         DatasetLoadingHandler(receivers + replyTo)
-      case DatasetLoader.DatasetLoaded(id, tsIds) =>
+      case DatasetLoader.DatasetLoaded(_, tsIds) =>
 //        ctx.log.debug("Received dataset loaded message for dataset d-{}, forwarding", id)
-        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(id, tsIds.toSet))
+        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(tsIds.toSet))
         Behaviors.stopped
-      case DatasetLoader.DatasetNotLoaded(id, reason) =>
+      case DatasetLoader.DatasetNotLoaded(_, reason) =>
 //        ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
-        receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(id, reason))
+        receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(reason))
         Behaviors.stopped
       case DatasetLoader.DatasetNTimeseries(n) =>
 //        ctx.log.debug("Received number of timeseries, forwarding message.")
         receivers.foreach(_ ! Coordinator.DatasetHasNTimeseries(n))
         Behaviors.same
-      case DatasetLoader.NewTimeSeries(datasetId, tsId) =>
+      case DatasetLoader.NewTimeSeries(_, tsId) =>
 //        ctx.log.debug("Received new time series message: forwarding message.")
-        receivers.foreach(_ ! Coordinator.NewTimeSeries(datasetId, tsId))
+        receivers.foreach(_ ! Coordinator.NewTimeSeries(tsId))
         Behaviors.same
     }
 }
@@ -101,8 +101,8 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
       datasetMapping.get(d.id) match {
         case Some(ids) =>
           replyTo ! Coordinator.DatasetHasNTimeseries(ids.size)
-          ids.foreach(replyTo ! Coordinator.NewTimeSeries(d.id, _))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(d.id, ids)
+          ids.foreach(replyTo ! Coordinator.NewTimeSeries(_))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(ids)
           Behaviors.same
         case None =>
           handlers.get(d.id) match {
@@ -121,14 +121,14 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
     case GetTimeSeriesIds(Left(datasetId), replyTo) =>
       datasetMapping.get(datasetId) match {
         case Some(ids) =>
-          ids.foreach(replyTo ! Coordinator.NewTimeSeries(datasetId, _))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(datasetId, ids)
+          ids.foreach(replyTo ! Coordinator.NewTimeSeries(_))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(ids)
         case None => handlers.get(datasetId) match {
           case Some(handler) =>
             ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
             handler ! AddReceiver(replyTo)
           case None =>
-            replyTo ! Coordinator.FailedToLoadAllTimeSeries(datasetId, "Not found")
+            replyTo ! Coordinator.FailedToLoadAllTimeSeries("Not found")
         }
       }
       Behaviors.same

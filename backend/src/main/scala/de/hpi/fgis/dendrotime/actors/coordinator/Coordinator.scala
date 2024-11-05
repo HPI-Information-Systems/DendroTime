@@ -22,9 +22,9 @@ object Coordinator {
 
   sealed trait TsLoadingCommand extends Command
   case class DatasetHasNTimeseries(n: Int) extends TsLoadingCommand
-  case class NewTimeSeries(datasetId: Int, tsId: Long) extends TsLoadingCommand
-  case class AllTimeSeriesLoaded(datasetId: Int, ids: Set[Long]) extends TsLoadingCommand
-  case class FailedToLoadAllTimeSeries(datasetId: Int, cause: String) extends TsLoadingCommand
+  case class NewTimeSeries(tsId: Long) extends TsLoadingCommand
+  case class AllTimeSeriesLoaded(ids: Set[Long]) extends TsLoadingCommand
+  case class FailedToLoadAllTimeSeries(cause: String) extends TsLoadingCommand
 
   case class DispatchWork(worker: ActorRef[Worker.Command]) extends Command
   case class ApproximationResult(t1: Long, t2: Long, t1Idx: Int, t2Idx: Int, dist: Double) extends Command
@@ -92,8 +92,8 @@ private class Coordinator private (
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
-    case NewTimeSeries(datasetId, tsId) =>
-      ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, datasetId)
+    case NewTimeSeries(tsId) =>
+      ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
       if tsIds.isEmpty then
         initializing(tsIds :+ tsId, workQueue)
       else
@@ -107,7 +107,7 @@ private class Coordinator private (
       clusterer ! Clusterer.Initialize(n)
       stash.unstashAll(loading(n, tsIds, workQueue))
 
-    case FailedToLoadAllTimeSeries(_, _) =>
+    case FailedToLoadAllTimeSeries(_) =>
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
@@ -138,8 +138,8 @@ private class Coordinator private (
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 
-    case NewTimeSeries(datasetId, tsId) =>
-      ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, datasetId)
+    case NewTimeSeries(tsId) =>
+      ctx.log.info("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
       if tsIds.isEmpty then
         loading(nTimeseries, tsIds :+ tsId, workQueue)
       else
@@ -147,7 +147,7 @@ private class Coordinator private (
           loading(nTimeseries, tsIds :+ tsId, workQueue.enqueueAll(tsIds.map((_, tsId))))
         )
 
-    case AllTimeSeriesLoaded(_, allTsIds) =>
+    case AllTimeSeriesLoaded(allTsIds) =>
       ctx.log.info("All {} time series loaded for dataset d-{}", allTsIds.size, dataset.id)
       if allTsIds.size != tsIds.size || allTsIds.size != nTimeseries then
         throw new IllegalStateException(f"Not all time series were loaded (${tsIds.size} of $nTimeseries)")
@@ -159,7 +159,7 @@ private class Coordinator private (
       )
       stash.unstashAll(approximating(workQueue, fullQueue, allTsIds))
 
-    case FailedToLoadAllTimeSeries(_, _) =>
+    case FailedToLoadAllTimeSeries(_) =>
       reportTo ! ProcessingFailed(id)
       Behaviors.stopped
 

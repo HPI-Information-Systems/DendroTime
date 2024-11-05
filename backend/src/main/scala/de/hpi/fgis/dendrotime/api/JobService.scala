@@ -24,6 +24,7 @@ object JobService {
       with StateModel.JsonSupport with ParametersModel.JsonSupport {
     given RootJsonFormat[Job] = jsonFormat2(Job.apply)
     given RootJsonFormat[ProcessingRequestBody] = jsonFormat2(ProcessingRequestBody.apply)
+    given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
   }
 }
 
@@ -38,8 +39,7 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
       pathEnd {
         concat(
           get {
-            val datasets = scheduler.ask(Scheduler.GetStatus.apply)
-            onSuccess(datasets) {
+            onSuccess(scheduler.ask(Scheduler.GetStatus.apply)) {
               case Scheduler.ProcessingStatus(id, Some(dataset)) => complete(Job(id, dataset))
               case Scheduler.ProcessingStatus(_, None) => complete(StatusCodes.NoContent)
             }
@@ -59,8 +59,7 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
           pathEnd {
             concat(
               get {
-                onSuccess(scheduler.ask[Scheduler.ProcessingStatus](Scheduler.GetStatus.apply)) { response =>
-                  given RootJsonFormat[Scheduler.ProcessingStatus] = jsonFormat2(Scheduler.ProcessingStatus.apply)
+                onSuccess(scheduler.ask(Scheduler.GetStatus.apply)) { response =>
                   complete(StatusCodes.OK, response)
                 }
               },
@@ -84,9 +83,9 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
           },
           path("progress") {
             get {
-              onSuccess(scheduler.ask[ProgressMessage](Scheduler.GetProgress(id, _))) {
+              onSuccess(scheduler.ask(Scheduler.GetProgress(id, _))) {
                 case ProgressMessage.Unchanged => complete(StatusCodes.NoContent)
-                case response => complete(StatusCodes.OK, response)
+                case response: ProgressMessage => complete(StatusCodes.OK, response)
               }
             }
           }
