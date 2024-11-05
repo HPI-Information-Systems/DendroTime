@@ -3,7 +3,6 @@ package de.hpi.fgis.dendrotime.actors.worker
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
-import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.Strategy.DispatchWork
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -17,9 +16,9 @@ object Worker {
   private case class GetTimeSeriesResponse(msg: TimeSeriesManager.GetTimeSeriesResponse) extends Command
 
   def apply(tsManager: ActorRef[TimeSeriesManager.Command],
-            clusterer: ActorRef[Clusterer.Command],
+            coordinator: ActorRef[Coordinator.MessageType],
             params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
-    new Worker(WorkerContext(ctx, tsManager, clusterer), params).start()
+    new Worker(WorkerContext(ctx, tsManager, coordinator), params).start()
   }
 }
 
@@ -37,7 +36,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   private def idle(workSupplier: ActorRef[DispatchWork]): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
-      supplier ! DispatchWork(ctx.context.self)
+      ctx.context.log.debug("Switching supplier to {}", supplier)
       idle(supplier)
 
     case CheckApproximate(t1, t2) =>
@@ -57,7 +56,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
                            t2: Long,
                            full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
-      ctx.context.log.info("Switching supplier to {}", supplier)
+      ctx.context.log.debug("Switching supplier to {}", supplier)
       waitingForTs(supplier, tsMap, t1, t2, full)
 
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesFound(ts)) =>
@@ -75,19 +74,17 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
     // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)
     case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesNotFound(id)) =>
       ctx.context.log.error("Time series ts-{} not found", id)
-      // report failure to workSupplier?
+      // report failure to coordinator?
       Behaviors.stopped
   }
 
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = params.metric(ts1.data.slice(0, params.approxLength), ts2.data.slice(0, params.approxLength))
-//    ctx.workSupplier ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
-    ctx.clusterer ! Clusterer.ApproximateDistance(ts1.idx, ts2.idx, dist)
+    ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 
   private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = params.metric(ts1.data, ts2.data)
-//    ctx.workSupplier ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
-    ctx.clusterer ! Clusterer.FullDistance(ts1.idx, ts2.idx, dist)
+    ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
   }
 }

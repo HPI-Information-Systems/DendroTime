@@ -22,21 +22,14 @@ object Strategy {
             params: DendroTimeParams,
             tsManager: ActorRef[TimeSeriesManager.Command],
             coordinator: ActorRef[Coordinator.Command],
-            communicator: ActorRef[Communicator.Command],
             clusterer: ActorRef[Clusterer.Command],
           ): Behavior[Command] = Behaviors.setup { ctx =>
     val settings = Settings(ctx.system)
     val stashSize = settings.numberOfWorkers * 5
 
     Behaviors.withStash(stashSize) { stash =>
-      new Strategy(ctx, stash, coordinator, communicator, settings.numberOfWorkers).start()
+      new Strategy(ctx, stash, coordinator, settings.numberOfWorkers).start()
     }
-  }
-
-  private[strategies] def sendProgressUpdate(communicator: ActorRef[Communicator.Command], status: Status, pending: Int, n: Int): Unit = {
-    val nJobs = (n * (n - 1)) / 2
-    val progress = 100 - (pending.toDouble / nJobs * 100).toInt
-    communicator ! Communicator.ProgressUpdate(status, progress)
   }
 
   @tailrec
@@ -54,9 +47,9 @@ object Strategy {
 }
 
 // FCFS strategy
-class Strategy(ctx: ActorContext[Strategy.Command], stash: StashBuffer[Strategy.Command],
+class Strategy(ctx: ActorContext[Strategy.Command],
+               stash: StashBuffer[Strategy.Command],
                coordinator: ActorRef[Coordinator.Command],
-               communicator: ActorRef[Communicator.Command],
                numberOfWorkers: Int
               ) {
 
@@ -67,7 +60,7 @@ class Strategy(ctx: ActorContext[Strategy.Command], stash: StashBuffer[Strategy.
   def running(tsIds: Seq[Long], workQueue: Queue[(Long, Long)]): Behavior[Command] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
       val (newTsIds, newQueue) = addAllTimeSeries(tsIds, workQueue, timeseriesIds)
-      ctx.log.debug("Added {} new time series to the queue", timeseriesIds.size)
+      ctx.log.debug("Added {} new time series to the queue(size={})", timeseriesIds.size, newQueue.size)
       if newQueue.nonEmpty then
         stash.unstashAll(running(newTsIds, newQueue))
       else
@@ -75,13 +68,12 @@ class Strategy(ctx: ActorContext[Strategy.Command], stash: StashBuffer[Strategy.
 
     case DispatchWork(worker) if workQueue.nonEmpty =>
       val (work, newQueue) = workQueue.dequeue
-      ctx.log.debug("Dispatching full job ({}) WorkQueue={}", work, newQueue.size)
+      ctx.log.debug("Dispatching full job ({}) WorkQueue={}, Stash={}", work, newQueue.size, stash.size)
       worker ! Worker.CheckFull(work._1, work._2)
-      Strategy.sendProgressUpdate(communicator, Status.ComputingFullDistances, newQueue.size, tsIds.size)
       running(tsIds, newQueue)
 
     case m: DispatchWork =>
-      ctx.log.info("Worker {} asked for work but there is none", m.worker)
+      ctx.log.debug("Worker {} asked for work but there is none (stash={})", m.worker, stash.size)
       if stash.isEmpty then
         coordinator ! Coordinator.FullOutOfWork
       else if stash.size + 1 == numberOfWorkers then
