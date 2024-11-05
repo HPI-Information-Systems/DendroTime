@@ -47,7 +47,6 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
     case StartProcessing(d, params, replyTo) =>
       ctx.log.info("Start processing dataset {}", d)
       val newJobId = jobId + 1
-      replyTo ! ProcessingStarted(newJobId)
       val coordinator = startNewJob(newJobId, d, params, replyTo)
       starting(newJobId, d, coordinator)
     case GetStatus(replyTo) =>

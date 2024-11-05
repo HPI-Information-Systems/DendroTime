@@ -56,7 +56,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       clusterer ! Clusterer.GetDistances
       Behaviors.same
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
-      ctx.log.info("Ground truth loaded")
+      ctx.log.info("Ground truth updated")
       state.setGtHierarchy(gtHierarchy)
       state.setGtClasses(gtClassLabels)
       Behaviors.same
