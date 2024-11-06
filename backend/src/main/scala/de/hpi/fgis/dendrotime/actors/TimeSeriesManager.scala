@@ -1,14 +1,13 @@
 package de.hpi.fgis.dendrotime.actors
 
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 
 import scala.collection.immutable.{HashMap, Set}
-import scala.concurrent.duration.*
 
 
 object TimeSeriesManager {
@@ -19,6 +18,7 @@ object TimeSeriesManager {
   case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
   case class EvictDataset(datasetId: Int) extends Command
   case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
+  case class GetTSLengths(datasetId: Int, replyTo: ActorRef[TSLengthsResponse]) extends Command
   private case object StatusTick extends Command
 
   sealed trait GetTimeSeriesResponse
@@ -27,41 +27,42 @@ object TimeSeriesManager {
 
   sealed trait DatasetClassLabelsResponse
   case class DatasetClassLabels(labels: Array[String]) extends DatasetClassLabelsResponse
-  case object DatasetIsLoading extends DatasetClassLabelsResponse
   case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
+
+  case class TSLengthsResponse(lengths: Map[Long, Int])
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerWithFixedDelay(StatusTick, Settings(ctx.system).reportingInterval)
-      new TimeSeriesManager(ctx).start()
+      Behaviors.withStash(100) { stash =>
+        new TimeSeriesManager(ctx, stash).start()
+      }
     }
   }
 
   private final case class AddReceiver(replyTo: ActorRef[Coordinator.TsLoadingCommand])
-  private def DatasetLoadingHandler(receivers: Set[ActorRef[Coordinator.TsLoadingCommand]]): Behavior[DatasetLoader.Response | AddReceiver] =
+  private type HandlerMessageType = DatasetLoader.Response | AddReceiver
+  private def DatasetLoadingHandler(receivers: Set[ActorRef[Coordinator.TsLoadingCommand]]): Behavior[HandlerMessageType] =
     Behaviors.receiveMessage {
       case AddReceiver(replyTo) =>
         DatasetLoadingHandler(receivers + replyTo)
-      case DatasetLoader.DatasetLoaded(_, tsIds) =>
-//        ctx.log.debug("Received dataset loaded message for dataset d-{}, forwarding", id)
-        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(tsIds.toSet))
-        Behaviors.stopped
-      case DatasetLoader.DatasetNotLoaded(_, reason) =>
-//        ctx.log.error("Failed to load dataset d-{}, forwarding message. Reason: {}", id, reason)
-        receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(reason))
-        Behaviors.stopped
       case DatasetLoader.DatasetNTimeseries(n) =>
-//        ctx.log.debug("Received number of timeseries, forwarding message.")
         receivers.foreach(_ ! Coordinator.DatasetHasNTimeseries(n))
         Behaviors.same
       case DatasetLoader.NewTimeSeries(_, tsId) =>
-//        ctx.log.debug("Received new time series message: forwarding message.")
         receivers.foreach(_ ! Coordinator.NewTimeSeries(tsId))
         Behaviors.same
+      case DatasetLoader.DatasetLoaded(_, tsIds) =>
+        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(tsIds.toSet))
+        Behaviors.stopped
+      case DatasetLoader.DatasetNotLoaded(_, reason) =>
+        receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(reason))
+        Behaviors.stopped
     }
 }
 
-private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Command]) {
+private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Command],
+                                         stash: StashBuffer[TimeSeriesManager.Command]) {
 
   import TimeSeriesManager.*
 
@@ -71,13 +72,13 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
   private def start(): Behavior[TimeSeriesManager.Command] = running(
     HashMap.empty[Long, LabeledTimeSeries],
     HashMap.empty[Int, Set[Long]],
-    HashMap.empty[Int, ActorRef[DatasetLoader.Response | AddReceiver]]
+    HashMap.empty[Int, ActorRef[HandlerMessageType]]
   )
 
   private def running(
                        timeseries: HashMap[Long, LabeledTimeSeries],
                        datasetMapping: HashMap[Int, Set[Long]],
-                       handlers: Map[Int, ActorRef[DatasetLoader.Response | AddReceiver]]
+                       handlers: Map[Int, ActorRef[HandlerMessageType]]
                      ): Behavior[TimeSeriesManager.Command] = Behaviors.receiveMessage[TimeSeriesManager.Command] {
     case StatusTick =>
       ctx.log.info("STATUS: Currently managing {} time series for {} datasets", timeseries.size, datasetMapping.size)
@@ -112,7 +113,10 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
               Behaviors.same
             case None =>
               ctx.log.info("Dataset d-{} not found, starting loading process", d.id)
-              val loadingHandler = ctx.spawn(DatasetLoadingHandler(Set(replyTo)), f"loading-handler-${d.id}")
+              val loadingHandler = ctx.spawn(
+                DatasetLoadingHandler(Set(replyTo)),
+                f"loading-handler-${d.id}"
+              )
               ctx.watch(loadingHandler)
               loader ! DatasetLoader.LoadDataset(d, loadingHandler)
               running(timeseries, datasetMapping, handlers + (d.id -> loadingHandler))
@@ -137,24 +141,46 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
       val newTimeseries = timeseries.filterNot{ case (id, _) => tsIds.contains(id) }
       ctx.log.info("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
       running(newTimeseries, datasetMapping - datasetId, handlers)
-    case GetDatasetClassLabels(datasetId, replyTo) =>
+
+    case m @ GetDatasetClassLabels(datasetId, replyTo) =>
       handlers.get(datasetId) match {
         case Some(_) =>
-          ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
-          replyTo ! DatasetIsLoading
+          ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
+          stash.stash(m)
         case None =>
           datasetMapping.get(datasetId) match {
             case Some(ids) =>
               val labels = ids.toArray.sorted.map(timeseries(_).label)
               replyTo ! DatasetClassLabels(labels)
+            // FIXME: should I design for this case?
             case None =>
               ctx.log.warn("Dataset d-{} not found, cannot retrieve class labels", datasetId)
               replyTo ! DatasetClassLabelsNotFound
           }
       }
       Behaviors.same
+
+    case m @ GetTSLengths(datasetId, replyTo) =>
+      handlers.get(datasetId) match {
+        case Some(_) =>
+          ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
+          stash.stash(m)
+        case None =>
+          datasetMapping.get(datasetId) match {
+            case Some(ids) =>
+              val lengths = ids.map(id => (id, timeseries(id).data.length)).toMap
+              replyTo ! TSLengthsResponse(lengths)
+            // FIXME: should I design for this case?
+            case None =>
+              ctx.log.warn("Dataset d-{} not found, cannot retrieve time series lengths", datasetId)
+              replyTo ! TSLengthsResponse(Map.empty)
+          }
+      }
+      Behaviors.same
   }.receiveSignal{
     case (_, Terminated(localLoader)) =>
-      running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == localLoader))
+      stash.unstashAll(
+        running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == localLoader))
+      )
   }
 }

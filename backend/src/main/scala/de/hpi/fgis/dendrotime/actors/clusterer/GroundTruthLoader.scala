@@ -80,11 +80,6 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
       ctx.log.warn("Ground truth classes not available, but cluster quality computation is enabled!")
       hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gtHierarchy, None)
       Behaviors.stopped
-    case ClassLabelResponseWrapper(TimeSeriesManager.DatasetIsLoading) =>
-      // try again later
-      ctx.log.warn("Dataset class labels not available yet, retrying in 1 second")
-      timer.startSingleTimer(LoadHierarchyGroundTruth, 1 second)
-      Behaviors.same
   }
 
   private def loadGtHierarchy(): Option[Hierarchy] = {
