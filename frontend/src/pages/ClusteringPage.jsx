@@ -26,6 +26,7 @@ function ClusteringPage() {
   const [dataset, setDataset] = useState(undefined);
   const [metric, setMetric] = useState("msm");
   const [linkage, setLinkage] = useState("ward");
+  const [strategy, setStrategy] = useState("fcfs");
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
@@ -43,7 +44,7 @@ function ClusteringPage() {
           "metricName": metric,
           "linkageName": linkage,
           "approxLength": 10,
-          "strategy": "fcfs"
+          "strategy": strategy
         },
       })
     })
@@ -62,7 +63,7 @@ function ClusteringPage() {
         startPolling(jobId);
       })
       .catch(toast.error);
-  }, [dataset, metric, linkage, setJobId, setState]);
+  }, [dataset, metric, linkage, strategy, setJobId, setState]);
 
   const startPolling = useCallback((jobId) => {
     toast.info("Starting job " + jobId + " and polling ...");
@@ -138,6 +139,11 @@ function ClusteringPage() {
           <SelectItem key="complete" value="complete">Complete Linkage</SelectItem>
           <SelectItem key="ward" value="ward">Ward Linkage</SelectItem>
           <SelectItem key="average" value="average">Average Linkage</SelectItem>
+        </Select>
+        <label htmlFor="strategy-picker" className="ml-2 mr-2">Strategy:</label>
+        <Select id="strategy-picker" value={strategy} onValueChange={setStrategy}>
+          <SelectItem key="fcfs" value="fcfs">FCFS</SelectItem>
+          <SelectItem key="shortest-ts" value="shortest-ts">Shortest TS First</SelectItem>
         </Select>
       </div>
       <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>

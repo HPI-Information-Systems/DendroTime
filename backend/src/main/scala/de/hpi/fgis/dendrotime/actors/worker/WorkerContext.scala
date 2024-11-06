@@ -8,5 +8,5 @@ import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 case class WorkerContext(
   context: ActorContext[Worker.Command],
   tsManager: ActorRef[TimeSeriesManager.Command],
-  coordinator: ActorRef[Coordinator.MessageType],
+  coordinator: ActorRef[Coordinator.Command],
 )

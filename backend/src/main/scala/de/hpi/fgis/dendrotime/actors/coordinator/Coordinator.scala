@@ -5,7 +5,8 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, SupervisorStrategy}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.Strategy
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{FCFSStrategy, StrategyFactory, StrategyProtocol}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
@@ -17,14 +18,11 @@ import scala.concurrent.duration.*
 
 object Coordinator {
 
-  type MessageType = Command | Strategy.Command
+  type MessageType = Command | StrategyProtocol.StrategyCommand | StrategyProtocol.StrategyEvent
   sealed trait Command
   case object CancelProcessing extends Command
   case object ClusteringFinished extends Command
   case object Stop extends Command
-
-  case object FullOutOfWork extends Command
-  case object FullStrategyFinished extends Command
 
   sealed trait TsLoadingCommand extends Command
   case class DatasetHasNTimeseries(n: Int) extends TsLoadingCommand
@@ -74,10 +72,7 @@ private class Coordinator private (
   private val clusterer = ctx.spawn(Clusterer(tsManager, communicator, dataset, params), s"clusterer-$id")
   ctx.watch(clusterer)
   private val workers = {
-    val supervisedWorkerBehavior = Behaviors
-      .supervise(Worker(tsManager, ctx.self, params))
-      .onFailure[Exception](SupervisorStrategy.restart)
-    val router = Routers.pool(settings.numberOfWorkers)(supervisedWorkerBehavior)
+    val router = Routers.pool(settings.numberOfWorkers)(Worker(tsManager, ctx.self, params))
       .withRouteeProps(DispatcherSelector.blocking())
       // broadcast supplier reference to all workers
       .withBroadcastPredicate{
@@ -88,7 +83,7 @@ private class Coordinator private (
     ctx.spawn(router, s"worker-pool-$id")
   }
   private val fullStrategy = ctx.spawn(
-    Strategy.fcfs(params, tsManager, ctx.self, clusterer),
+    StrategyFactory(params.strategy, StrategyParameters(dataset, params, tsManager, clusterer), ctx.self),
     s"strategy-$id"
   )
   ctx.watch(fullStrategy)
@@ -97,7 +92,7 @@ private class Coordinator private (
   private def start(): Behavior[MessageType] = {
     tsManager ! TimeSeriesManager.GetTimeSeriesIds(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
-    workers ! Worker.UseSupplier(ctx.self.narrow[Strategy.Command])
+    workers ! Worker.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
 
     initializing(Seq.empty, WorkQueue.empty)
   }
@@ -106,7 +101,7 @@ private class Coordinator private (
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        fullStrategy ! Strategy.AddTimeSeries(Seq(tsId))
+        fullStrategy ! StrategyProtocol.AddTimeSeries(Seq(tsId))
         if tsIds.isEmpty then
           initializing(tsIds :+ tsId, workQueue)
         else
@@ -120,13 +115,13 @@ private class Coordinator private (
         clusterer ! Clusterer.Initialize(n)
         stash.unstashAll(loading(n, tsIds, workQueue))
 
-      case Strategy.DispatchWork(worker) if workQueue.hasWork =>
+      case StrategyProtocol.DispatchWork(worker) if workQueue.hasWork =>
         val (work, newQueue) = workQueue.dequeue()
         ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         initializing(tsIds, newQueue)
 
-      case m: Strategy.DispatchWork =>
+      case m: StrategyProtocol.DispatchWork =>
         ctx.log.debug("Worker {} asked for work but there is none", m.worker)
         stash.stash(m)
         Behaviors.same
@@ -151,7 +146,7 @@ private class Coordinator private (
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        fullStrategy ! Strategy.AddTimeSeries(Seq(tsId))
+        fullStrategy ! StrategyProtocol.AddTimeSeries(Seq(tsId))
         if tsIds.isEmpty then
           loading(nTimeseries, tsIds :+ tsId, workQueue)
         else
@@ -168,13 +163,13 @@ private class Coordinator private (
         communicator ! Communicator.NewStatus(Status.Approximating)
         stash.unstashAll(approximating(workQueue, allTsIds, nTimeseries * (nTimeseries - 1) / 2))
 
-      case Strategy.DispatchWork(worker) if workQueue.hasWork =>
+      case StrategyProtocol.DispatchWork(worker) if workQueue.hasWork =>
         val (work, newQueue) = workQueue.dequeue()
         ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         loading(nTimeseries, tsIds, newQueue)
 
-      case m: Strategy.DispatchWork =>
+      case m: StrategyProtocol.DispatchWork =>
         ctx.log.debug("Worker {} asked for work but there is none", m.worker)
         stash.stash(m)
         Behaviors.same
@@ -197,15 +192,15 @@ private class Coordinator private (
 
   private def approximating(approxWorkQueue: WorkQueue[(Long, Long)], allIds: Set[Long], fullPending: Int): Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
-      case Strategy.DispatchWork(worker) if approxWorkQueue.hasWork =>
+      case StrategyProtocol.DispatchWork(worker) if approxWorkQueue.hasWork =>
         val (work, newQueue) = approxWorkQueue.dequeue()
         ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         approximating(newQueue, allIds, fullPending)
 
-      case Strategy.DispatchWork(worker) => // if approxWorkQueue.noWork
+      case StrategyProtocol.DispatchWork(worker) => // if approxWorkQueue.noWork
         ctx.log.info("Approx queue ran out of work, switching to full strategy")
-        fullStrategy ! Strategy.DispatchWork(worker)
+        fullStrategy ! StrategyProtocol.DispatchWork(worker)
         // switch supplier for worker
         worker ! Worker.UseSupplier(fullStrategy)
         if approxWorkQueue.hasPending then
@@ -237,9 +232,9 @@ private class Coordinator private (
 
   private def computingFullDistances(pending: Int, allIds: Set[Long]): Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
-      case Strategy.DispatchWork(worker) if pending != 0 =>
+      case StrategyProtocol.DispatchWork(worker) if pending != 0 =>
         ctx.log.warn("Forwarding misguided work request from {} to full strategy", worker)
-        fullStrategy ! Strategy.DispatchWork(worker)
+        fullStrategy ! StrategyProtocol.DispatchWork(worker)
         // switch supplier for worker
         worker ! Worker.UseSupplier(fullStrategy)
         Behaviors.same
@@ -250,13 +245,13 @@ private class Coordinator private (
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(pending, allIds.size))
         computingFullDistances(pending - 1, allIds)
 
-      case FullOutOfWork =>
+      case StrategyProtocol.FullStrategyOutOfWork =>
         ctx.log.info("No more work to do, waiting for pending results!")
         communicator ! Communicator.NewStatus(Status.Finalizing)
         communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
         Behaviors.same
 
-      case FullStrategyFinished =>
+      case StrategyProtocol.FullStrategyFinished =>
         if pending != 0 then
           throw new IllegalStateException(f"Full strategy finished but still $pending pending jobs")
         ctx.log.info("Full strategy finished, SWITCHING TO WAITING_FOR_CLUSTERING STATE!")

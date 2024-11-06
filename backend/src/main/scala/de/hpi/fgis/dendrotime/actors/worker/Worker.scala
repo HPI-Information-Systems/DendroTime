@@ -4,7 +4,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.Strategy.DispatchWork
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
