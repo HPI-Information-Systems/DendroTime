@@ -55,11 +55,13 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       computeHierarchy(state, index, distances)
       clusterer ! Clusterer.GetDistances
       Behaviors.same
+
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
       ctx.log.info("Ground truth updated")
       state.setGtHierarchy(gtHierarchy)
       state.setGtClasses(gtClassLabels)
       Behaviors.same
+
     case ReportRuntime =>
       val newComps = state.computations - computations
       if newComps > 0 then
@@ -67,6 +69,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       runtime = 0L
       computations = state.computations
       Behaviors.same
+
   }.receiveSignal {
     case (_, PostStop) =>
       val newComps = state.computations - computations

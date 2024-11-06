@@ -2,11 +2,11 @@ package de.hpi.fgis.dendrotime.actors.coordinator
 
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, SupervisorStrategy}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Terminated}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{FCFSStrategy, StrategyFactory, StrategyProtocol}
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{StrategyFactory, StrategyProtocol}
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
@@ -257,9 +257,7 @@ private class Coordinator private (
         ctx.log.info("Full strategy finished, SWITCHING TO WAITING_FOR_CLUSTERING STATE!")
         clusterer ! Clusterer.ReportFinished(ctx.self)
         ctx.unwatch(clusterer)
-        reportTo ! ProcessingStatus(id, Status.Finished)
-        val stopTimer = ctx.scheduleOnce(30 seconds span, ctx.self, Stop)
-        waitingForClustering(stopTimer)
+        waitingForClustering(Cancellable.alreadyCancelled)
 
       case CancelProcessing =>
         ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
@@ -267,23 +265,32 @@ private class Coordinator private (
         Behaviors.stopped
     }
 
-  private def waitingForClustering(stopTimer: Cancellable): Behavior[MessageType] = Behaviors.receiveMessagePartial {
+  private def waitingForClustering(stopTimer: Cancellable): Behavior[MessageType] = Behaviors.receiveMessagePartial[MessageType] {
     case ClusteringFinished =>
       communicator ! Communicator.ProgressUpdate(Status.Finalizing, 100)
       communicator ! Communicator.NewStatus(Status.Finished)
+      reportTo ! ProcessingStatus(id, Status.Finished)
       ctx.log.info("FINISHED processing job {}", id)
-      Behaviors.same
+      val stopTimer = ctx.scheduleOnce(30 seconds span, ctx.self, Stop)
+      waitingForClustering(stopTimer)
 
     case Stop =>
-      ctx.log.info("Shutting down coordinator")
-      reportTo ! ProcessingEnded(id)
+      // do not directly stop coordinator to let communicator store the final state to disk (if enabled)
+      ctx.log.info("Shutting down communicator")
+      ctx.stop(communicator)
       stopTimer.cancel()
-      Behaviors.stopped
+      Behaviors.same
 
     case CancelProcessing =>
       ctx.log.warn("Cancelling processing of dataset d-{} on request", dataset.id)
       reportTo ! ProcessingFailed(id)
       stopTimer.cancel()
+      Behaviors.stopped
+
+  }.receiveSignal{
+    case (_, Terminated(`communicator`)) =>
+      ctx.log.error("Communicator is finished, shutting down coordinator!")
+      reportTo ! ProcessingEnded(id)
       Behaviors.stopped
   }
 

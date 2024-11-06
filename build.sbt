@@ -26,6 +26,17 @@ lazy val `DendroTime` = project.in(file("."))
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 
+lazy val `runner` = project.in(file("runner"))
+  .dependsOn(`backend`)
+  .settings(
+    name := "DendroTime-Runner",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
+      "com.github.alexarchambault" %% "case-app" % "2.1.0-M29",
+    ),
+    Compile / mainClass := Some("de.hpi.fgis.dendrotime.runner.App"),
+  )
+
 lazy val `backend` = project.in(file("backend"))
   .dependsOn(`bloom-filter`)
   .settings(

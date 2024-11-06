@@ -1,11 +1,11 @@
-package de.hpi.fgis.dendrotime.actors
+package de.hpi.fgis.dendrotime
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives.*
 import akka.http.scaladsl.server.Route
-import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.{DatasetRegistry, Scheduler}
 import de.hpi.fgis.dendrotime.api.ApiRoutesProvider
 
 import scala.util.{Failure, Success}
@@ -54,7 +54,7 @@ object Server extends ApiRoutesProvider {
       // when started, we go to running state and handle stop messages
       if (wasStopped) ctx.self ! Stop
       running(binding)
-    case (ctx, Stop | Stopped) =>
+    case (_, Stop | Stopped) =>
       // we got a stop message but haven't completed starting yet,
       // we cannot stop until starting has completed
       starting(wasStopped = true)

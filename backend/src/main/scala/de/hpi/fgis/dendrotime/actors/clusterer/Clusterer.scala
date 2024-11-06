@@ -71,9 +71,11 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
     case Initialize(newN) if newN == n =>
       ctx.log.warn("Received duplicated initialization message!")
       Behaviors.same
+
     case Initialize(newN) =>
       ctx.log.error("Clusterer was already initialized with n={}, but got new initialization request with n={}", n, newN)
       Behaviors.stopped
+
     case ApproximateDistance(t1, t2, dist) =>
       ctx.log.debug("Received new approx distance between {} and {}", t1, t2)
       approxCount += 1
@@ -89,6 +91,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
+
     case FullDistance(t1, t2, dist) =>
       ctx.log.debug("Received new full distance between {} and {}", t1, t2)
       fullCount += 1
@@ -98,15 +101,19 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         running(hasWork = false, waiting = false)
       else
         running(hasWork = true, waiting = false)
+
     case GetDistances if hasWork =>
       calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       running(hasWork = false, waiting = false)
+
     case GetDistances =>
       running(hasWork = false, waiting = true)
+
     case ReportFinished(replyTo) if waiting =>
       if hasWork then
         calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
       finished(replyTo)
+
     case ReportFinished(replyTo) =>
       waitingForFinish(hasWork, replyTo)
   }
@@ -116,8 +123,10 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       case GetDistances if hasWork =>
         calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances) // NNChain creates a copy internally
         waitingForFinish(hasWork = false, replyTo = replyTo)
+
       case GetDistances =>
         finished(replyTo)
+
       case m =>
         ctx.log.warn("Received unexpected message while waiting for finish ({})", m)
         Behaviors.same

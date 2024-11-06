@@ -90,4 +90,25 @@ class Settings private(config: Config) extends Extension {
     val cardUpperBound = config.getInt(s"$namespace.cluster-similarity.cardinality-upper-bound")
     ClusterSimilarityOptions(bloomFilterOptions, similarity, aggregation, cardLowerBound, cardUpperBound)
   }
+
+  override def toString: String =
+    s"""Settings(
+       |  host=$host,
+       |  port=$port,
+       |  dataPath=$dataPath,
+       |  resultsPath=$resultsPath,
+       |  storeResults=$storeResults,
+       |  askTimeout=$askTimeout,
+       |  numberOfWorkers=$numberOfWorkers,
+       |  maxTimeseries=$maxTimeseries,
+       |  reportingInterval=$reportingInterval,
+       |  ProgressIndicators(
+       |    computeHierarchySimilarity=${ProgressIndicators.computeHierarchySimilarity},
+       |    computeHierarchyQuality=${ProgressIndicators.computeHierarchyQuality},
+       |    computeClusterQuality=${ProgressIndicators.computeClusterQuality},
+       |    loadingDelay=${ProgressIndicators.loadingDelay}
+       |  ),
+       |  bloomFilterOptions=$bloomFilterOptions,
+       |  clusterSimilarityOptions=$clusterSimilarityOptions,
+       |)""".stripMargin
 }

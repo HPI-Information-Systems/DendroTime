@@ -5,7 +5,6 @@ import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives.*
 import com.typesafe.config.{Config, ConfigFactory}
-import de.hpi.fgis.dendrotime.actors.Server
 
 object Main {
 
