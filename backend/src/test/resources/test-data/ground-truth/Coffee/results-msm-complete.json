@@ -1,0 +1,1 @@
+{"id": "TimeSeriesHAC-msm-complete", "status": "OK", "dataset": "Coffee", "estimator": "TimeSeriesHAC", "metric": "msm", "linkage": "complete", "estimator_kwargs": {"linkage": "complete", "metric": "msm", "n_clusters": 2}, "runtime_s": 1.313115398, "adjusted_rand_score": 0.0026486437117544982}
