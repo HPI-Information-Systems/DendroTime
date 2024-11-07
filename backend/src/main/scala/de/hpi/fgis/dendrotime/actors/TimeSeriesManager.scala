@@ -19,6 +19,7 @@ object TimeSeriesManager {
   case class EvictDataset(datasetId: Int) extends Command
   case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
   case class GetTSLengths(datasetId: Int, replyTo: ActorRef[TSLengthsResponse]) extends Command
+  case class GetTSIndexMapping(datasetId: Int, replyTo: ActorRef[TSIndexMappingResponse]) extends Command
   private case object ReportStatus extends Command
 
   sealed trait GetTimeSeriesResponse
@@ -30,6 +31,8 @@ object TimeSeriesManager {
   case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
 
   case class TSLengthsResponse(lengths: Map[Long, Int])
+
+  case class TSIndexMappingResponse(mapping: Map[Long, Int])
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
@@ -177,7 +180,25 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
           }
       }
       Behaviors.same
-  }.receiveSignal{
+
+    case m @ GetTSIndexMapping(datasetId, replyTo) =>
+      handlers.get(datasetId) match {
+        case Some(_) =>
+          ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
+          stash.stash(m)
+        case None =>
+          datasetMapping.get(datasetId) match {
+            case Some(ids) =>
+              val mapping = ids.map(id => (id, timeseries(id).idx)).toMap
+              replyTo ! TSIndexMappingResponse(mapping)
+            // FIXME: should I design for this case?
+            case None =>
+              replyTo ! TSIndexMappingResponse(Map.empty)
+          }
+      }
+      Behaviors.same
+
+  }.receiveSignal {
     case (_, Terminated(localLoader)) =>
       stash.unstashAll(
         running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == localLoader))

@@ -9,6 +9,7 @@ import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 
 import scala.collection.immutable.Queue
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.boundary
 
@@ -27,8 +28,8 @@ object ShortestTsStrategy extends StrategyFactory {
       }
     }
 
-  private def createQueue(tsIds: Array[Long], processedWork: Set[(Long, Long)]): Queue[(Long, Long)] = {
-    val builder = Queue.newBuilder[(Long, Long)]
+  private def createQueue(tsIds: Array[Long], processedWork: Set[(Long, Long)]): Array[(Long, Long)] = {
+    val builder = mutable.ArrayBuilder.make[(Long, Long)]
     for right <- 1 until tsIds.length do
       for left <- 0 until right do
         val idLeft = tsIds(left)
@@ -39,12 +40,12 @@ object ShortestTsStrategy extends StrategyFactory {
   }
 }
 
-class ShortestTsStrategy(ctx: ActorContext[StrategyCommand],
-                         stash: StashBuffer[StrategyCommand],
-                         eventReceiver: ActorRef[StrategyEvent],
-                         numberOfWorkers: Int,
-                         params: StrategyParameters
-                        ) {
+class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
+                                 stash: StashBuffer[StrategyCommand],
+                                 eventReceiver: ActorRef[StrategyEvent],
+                                 numberOfWorkers: Int,
+                                 params: StrategyParameters
+                                ) {
 
   import ShortestTsStrategy.*
   
@@ -66,15 +67,14 @@ class ShortestTsStrategy(ctx: ActorContext[StrategyCommand],
         Behaviors.same
 
     case TSLengthsResponse(lengths) =>
-      ctx.log.info("Received lengths of {} time series, building work Queue", lengths.size)
       val ids = lengths.keys.toArray
       ids.sortInPlaceBy(lengths.apply)
       val queue = createQueue(ids, processedWork)
       if queue.isEmpty then
         eventReceiver ! FullStrategyFinished
 
-      ctx.log.info("Queue size={}", queue.size)
-      serving(queue)
+      ctx.log.info("Received lengths of {} time series, building work Queue of size {}", lengths.size, queue.length)
+      serving(queue, nextItem = 0)
 
     case m @ DispatchWork(worker) =>
       nextWork(processedWork) match {
@@ -90,16 +90,16 @@ class ShortestTsStrategy(ctx: ActorContext[StrategyCommand],
       }
   }
   
-  private def serving(workQueue: Queue[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
+  private def serving(workQueue: Array[(Long, Long)], nextItem: Int): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
 
     case DispatchWork(worker) if workQueue.nonEmpty =>
-      val (work, newQueue) = workQueue.dequeue
-      ctx.log.trace("Dispatching full job ({}) queue={}, Stash={}", work, newQueue.size, stash.size)
+      val work = workQueue(nextItem)
+      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
       worker ! Worker.CheckFull(work._1, work._2)
-      serving(newQueue)
+      serving(workQueue, nextItem + 1)
 
     case m @ DispatchWork(worker) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)

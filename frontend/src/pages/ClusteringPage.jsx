@@ -144,6 +144,8 @@ function ClusteringPage() {
         <Select id="strategy-picker" value={strategy} onValueChange={setStrategy}>
           <SelectItem key="fcfs" value="fcfs">FCFS</SelectItem>
           <SelectItem key="shortest-ts" value="shortest-ts">Shortest TS First</SelectItem>
+          <SelectItem value="approx-distance-ascending">Approx. Distance Ascending</SelectItem>
+          <SelectItem value="approx-distance-descending">Approx. Distance Descending</SelectItem>
         </Select>
       </div>
       <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>

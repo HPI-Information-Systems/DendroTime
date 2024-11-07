@@ -38,11 +38,11 @@ object FCFSStrategy extends StrategyFactory {
     }
 }
 
-class FCFSStrategy(ctx: ActorContext[StrategyCommand],
-                   stash: StashBuffer[StrategyCommand],
-                   eventReceiver: ActorRef[StrategyEvent],
-                   numberOfWorkers: Int
-                  ) {
+class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
+                           stash: StashBuffer[StrategyCommand],
+                           eventReceiver: ActorRef[StrategyEvent],
+                           numberOfWorkers: Int
+                          ) {
 
   import FCFSStrategy.*
 

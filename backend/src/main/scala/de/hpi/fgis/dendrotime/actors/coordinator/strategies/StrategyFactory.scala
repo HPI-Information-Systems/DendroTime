@@ -18,6 +18,8 @@ object StrategyFactory {
   def get(strategy: String): StrategyFactory = strategy.toLowerCase.strip().replace(" ", "-").replace("_", "-") match {
     case "fcfs" => FCFSStrategy
     case "shortest-ts" => ShortestTsStrategy
+    case "approx-distance-ascending" => ApproxDistanceStrategy.Ascending
+    case "approx-distance-descending" => ApproxDistanceStrategy.Descending
     case _ => throw new IllegalArgumentException(s"Unknown strategy: $strategy")
   }
 
