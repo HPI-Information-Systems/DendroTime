@@ -67,7 +67,7 @@ private class Coordinator private (
   import Coordinator.*
 
   private val settings = Settings(ctx.system)
-  private val communicator = ctx.spawn(Communicator(dataset.id), s"communicator-$id")
+  private val communicator = ctx.spawn(Communicator(dataset), s"communicator-$id")
   ctx.watch(communicator)
   private val clusterer = ctx.spawn(Clusterer(tsManager, communicator, dataset, params), s"clusterer-$id")
   ctx.watch(clusterer)

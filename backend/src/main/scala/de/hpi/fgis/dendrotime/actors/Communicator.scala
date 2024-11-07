@@ -6,6 +6,7 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, ProgressMessage, Status}
+import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 
 import scala.language.postfixOps
 import scala.math.Ordering.Implicits.infixOrderingOps
@@ -19,7 +20,7 @@ object Communicator {
   final case class GetProgress(replyTo: ActorRef[ProgressMessage]) extends Command
   private case object ReportStatus extends Command
 
-  def apply(datasetId: Int): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(dataset: Dataset): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(ReportStatus, Settings(ctx.system).reportingInterval)
       val startProgress = Map[Status, Int](
@@ -29,7 +30,7 @@ object Communicator {
         Status.Finalizing -> 0,
         Status.Finished -> 100
       )
-      new Communicator(ctx, datasetId).running(Status.Initializing, startProgress, ClusteringState())
+      new Communicator(ctx, dataset).running(Status.Initializing, startProgress, ClusteringState())
     }
   }
 
@@ -37,7 +38,7 @@ object Communicator {
     def toInt: Int = if b then 1 else 0
 }
 
-private class Communicator private(ctx: ActorContext[Communicator.Command], datasetId: Int) {
+private class Communicator private(ctx: ActorContext[Communicator.Command], dataset: Dataset) {
 
   import Communicator.*
 
@@ -75,7 +76,7 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
     }
 
   private def saveFinalState(status: Status, progress: Int, clusteringState: ClusteringState): Unit = {
-    val destination = settings.resultsPath.resolve(s"${datasetId.toString}-${status.toString}-$progress")
+    val destination = settings.resultsPath.resolve(s"${dataset.name}-${status.toString}-$progress")
     destination.toFile.mkdirs()
 
     // write hierarchy

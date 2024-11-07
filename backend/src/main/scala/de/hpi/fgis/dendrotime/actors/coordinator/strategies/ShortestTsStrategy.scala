@@ -105,7 +105,7 @@ class ShortestTsStrategy(ctx: ActorContext[StrategyCommand],
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
-      else if stash.size + 1 == numberOfWorkers then
+      if stash.size + 1 >= numberOfWorkers then
         eventReceiver ! FullStrategyFinished
       stash.stash(m)
       Behaviors.same
