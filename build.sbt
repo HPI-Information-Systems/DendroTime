@@ -1,4 +1,7 @@
 import sbt.Keys.mainClass
+import sbtassembly.Assembly.{Library, Project}
+import sbtassembly.CustomMergeStrategy
+
 import scala.sys.process.*
 
 lazy val akkaVersion = "2.9.3"
@@ -16,9 +19,12 @@ ThisBuild / resolvers += "Akka library repository".at("https://repo.akka.io/mave
 // If you want to keep the application running while executing other
 // sbt tasks, consider https://github.com/spray/sbt-revolver/
 ThisBuild / fork := true
+ThisBuild / Test / logBuffered := false
 
-// enable test coverage collection
-ThisBuild / coverageEnabled := true
+// enable test coverage collection (instruments compiled code: just turn on if coverage is desired!)
+//ThisBuild / coverageEnabled := true
+
+ThisBuild / assembly / test := {}
 
 lazy val `DendroTime` = project.in(file("."))
   .dependsOn(`backend`, `frontend`)
@@ -35,6 +41,9 @@ lazy val `runner` = project.in(file("runner"))
       "com.github.alexarchambault" %% "case-app" % "2.1.0-M29",
     ),
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.runner.App"),
+    assembly / mainClass := Some("de.hpi.fgis.dendrotime.runner.App"),
+//    assembly / assemblyJarName := "DendroTime-runner.jar",
+    assembly / assemblyOutputPath := file("experiments/DendroTime-runner.jar"),
   )
 
 lazy val `backend` = project.in(file("backend"))
@@ -61,7 +70,7 @@ lazy val `backend` = project.in(file("backend"))
       "org.scalatest" %% "scalatest" % "3.2.18" % Test
     ),
     javacOptions += "-Xlint:deprecation",
-    javaOptions += "-Xmx2G",
+    javaOptions ++= Seq("-Xmx2G", "-Dfile.encoding=UTF-8"),
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer"),
   )
 
@@ -93,8 +102,8 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
     name := "bloom-filter",
     version := "0.14.0",
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.18" % "test",
-      "org.scalacheck" %% "scalacheck" % "1.18.1" % "test"
+      "org.scalatest" %% "scalatest" % "3.2.18" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.18.1" % Test
     ),
     scalacOptions ++= Seq(
       "-rewrite",
@@ -116,3 +125,21 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
       "2"
     )
   )
+
+// merge strategy for the assembly plugin
+ThisBuild / assembly / assemblyMergeStrategy := {
+  // discard JDK11+ module infos from libs (not required for assembly)
+  case "module-info.class" => MergeStrategy.discard
+  // discard logging configuration (set during deployment)
+  case PathList("logback.xml") => MergeStrategy.discard
+  // rename application.conf to reference.conf to allow partial overwrites for local configs
+  case PathList("application.conf") => CustomMergeStrategy.rename{
+    case Project(_, _, target, stream) =>
+      target.replace("application.conf", "reference.conf")
+    case l: Library => l.target
+  }
+  case "rootdoc.txt" => MergeStrategy.discard
+  case x =>
+    val oldStrategy = (ThisBuild / assembly / assemblyMergeStrategy).value
+    oldStrategy(x)
+}

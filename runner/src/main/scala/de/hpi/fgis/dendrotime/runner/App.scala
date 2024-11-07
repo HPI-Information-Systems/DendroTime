@@ -51,7 +51,7 @@ object App extends CaseApp[Arguments] {
          |  reporting-interval = 30m
          |  progress-indicators.ground-truth-loading-delay = 100ms
          |}
-         |akka.loglevel = WARN
+         |akka.loglevel = WARNING
          |""".stripMargin
     ConfigFactory.parseString(overwrites)
       .withFallback(ConfigFactory.load())
