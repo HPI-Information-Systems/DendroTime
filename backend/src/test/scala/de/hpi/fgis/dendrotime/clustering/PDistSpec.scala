@@ -66,10 +66,10 @@ class PDistSpec extends AnyWordSpec with should.Matchers {
 
     "create a new pairwise distance vector from a sparse matrix" in {
       val sparseMatrix = Array(
-        Array(0.0, 0.0, 0.0, 0.0),
-        Array(1.0, 0.0, 0.0, 0.0),
-        Array(2.0, 4.0, 0.0, 0.0),
-        Array(3.0, 5.0, 6.0, 0.0)
+        Array(0.0, 1.0, 2.0, 3.0),
+        Array(0.0, 0.0, 4.0, 5.0),
+        Array(0.0, 0.0, 0.0, 6.0),
+        Array(0.0, 0.0, 0.0, 0.0)
       )
       val dists = PDist(sparseMatrix, n)
       dists.length shouldEqual n * (n - 1) / 2
