@@ -17,11 +17,11 @@ object Communicator {
   final case class ProgressUpdate(status: Status, progress: Int) extends Command
   final case class NewHierarchy(state: ClusteringState) extends Command
   final case class GetProgress(replyTo: ActorRef[ProgressMessage]) extends Command
-  private case object Tick extends Command
+  private case object ReportStatus extends Command
 
   def apply(datasetId: Int): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
-      timers.startTimerAtFixedRate(Tick, Settings(ctx.system).reportingInterval)
+      timers.startTimerAtFixedRate(ReportStatus, Settings(ctx.system).reportingInterval)
       val startProgress = Map[Status, Int](
         Status.Initializing -> 20,
         Status.Approximating -> 0,
@@ -48,23 +48,26 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
       case NewStatus(newStatus) =>
         // set all previous progresses to 100
         val newP = for (k, v) <- progress yield (k, if k < newStatus then 100 else v)
-        ctx.log.info("Updating progress bc. state change to {}: {}", newStatus, newP)
+        ctx.log.debug("Updating progress bc. state change to {}: {}", newStatus, newP)
         running(newStatus, newP, clusteringState)
+
       case ProgressUpdate(s, p) =>
-        ctx.log.debug("({}) New progress ({}): {}", status, s, p)
         running(status, progress.updated(s, p), clusteringState)
+
       case NewHierarchy(state) =>
         running(status, progress, state)
+
       case GetProgress(replyTo) =>
-        replyTo ! ProgressMessage.progressFromClusteringState(
-          status, progress(status), clusteringState
-        )
+        replyTo ! ProgressMessage.progressFromClusteringState(status, progress(status), clusteringState)
         Behaviors.same
-      case Tick =>
-        ctx.log.info("Current status: {}, progress: {}", status, progress)
+
+      case ReportStatus =>
+        ctx.log.info("[REPORT] Current status: {}, progress: {}", status, progress)
         Behaviors.same
+
     }.receiveSignal{
       case (_, PostStop) =>
+        ctx.log.info("[REPORT] Final status: {}, progress: {}", status, progress)
         if settings.storeResults then
           ctx.log.info("Storing final results to results folder!")
           saveFinalState(status, progress(status), clusteringState)

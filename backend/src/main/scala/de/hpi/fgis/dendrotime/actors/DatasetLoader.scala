@@ -48,7 +48,7 @@ private class DatasetLoader private (
       loadDataset(d, replyTo) match {
         case _: Success[Unit] =>
           val count = idGen - lastId
-          ctx.log.info("Dataset d-{} loaded with {} instances", d.id, count)
+          ctx.log.trace("Dataset d-{} loaded with {} instances", d.id, count)
           replyTo ! DatasetLoaded(d.id, lastId until idGen)
         case Failure(e) =>
           ctx.log.error(s"Failed to load dataset d-${d.id}", e)

@@ -117,7 +117,7 @@ private class Coordinator private (
 
       case StrategyProtocol.DispatchWork(worker) if workQueue.hasWork =>
         val (work, newQueue) = workQueue.dequeue()
-        ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
+        ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         initializing(tsIds, newQueue)
 
@@ -127,7 +127,7 @@ private class Coordinator private (
         Behaviors.same
 
       case ApproximationResult(t1, t2, idx1, idx2, dist) =>
-        ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
+        ctx.log.trace("Approx result {}-{}: {}", t1, t2, dist)
         clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
         val newQueue = workQueue.removePending((t1, t2))
         initializing(tsIds, newQueue)
@@ -165,7 +165,7 @@ private class Coordinator private (
 
       case StrategyProtocol.DispatchWork(worker) if workQueue.hasWork =>
         val (work, newQueue) = workQueue.dequeue()
-        ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
+        ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         loading(nTimeseries, tsIds, newQueue)
 
@@ -175,7 +175,7 @@ private class Coordinator private (
         Behaviors.same
 
       case ApproximationResult(t1, t2, idx1, idx2, dist) =>
-        ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
+        ctx.log.trace("Approx result {}-{}: {}", t1, t2, dist)
         clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
         val newQueue = workQueue.removePending((t1, t2))
         loading(nTimeseries, tsIds, newQueue)
@@ -194,12 +194,12 @@ private class Coordinator private (
     Behaviors.receiveMessagePartial {
       case StrategyProtocol.DispatchWork(worker) if approxWorkQueue.hasWork =>
         val (work, newQueue) = approxWorkQueue.dequeue()
-        ctx.log.debug("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
+        ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}", work, newQueue)
         worker ! Worker.CheckApproximate(work._1, work._2)
         approximating(newQueue, allIds, fullPending)
 
       case StrategyProtocol.DispatchWork(worker) => // if approxWorkQueue.noWork
-        ctx.log.info("Approx queue ran out of work, switching to full strategy")
+        ctx.log.debug("Approx queue ran out of work, switching to full strategy")
         fullStrategy ! StrategyProtocol.DispatchWork(worker)
         // switch supplier for worker
         worker ! Worker.UseSupplier(fullStrategy)
@@ -212,14 +212,14 @@ private class Coordinator private (
           computingFullDistances(fullPending, allIds)
 
       case ApproximationResult(t1, t2, idx1, idx2, dist) =>
-        ctx.log.debug("Approx result {}-{}: {}", t1, t2, dist)
+        ctx.log.trace("Approx result {}-{}: {}", t1, t2, dist)
         val newQueue = approxWorkQueue.removePending((t1, t2))
         clusterer ! Clusterer.ApproximateDistance(idx1, idx2, dist)
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(newQueue.size, allIds.size))
         approximating(newQueue, allIds, fullPending)
 
       case FullResult(t1, t2, idx1, idx2, dist) =>
-        ctx.log.debug("Full result {}-{}: {}", t1, t2, dist)
+        ctx.log.trace("Full result {}-{}: {}", t1, t2, dist)
         clusterer ! Clusterer.FullDistance(idx1, idx2, dist)
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullPending - 1, allIds.size))
         approximating(approxWorkQueue, allIds, fullPending - 1)
@@ -240,13 +240,13 @@ private class Coordinator private (
         Behaviors.same
 
       case FullResult(t1, t2, idx1, idx2, dist) =>
-        ctx.log.debug("Full result {}-{}: {}", t1, t2, dist)
+        ctx.log.trace("Full result {}-{}: {}", t1, t2, dist)
         clusterer ! Clusterer.FullDistance(idx1, idx2, dist)
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(pending, allIds.size))
         computingFullDistances(pending - 1, allIds)
 
       case StrategyProtocol.FullStrategyOutOfWork =>
-        ctx.log.info("No more work to do, waiting for pending results!")
+        ctx.log.debug("No more work to do, waiting for pending results!")
         communicator ! Communicator.NewStatus(Status.Finalizing)
         communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
         Behaviors.same
@@ -276,7 +276,7 @@ private class Coordinator private (
 
     case Stop =>
       // do not directly stop coordinator to let communicator store the final state to disk (if enabled)
-      ctx.log.info("Shutting down communicator")
+      ctx.log.debug("Shutting down communicator")
       ctx.stop(communicator)
       stopTimer.cancel()
       Behaviors.same
@@ -289,7 +289,7 @@ private class Coordinator private (
 
   }.receiveSignal{
     case (_, Terminated(`communicator`)) =>
-      ctx.log.error("Communicator is finished, shutting down coordinator!")
+      ctx.log.debug("Communicator is finished, shutting down coordinator!")
       reportTo ! ProcessingEnded(id)
       Behaviors.stopped
   }

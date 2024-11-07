@@ -77,7 +77,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       Behaviors.stopped
 
     case ApproximateDistance(t1, t2, dist) =>
-      ctx.log.debug("Received new approx distance between {} and {}", t1, t2)
+      ctx.log.trace("Received new approx distance between {} and {}", t1, t2)
       approxCount += 1
       // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
       if distances(t1, t2) != Double.PositiveInfinity then
@@ -93,7 +93,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         running(hasWork = true, waiting = false)
 
     case FullDistance(t1, t2, dist) =>
-      ctx.log.debug("Received new full distance between {} and {}", t1, t2)
+      ctx.log.trace("Received new full distance between {} and {}", t1, t2)
       fullCount += 1
       distances(t1, t2) = dist
       if waiting then
@@ -115,6 +115,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
       finished(replyTo)
 
     case ReportFinished(replyTo) =>
+      ctx.log.debug("Not yet finished, waiting for hierarchy calculation to terminate before shutting down")
       waitingForFinish(hasWork, replyTo)
   }
 

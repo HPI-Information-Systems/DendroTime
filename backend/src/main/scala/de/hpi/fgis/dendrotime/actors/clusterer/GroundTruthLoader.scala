@@ -9,7 +9,6 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVReader
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
-import scala.concurrent.duration.*
 import scala.language.postfixOps
 
 object GroundTruthLoader {
@@ -60,22 +59,29 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
 
   private def waiting(gtHierarchy: Option[Hierarchy] = None): Behavior[Command] = Behaviors.receiveMessage {
     case LoadHierarchyGroundTruth =>
+      ctx.log.debug("Loading ground truth hierarchy")
       val gth = loadGtHierarchy()
       if gth.isEmpty then
         ctx.log.warn("Ground truth hierarchy not available, but hierarchy quality computation is enabled!")
+
       // also load the class labels if needed
       if settings.ProgressIndicators.computeClusterQuality then
+        ctx.log.debug("Loading ground truth classes")
         tsManager ! TimeSeriesManager.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
         waiting(gtHierarchy = gth)
       else
         hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gth, None)
         Behaviors.stopped
+
     case LoadClassesGroundTruth =>
+      ctx.log.debug("Loading ground truth classes")
       tsManager ! TimeSeriesManager.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
       Behaviors.same
+
     case ClassLabelResponseWrapper(TimeSeriesManager.DatasetClassLabels(labels)) =>
       hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gtHierarchy, Some(labels))
       Behaviors.stopped
+
     case ClassLabelResponseWrapper(TimeSeriesManager.DatasetClassLabelsNotFound) =>
       ctx.log.warn("Ground truth classes not available, but cluster quality computation is enabled!")
       hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gtHierarchy, None)

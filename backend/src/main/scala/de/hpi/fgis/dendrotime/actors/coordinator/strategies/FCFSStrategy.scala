@@ -51,7 +51,7 @@ class FCFSStrategy(ctx: ActorContext[StrategyCommand],
   private def running(tsIds: Seq[Long], workQueue: Queue[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
       val (newTsIds, newQueue) = addAllTimeSeries(tsIds, workQueue, timeseriesIds)
-      ctx.log.debug("Added {} new time series to the queue(size={})", timeseriesIds.size, newQueue.size)
+      ctx.log.trace("Added {} new time series to the queue(size={})", timeseriesIds.size, newQueue.size)
       if newQueue.nonEmpty then
         stash.unstashAll(running(newTsIds, newQueue))
       else
@@ -59,7 +59,7 @@ class FCFSStrategy(ctx: ActorContext[StrategyCommand],
 
     case DispatchWork(worker) if workQueue.nonEmpty =>
       val (work, newQueue) = workQueue.dequeue
-      ctx.log.debug("Dispatching full job ({}) WorkQueue={}, Stash={}", work, newQueue.size, stash.size)
+      ctx.log.trace("Dispatching full job ({}) WorkQueue={}, Stash={}", work, newQueue.size, stash.size)
       worker ! Worker.CheckFull(work._1, work._2)
       running(tsIds, newQueue)
 

@@ -57,7 +57,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       Behaviors.same
 
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
-      ctx.log.info("Ground truth updated")
+      ctx.log.debug("Ground truth updated")
       state.setGtHierarchy(gtHierarchy)
       state.setGtClasses(gtClassLabels)
       Behaviors.same
@@ -65,7 +65,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
     case ReportRuntime =>
       val newComps = state.computations - computations
       if newComps > 0 then
-        ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
+        ctx.log.info("[REPORT] Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
       runtime = 0L
       computations = state.computations
       Behaviors.same
@@ -74,7 +74,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
     case (_, PostStop) =>
       val newComps = state.computations - computations
       if newComps > 0 then
-        ctx.log.info("Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
+        ctx.log.info("[REPORT] Average computation time for the last {} hierarchies: {} ms", newComps, runtime / newComps)
 
       ctx.log.info("HierarchyCalculator stopped, releasing resources")
       state.dispose()
@@ -86,7 +86,6 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
     val h = hierarchy.computeHierarchy(distances, params.linkage)
     state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
-    //    ctx.log.warn("[PROG-REPORT] Changes for iteration {}: {}", newState.computations, newState.similarities(newState.computations - 1))
     communicator ! NewHierarchy(state.toClusteringState)
   }
 }

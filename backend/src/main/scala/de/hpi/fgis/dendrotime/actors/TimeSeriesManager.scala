@@ -19,7 +19,7 @@ object TimeSeriesManager {
   case class EvictDataset(datasetId: Int) extends Command
   case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
   case class GetTSLengths(datasetId: Int, replyTo: ActorRef[TSLengthsResponse]) extends Command
-  private case object StatusTick extends Command
+  private case object ReportStatus extends Command
 
   sealed trait GetTimeSeriesResponse
   case class TimeSeriesFound(timeseries: TimeSeries) extends GetTimeSeriesResponse
@@ -33,7 +33,7 @@ object TimeSeriesManager {
 
   def apply(): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
-      timers.startTimerWithFixedDelay(StatusTick, Settings(ctx.system).reportingInterval)
+      timers.startTimerWithFixedDelay(ReportStatus, Settings(ctx.system).reportingInterval)
       Behaviors.withStash(100) { stash =>
         new TimeSeriesManager(ctx, stash).start()
       }
@@ -80,9 +80,10 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
                        datasetMapping: HashMap[Int, Set[Long]],
                        handlers: Map[Int, ActorRef[HandlerMessageType]]
                      ): Behavior[TimeSeriesManager.Command] = Behaviors.receiveMessage[TimeSeriesManager.Command] {
-    case StatusTick =>
-      ctx.log.info("STATUS: Currently managing {} time series for {} datasets", timeseries.size, datasetMapping.size)
+    case ReportStatus =>
+      ctx.log.info("[REPORT] Currently managing {} time series for {} datasets", timeseries.size, datasetMapping.size)
       Behaviors.same
+
     case AddTimeSeries(datasetId, ts) =>
       running(
         timeseries + (ts.id -> ts),
@@ -92,12 +93,14 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
         },
         handlers
       )
+
     case GetTimeSeries(id, replyTo) =>
       timeseries.get(id) match {
         case Some(ts) => replyTo ! TimeSeriesFound(ts)
         case None => replyTo ! TimeSeriesNotFound(id)
       }
       Behaviors.same
+
     case GetTimeSeriesIds(Right(d), replyTo) =>
       datasetMapping.get(d.id) match {
         case Some(ids) =>
@@ -112,16 +115,14 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
               handler ! AddReceiver(replyTo)
               Behaviors.same
             case None =>
-              ctx.log.info("Dataset d-{} not found, starting loading process", d.id)
-              val loadingHandler = ctx.spawn(
-                DatasetLoadingHandler(Set(replyTo)),
-                f"loading-handler-${d.id}"
-              )
+              ctx.log.debug("Dataset d-{} not found, starting loading process", d.id)
+              val loadingHandler = ctx.spawn(DatasetLoadingHandler(Set(replyTo)), f"loading-handler-${d.id}")
               ctx.watch(loadingHandler)
               loader ! DatasetLoader.LoadDataset(d, loadingHandler)
               running(timeseries, datasetMapping, handlers + (d.id -> loadingHandler))
           }
       }
+
     case GetTimeSeriesIds(Left(datasetId), replyTo) =>
       datasetMapping.get(datasetId) match {
         case Some(ids) =>
@@ -136,10 +137,11 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
         }
       }
       Behaviors.same
+
     case EvictDataset(datasetId) =>
       val tsIds = datasetMapping.getOrElse(datasetId, Set.empty)
       val newTimeseries = timeseries.filterNot{ case (id, _) => tsIds.contains(id) }
-      ctx.log.info("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
+      ctx.log.debug("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
       running(newTimeseries, datasetMapping - datasetId, handlers)
 
     case m @ GetDatasetClassLabels(datasetId, replyTo) =>
@@ -154,7 +156,6 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
               replyTo ! DatasetClassLabels(labels)
             // FIXME: should I design for this case?
             case None =>
-              ctx.log.warn("Dataset d-{} not found, cannot retrieve class labels", datasetId)
               replyTo ! DatasetClassLabelsNotFound
           }
       }
@@ -172,7 +173,6 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
               replyTo ! TSLengthsResponse(lengths)
             // FIXME: should I design for this case?
             case None =>
-              ctx.log.warn("Dataset d-{} not found, cannot retrieve time series lengths", datasetId)
               replyTo ! TSLengthsResponse(Map.empty)
           }
       }
