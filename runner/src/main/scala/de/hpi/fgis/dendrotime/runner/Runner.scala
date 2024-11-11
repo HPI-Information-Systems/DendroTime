@@ -34,7 +34,11 @@ class Runner(ctx: ActorContext[Runner.MessageType]) {
     case ProcessDataset(dataset, params) =>
       ctx.log.info(s"Processing dataset $dataset with parameters $params")
       val startTime = System.currentTimeMillis()
-      val coordinator = ctx.spawn(Coordinator(tsManager, 0, dataset, params, ctx.self), "coordinator")
+      val coordinator = ctx.spawn(
+        Coordinator(tsManager, 0, dataset, params, ctx.self),
+        "coordinator",
+        Coordinator.props
+      )
       ctx.watch(coordinator)
       waitingForFinish(startTime, coordinator)
 

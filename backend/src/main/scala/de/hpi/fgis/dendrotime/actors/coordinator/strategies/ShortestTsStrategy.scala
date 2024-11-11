@@ -1,22 +1,23 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 
-import scala.collection.immutable.Queue
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.util.boundary
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, boundary}
 
 
 object ShortestTsStrategy extends StrategyFactory {
   
   private case class TSLengthsResponse(lengths: Map[Long, Int]) extends StrategyCommand
+  
+  private case class QueueCreated(queue: Array[(Long, Long)]) extends StrategyCommand
 
   def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
     Behaviors.setup { ctx =>
@@ -28,12 +29,15 @@ object ShortestTsStrategy extends StrategyFactory {
       }
     }
 
-  private def createQueue(tsIds: Array[Long], processedWork: Set[(Long, Long)]): Array[(Long, Long)] = {
+  private def createQueue(lengths: Map[Long, Int], processedWork: Set[(Long, Long)]): Array[(Long, Long)] = {
+    val idLengths = lengths.iterator.toArray
+    idLengths.sortInPlaceBy(_._2)
+    val ids = idLengths.map(_._1)
     val builder = mutable.ArrayBuilder.make[(Long, Long)]
-    for right <- 1 until tsIds.length do
+    for right <- 1 until ids.length do
       for left <- 0 until right do
-        val idLeft = tsIds(left)
-        val idRight = tsIds(right)
+        val idLeft = ids(left)
+        val idRight = ids(right)
         if !processedWork.contains((idLeft, idRight)) then
           builder += ((idLeft, idRight))
     builder.result()
@@ -50,7 +54,9 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
   import ShortestTsStrategy.*
   
   private val tsAdapter = ctx.messageAdapter[TimeSeriesManager.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
-  private val tsIds = ArrayBuffer.empty[Long]
+  private val tsIds = mutable.ArrayBuffer.empty[Long]
+  // Executor for internal futures (CPU-heavy work)
+  private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
   def start(): Behavior[StrategyCommand] = {
     params.tsManager ! TimeSeriesManager.GetTSLengths(params.dataset.id, tsAdapter)
@@ -67,14 +73,20 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
         Behaviors.same
 
     case TSLengthsResponse(lengths) =>
-      val ids = lengths.keys.toArray
-      ids.sortInPlaceBy(lengths.apply)
-      val queue = createQueue(ids, processedWork)
-      if queue.isEmpty then
-        eventReceiver ! FullStrategyFinished
+      val f = Future {createQueue(lengths, processedWork) }
+      ctx.pipeToSelf(f){
+        case Success(queue) => QueueCreated(queue)
+        case Failure(e) => throw e
+      }
+      ctx.log.debug("Received lengths of {} time series, building work Queue", lengths.size)
+      Behaviors.same
 
-      ctx.log.info("Received lengths of {} time series, building work Queue of size {}", lengths.size, queue.length)
-      serving(queue, nextItem = 0)
+    case QueueCreated(queue) =>
+      val newQueue = queue.filterNot(processedWork.contains)
+      if newQueue.isEmpty then
+        eventReceiver ! FullStrategyFinished
+      ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
+      stash.unstashAll(serving(newQueue, nextItem = 0))
 
     case m @ DispatchWork(worker) =>
       nextWork(processedWork) match {
@@ -95,7 +107,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker) if workQueue.nonEmpty =>
+    case DispatchWork(worker) if nextItem < workQueue.length =>
       val work = workQueue(nextItem)
       ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
       worker ! Worker.CheckFull(work._1, work._2)

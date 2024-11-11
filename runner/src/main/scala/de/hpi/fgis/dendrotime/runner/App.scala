@@ -45,16 +45,17 @@ object App extends CaseApp[Arguments] {
   }
 
   private def loadConfig(): Config = {
-    val overwrites =
-      s"""dendrotime {
-         |  store-results = true
-         |  reporting-interval = 30m
-         |  progress-indicators.ground-truth-loading-delay = 100ms
-         |}
-         |akka.loglevel = WARNING
-         |""".stripMargin
-    ConfigFactory.parseString(overwrites)
-      .withFallback(ConfigFactory.load())
+//    val overwrites =
+//      s"""dendrotime {
+//         |  store-results = true
+//         |  reporting-interval = 30m
+//         |  progress-indicators.ground-truth-loading-delay = 100ms
+//         |}
+//         |akka.loglevel = WARNING
+//         |""".stripMargin
+//    ConfigFactory.parseString(overwrites)
+//      .withFallback(ConfigFactory.load())
+    ConfigFactory.load()
   }
 
   private def loadDataset(dataPath: Path, datasetName: String): Dataset = {

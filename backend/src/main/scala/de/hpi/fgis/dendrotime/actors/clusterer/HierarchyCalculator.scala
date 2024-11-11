@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior, PostStop}
+import akka.actor.typed.*
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
@@ -25,6 +25,8 @@ private[clusterer] object HierarchyCalculator {
       new HierarchyCalculator(ctx, clusterer, communicator, n, params).start()
     }
   }
+
+  def props: Props = DispatcherSelector.fromConfig("dendrotime.clustering-dispatcher")
 }
 
 private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculator.Command],

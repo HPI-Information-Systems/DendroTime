@@ -15,6 +15,7 @@ object MSM {
   }
 
   val DEFAULT_COST: Double = 0.5
+// FIXME:  val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = Double.NaN
   val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
 
@@ -241,7 +242,7 @@ class MSM(
           val cost2 = costMatrix(i - 1)(j) + independentCost(x(i), x(i - 1), y(j), c)
           val cost3 = costMatrix(i)(j - 1) + independentCost(y(j), x(i), y(j - 1), c)
 
-          costMatrix(i)(j) = Seq(cost1, cost2, cost3).min
+          costMatrix(i)(j) = Math.min(cost1, Math.min(cost2, cost3))
     costMatrix
   }
 

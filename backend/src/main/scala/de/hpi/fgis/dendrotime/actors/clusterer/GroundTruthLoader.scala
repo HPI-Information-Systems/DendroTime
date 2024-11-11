@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
@@ -26,6 +26,8 @@ object GroundTruthLoader {
         new GroundTruthLoader(ctx, timer, hierarchyCalculator, tsManager, dataset, params).start()
       )
     )
+
+  def props: Props = DispatcherSelector.blocking()
 }
 
 class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],

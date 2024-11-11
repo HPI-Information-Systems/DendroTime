@@ -207,7 +207,11 @@ private class Scheduler private(ctx: ActorContext[Scheduler.Command]) {
   
   private def startNewJob(id: Long, dataset: Dataset, params: DendroTimeParams, replyTo: ActorRef[ProcessingOutcome]): ActorRef[Coordinator.Command] = {
     val msgAdapter = ctx.messageAdapter(ProcessingResponse(_, replyTo))
-    val coordinator = ctx.spawn(Coordinator(tsManager, id, dataset, params, msgAdapter), s"coordinator-$id")
+    val coordinator = ctx.spawn(
+      Coordinator(tsManager, id, dataset, params, msgAdapter),
+      s"coordinator-$id",
+      Coordinator.props
+    )
     ctx.watch(coordinator)
     coordinator
   }

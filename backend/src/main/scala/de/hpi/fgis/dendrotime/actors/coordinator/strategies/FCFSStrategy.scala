@@ -3,38 +3,33 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
-import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
-import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
 import scala.annotation.tailrec
-import scala.collection.immutable.Queue
+import scala.collection.mutable
 
 object FCFSStrategy extends StrategyFactory {
   def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
     Behaviors.setup { ctx =>
       val settings = Settings(ctx.system)
       val stashSize = settings.numberOfWorkers * 5
-  
+
       Behaviors.withStash(stashSize) { stash =>
         new FCFSStrategy(ctx, stash, eventReceiver, settings.numberOfWorkers).start()
       }
     }
 
   @tailrec
-  private[strategies] def addAllTimeSeries(tsIds: Seq[Long], workQueue: Queue[(Long, Long)], newIds: Seq[Long]): (Seq[Long], Queue[(Long, Long)]) =
+  private[strategies] def addAllTimeSeries(tsIds: mutable.ArrayBuffer[Long], workQueue: mutable.Queue[(Long, Long)], newIds: Seq[Long]): Unit =
     newIds.headOption match {
-      case None => (tsIds, workQueue)
+      case None =>
       case Some(newId) =>
-        val newQueue =
-          if tsIds.nonEmpty then
-            workQueue.enqueueAll(tsIds.map((_, newId)))
-          else
-            workQueue
-        addAllTimeSeries(tsIds :+ newId, newQueue, newIds.tail)
+        if tsIds.nonEmpty then
+          workQueue.enqueueAll(tsIds.map((_, newId)))
+        tsIds += newId
+        addAllTimeSeries(tsIds, workQueue, newIds.tail)
     }
 }
 
@@ -46,22 +41,25 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
 
   import FCFSStrategy.*
 
-  def start(): Behavior[StrategyCommand] = running(Seq.empty, Queue.empty)
+  private val workQueue = mutable.Queue.empty[(Long, Long)]
+  private val tsIds = mutable.ArrayBuffer.empty[Long]
 
-  private def running(tsIds: Seq[Long], workQueue: Queue[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+  def start(): Behavior[StrategyCommand] = running()
+
+  private def running(): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
-      val (newTsIds, newQueue) = addAllTimeSeries(tsIds, workQueue, timeseriesIds)
-      ctx.log.trace("Added {} new time series to the queue(size={})", timeseriesIds.size, newQueue.size)
-      if newQueue.nonEmpty then
-        stash.unstashAll(running(newTsIds, newQueue))
+      addAllTimeSeries(tsIds, workQueue, timeseriesIds)
+      ctx.log.trace("Added {} new time series to the queue", timeseriesIds.size)
+      if workQueue.nonEmpty then
+        stash.unstashAll(Behaviors.same)
       else
-        running(newTsIds, newQueue)
+        Behaviors.same
 
     case DispatchWork(worker) if workQueue.nonEmpty =>
-      val (work, newQueue) = workQueue.dequeue
-      ctx.log.trace("Dispatching full job ({}) WorkQueue={}, Stash={}", work, newQueue.size, stash.size)
+      val work = workQueue.dequeue
+      ctx.log.trace("Dispatching full job ({}), Stash={}", work, stash.size)
       worker ! Worker.CheckFull(work._1, work._2)
-      running(tsIds, newQueue)
+      Behaviors.same
 
     case m: DispatchWork =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", m.worker, stash.size)

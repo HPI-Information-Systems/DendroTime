@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
@@ -25,6 +25,8 @@ object DatasetLoader {
   def apply(tsManager: ActorRef[TimeSeriesManager.Command]): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetLoader(ctx, tsManager).start()
   }
+
+  def props: Props = DispatcherSelector.blocking()
 }
 
 private class DatasetLoader private (

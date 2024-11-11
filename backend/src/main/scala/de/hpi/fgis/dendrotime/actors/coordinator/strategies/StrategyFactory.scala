@@ -1,6 +1,6 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.{StrategyCommand, StrategyEvent}
@@ -20,11 +20,15 @@ object StrategyFactory {
     case "shortest-ts" => ShortestTsStrategy
     case "approx-distance-ascending" => ApproxDistanceStrategy.Ascending
     case "approx-distance-descending" => ApproxDistanceStrategy.Descending
-    case _ => throw new IllegalArgumentException(s"Unknown strategy: $strategy")
+    case _ => throw new IllegalArgumentException(
+      s"Unknown strategy: $strategy, use one of: fcfs, shortest-ts, approx-distance-ascending, approx-distance-descending"
+    )
   }
 
   def apply(strategy: String, params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
     get(strategy)(params, eventReceiver)
+
+  def props: Props = DispatcherSelector.fromConfig("dendrotime.coordinator-pinned-dispatcher")
 }
 
 trait StrategyFactory {

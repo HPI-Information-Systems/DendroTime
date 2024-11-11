@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, Terminated}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props, Terminated}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.ClusteringFinished
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
@@ -38,6 +38,8 @@ object Clusterer {
 
     Behaviors.withStash(100)(uninitialized)
   }
+
+  def props: Props = DispatcherSelector.fromConfig("dendrotime.clustering-dispatcher")
 }
 
 private class Clusterer private(ctx: ActorContext[Clusterer.Command],
@@ -54,12 +56,13 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
   private val distances: MutablePDist = PDist.empty(n).mutable
   private val calculator = ctx.spawn(
     HierarchyCalculator(ctx.self, communicator, n, params),
-    "hierarchy-calculator"
+    "hierarchy-calculator",
+    HierarchyCalculator.props
   )
   ctx.watch(calculator)
   // start loading ground truth information
   if settings.ProgressIndicators.computeHierarchyQuality || settings.ProgressIndicators.computeClusterQuality then
-    ctx.spawn(GroundTruthLoader(calculator, tsManager, dataset, params), "gt-loader")
+    ctx.spawn(GroundTruthLoader(calculator, tsManager, dataset, params), "gt-loader", GroundTruthLoader.props)
   // debug counters
   private var approxCount = 0L
   private var fullCount = 0L
