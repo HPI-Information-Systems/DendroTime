@@ -2,10 +2,12 @@ package de.hpi.fgis.dendrotime.actors.worker
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
+import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
+import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
+import de.hpi.fgis.dendrotime.model.StateModel.Status
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
 object Worker {
@@ -16,9 +18,9 @@ object Worker {
   private case class GetTimeSeriesResponse(msg: TimeSeriesManager.GetTimeSeriesResponse) extends Command
 
   def apply(tsManager: ActorRef[TimeSeriesManager.Command],
-            coordinator: ActorRef[Coordinator.MessageType],
+            clusterer: ActorRef[Clusterer.Command],
             params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
-    new Worker(WorkerContext(ctx, tsManager, coordinator), params).start()
+    new Worker(WorkerContext(ctx, tsManager, clusterer), params).start()
   }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.worker-dispatcher")
@@ -79,12 +81,12 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
       ts1.data.slice(Math.max(0, ts1Center - params.approxLength/2), Math.min(ts1Center + params.approxLength/2, ts1.data.length)),
       ts2.data.slice(Math.max(0, ts2Center - params.approxLength/2), Math.min(ts2Center + params.approxLength/2, ts2.data.length)),
     )
-    ctx.coordinator ! Coordinator.ApproximationResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
+    ctx.clusterer ! Clusterer.ApproximateDistance(ts1.idx, ts2.idx, dist)
   }
 
   @inline
   private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val dist = params.metric(ts1.data, ts2.data)
-    ctx.coordinator ! Coordinator.FullResult(ts1.id, ts2.id, ts1.idx, ts2.idx, dist)
+    ctx.clusterer ! Clusterer.FullDistance(ts1.idx, ts2.idx, dist)
   }
 }

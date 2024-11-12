@@ -11,5 +11,4 @@ object StrategyProtocol {
 
   trait StrategyEvent
   case object FullStrategyOutOfWork extends StrategyEvent
-  case object FullStrategyFinished extends StrategyEvent
 }

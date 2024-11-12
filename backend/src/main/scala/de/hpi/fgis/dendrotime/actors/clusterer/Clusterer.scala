@@ -3,11 +3,12 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props, Terminated}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.ClusteringFinished
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
+import de.hpi.fgis.dendrotime.model.StateModel.Status
 
 
 object Clusterer {
@@ -16,12 +17,12 @@ object Clusterer {
   case class ApproximateDistance(t1: Int, t2: Int, dist: Double) extends Command
   case class FullDistance(t1: Int, t2: Int, dist: Double) extends Command
   case class RegisterApproxDistMatrixReceiver(receiver: ActorRef[ApproxDistanceMatrix]) extends Command
-  case class ReportFinished(replyTo: ActorRef[ClusteringFinished.type]) extends Command
   private[clusterer] case object GetDistances extends Command
 
   case class ApproxDistanceMatrix(distances: PDist)
 
-  def apply(tsManager: ActorRef[TimeSeriesManager.Command],
+  def apply(coordinator: ActorRef[Coordinator.Command],
+            tsManager: ActorRef[TimeSeriesManager.Command],
             communicator: ActorRef[Communicator.Command],
             dataset: Dataset,
             params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
@@ -29,7 +30,7 @@ object Clusterer {
     def uninitialized(stash: StashBuffer[Command]): Behavior[Command] = Behaviors.receiveMessage {
       case Initialize(n) =>
         stash.unstashAll(
-          new Clusterer(ctx, communicator, tsManager, n, dataset: Dataset, params).start()
+          new Clusterer(ctx, coordinator, communicator, tsManager, n, dataset: Dataset, params).start()
         )
       case m =>
         stash.stash(m)
@@ -43,6 +44,7 @@ object Clusterer {
 }
 
 private class Clusterer private(ctx: ActorContext[Clusterer.Command],
+                                coordinator: ActorRef[Coordinator.Command],
                                 communicator: ActorRef[Communicator.Command],
                                 tsManager: ActorRef[TimeSeriesManager.Command],
                                 n: Int,
@@ -95,7 +97,9 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
           Behaviors.same
         else
           distances(t1, t2) = dist
+          communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
           if approxCount == distances.size then
+            coordinator ! Coordinator.ApproxFinished
             reg.foreach {
               _ ! ApproxDistanceMatrix(distances)
             }
@@ -109,6 +113,9 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         ctx.log.trace("Received new full distance between {} and {}", t1, t2)
         fullCount += 1
         distances(t1, t2) = dist
+        communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
+        if fullCount == distances.size then
+          coordinator ! Coordinator.FullFinished
         if waiting then
           calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
           running(reg, hasWork = false, waiting = false)
@@ -120,44 +127,23 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         running(reg, hasWork = false, waiting = false)
 
       case GetDistances =>
-        running(reg, hasWork = false, waiting = true)
+        if fullCount >= distances.size && approxCount >= distances.size then
+          // TODO: remove safety checks
+          if approxCount != distances.size then
+            ctx.log.error("Approx distances missing for {} pairs", distances.size - approxCount)
+          if fullCount != distances.size then
+            ctx.log.error("Full distances missing for {} pairs", distances.size - fullCount)
+          coordinator ! Coordinator.ClusteringFinished
+          Behaviors.stopped
+        else
+          running(reg, hasWork = false, waiting = true)
 
-      case ReportFinished(replyTo) if waiting =>
-        if hasWork then
-          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
-        finished(replyTo)
-
-      case ReportFinished(replyTo) =>
-        ctx.log.debug("Not yet finished, waiting for hierarchy calculation to terminate before shutting down")
-        waitingForFinish(hasWork, replyTo)
-
-    }.receiveSignal {
+    } receiveSignal {
       case (_, Terminated(ref)) =>
         ctx.unwatch(ref)
         running(reg - ref.unsafeUpcast[ApproxDistanceMatrix], hasWork, waiting)
         Behaviors.same
     }
 
-  private def waitingForFinish(hasWork: Boolean, replyTo: ActorRef[ClusteringFinished.type]): Behavior[Command] =
-    Behaviors.receiveMessage {
-      case GetDistances if hasWork =>
-        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
-        waitingForFinish(hasWork = false, replyTo = replyTo)
-
-      case GetDistances =>
-        finished(replyTo)
-
-      case m =>
-        ctx.log.warn("Received unexpected message while waiting for finish ({})", m)
-        Behaviors.same
-    }
-
-  private def finished(replyTo: ActorRef[ClusteringFinished.type]): Behavior[Command] = {
-    if approxCount != distances.size then
-      ctx.log.error("Approx distances missing for {} pairs", distances.size - approxCount)
-    if fullCount != distances.size then
-      ctx.log.error("Full distances missing for {} pairs", distances.size - fullCount)
-    replyTo ! ClusteringFinished
-    Behaviors.stopped
-  }
+  private def progress(count: Long, n: Int): Int = (count.toDouble / n * 100).toInt
 }

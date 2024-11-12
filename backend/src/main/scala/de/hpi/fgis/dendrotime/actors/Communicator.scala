@@ -66,9 +66,15 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
         ctx.log.info("[REPORT] Current status: {}, progress: {}", status, progress)
         Behaviors.same
 
-    }.receiveSignal{
+    } receiveSignal {
       case (_, PostStop) =>
         ctx.log.info("[REPORT] Final status: {}, progress: {}", status, progress)
+        // FIXME: remove safety check
+        if clusteringState.qualityTrace.hasGtSimilarities then
+          if clusteringState.qualityTrace.gtSimilarities.last != 1.0 then
+            ctx.log.error("Final hierarchy similarity is not 1.0! This might indicate a problem with the clustering.")
+          else
+            ctx.log.info("Final hierarchy similarity is 1.0. Clustering seems to be fine.")
         if settings.storeResults then
           ctx.log.info("Storing final results to results folder!")
           saveFinalState(status, progress(status), clusteringState)

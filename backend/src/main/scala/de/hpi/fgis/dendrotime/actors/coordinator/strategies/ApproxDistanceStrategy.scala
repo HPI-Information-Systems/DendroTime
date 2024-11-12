@@ -9,6 +9,7 @@ import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.Stra
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -42,7 +43,7 @@ object ApproxDistanceStrategy {
       val stashSize = settings.numberOfWorkers * 5
 
       Behaviors.withStash(stashSize) { stash =>
-        new ApproxDistanceStrategy(ctx, stash, eventReceiver, settings.numberOfWorkers, params, direction).start()
+        new ApproxDistanceStrategy(ctx, stash, eventReceiver, params, direction).start()
       }
     }
 
@@ -68,14 +69,13 @@ object ApproxDistanceStrategy {
 class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
                                      stash: StashBuffer[StrategyCommand],
                                      eventReceiver: ActorRef[StrategyEvent],
-                                     numberOfWorkers: Int,
                                      params: StrategyParameters,
                                      direction: ApproxDistanceStrategy.Direction
                                     ) {
 
   import ApproxDistanceStrategy.*
 
-  private val tsIds = mutable.ArrayBuffer.empty[Long]
+  private val fallbackWorkGenerator = new WorkTupleGenerator
   private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
   private val approxDistancesAdapter = ctx.messageAdapter[ApproxDistanceMatrix](m => ApproxDistances(m.distances))
   // Executor for internal futures (CPU-heavy work)
@@ -89,9 +89,8 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
 
   private def collecting(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
-      tsIds ++= timeseriesIds
-      ctx.log.trace("Added {} new time series ", timeseriesIds.size)
-      if tsIds.size >= 2 then
+      fallbackWorkGenerator.addAll(timeseriesIds)
+      if fallbackWorkGenerator.hasNext then
         stash.unstashAll(Behaviors.same)
       else
         Behaviors.same
@@ -107,26 +106,22 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
     case WorkQueue(queue) =>
       val newQueue = queue.filterNot(processedWork.contains)
       if newQueue.isEmpty then
-        eventReceiver ! FullStrategyFinished
+        eventReceiver ! FullStrategyOutOfWork
       ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
       stash.unstashAll(serving(newQueue, nextItem = 0))
 
     case m@DispatchWork(worker) =>
-      nextWork(processedWork) match {
-        case Some(work) =>
-          ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
-          worker ! Worker.CheckFull(work._1, work._2)
-          val newProcessedWork = processedWork + work
-          collecting(newProcessedWork, mapping, dists)
-        case None =>
-          ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
-          if stash.isEmpty then
-            eventReceiver ! FullStrategyOutOfWork
-          if stash.size + 1 >= numberOfWorkers then
-            eventReceiver ! FullStrategyFinished
-          stash.stash(m)
-          Behaviors.same
-      }
+      if fallbackWorkGenerator.hasNext then
+        val work = fallbackWorkGenerator.next()
+        ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
+        worker ! Worker.CheckFull(work._1, work._2)
+        collecting(processedWork + work, mapping, dists)
+      else
+        ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
+        if stash.isEmpty then
+          eventReceiver ! FullStrategyOutOfWork
+        stash.stash(m)
+        Behaviors.same
   }
 
   private def serving(workQueue: Array[(Long, Long)], nextItem: Int): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
@@ -146,21 +141,8 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
-      if stash.size + 1 >= numberOfWorkers then
-        eventReceiver ! FullStrategyFinished
       stash.stash(m)
       Behaviors.same
-  }
-
-  private def nextWork(processed: Set[(Long, Long)]): Option[(Long, Long)] = {
-    boundary {
-      for i <- 0 until tsIds.size - 1 do
-        for j <- i + 1 until tsIds.size do
-          val work = (tsIds(i), tsIds(j))
-          if !processed.contains(work) then
-            boundary.break(Some(work))
-      None
-    }
   }
 
   private def potentiallyBuildQueue(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {

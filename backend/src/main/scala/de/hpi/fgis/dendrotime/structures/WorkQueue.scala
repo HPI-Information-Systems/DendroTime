@@ -1,4 +1,4 @@
-package de.hpi.fgis.dendrotime.actors.coordinator
+package de.hpi.fgis.dendrotime.structures
 
 import scala.collection.mutable
 
