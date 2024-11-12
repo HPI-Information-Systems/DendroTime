@@ -13,7 +13,7 @@ import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, boundary}
+import scala.util.{Failure, Success}
 
 
 object ApproxDistanceStrategy {
