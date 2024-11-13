@@ -5,6 +5,7 @@ import com.univocity.parsers.csv.{CsvParser, CsvParserSettings}
 
 import java.io.File
 import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.Using
 
 
@@ -36,7 +37,7 @@ object CSVReader {
    * @param file file name, can contain relative or absolute paths, see [[java.io.File]] for more infos
    * @return the parsed dataset as a 2D array
    */
-  def parse(file: String): Array[Array[Double]] = parse(new File(file))
+  def parse[T <: AnyVal : ClassTag : AnyValConverter](file: String): Array[Array[Double]] = parse(new File(file))
 
   /**
    * Reads a CSV file and parses it.
@@ -44,13 +45,13 @@ object CSVReader {
    * @param file [[java.io.File]] pointing to the dataset
    * @return the parsed dataset as a 2D array
    */
-  def parse(file: File): Array[Array[Double]] = {
-    val data = mutable.ArrayBuilder.make[Array[Double]]
-    val reusableLineBuilder = mutable.ArrayBuilder.ofDouble()
+  def parse[T <: AnyVal : ClassTag](file: File)(using c: AnyValConverter[T]): Array[Array[T]] = {
+    val data = mutable.ArrayBuilder.make[Array[T]]
+    val reusableLineBuilder = mutable.ArrayBuilder.make[T]
 
     Using.resource(new CsvParser(parserSettings)) { parser =>
       for row <- parser.iterate(file) do
-        reusableLineBuilder.addAll(row.map(_.toDouble))
+        reusableLineBuilder.addAll(row.map(c.fromString))
         data.addOne(reusableLineBuilder.result())
         reusableLineBuilder.clear()
     }

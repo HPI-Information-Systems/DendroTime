@@ -26,7 +26,7 @@ object HierarchyCSVReader {
    * @return the parsed hierarchy
    */
   def parse(file: File): Hierarchy = {
-    val data = CSVReader.parse(file)
+    val data = CSVReader.parse[Double](file)
     Hierarchy.fromArray(data)
   }
 }
