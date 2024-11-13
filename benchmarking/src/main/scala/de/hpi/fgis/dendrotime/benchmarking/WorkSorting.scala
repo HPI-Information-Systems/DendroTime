@@ -11,11 +11,11 @@ import scala.collection.mutable
 @State(Scope.Benchmark)
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
-@Fork(1)
-@Threads(1)
+@Fork(1, jvmArgs = Array("-Xms16G", "-Xmx16G"))
+@Threads(4)
 class WorkSorting {
 
-  @Param(Array("100", "500", "1000"))
+  @Param(Array("100", "500", "1000", "5000"))
   var n: Int = _
 
   var mapping: Map[Long, Int] = _
@@ -109,3 +109,33 @@ class WorkSorting {
     data.map(t => (t._2, t._3))
   }
 }
+
+/*
+ * Local results:
+ * Benchmark                        (n)   Mode  Cnt     Score     Error   Units
+ *|-------------------------------|-----|------|---|---------|----------|------|
+ * WorkSorting.arraySortByIndex     500  thrpt   10     0.015 ±   0.003  ops/ms
+ * WorkSorting.arraySortByIndex    1000  thrpt   10     0.002 ±   0.001  ops/ms
+ * WorkSorting.arraySortByIndex    2000  thrpt   10    ≈ 10⁻³            ops/ms
+ * WorkSorting.arraySortByInplace   500  thrpt   10     0.012 ±   0.001  ops/ms
+ * WorkSorting.arraySortByInplace  1000  thrpt   10     0.002 ±   0.001  ops/ms
+ * WorkSorting.arraySortByInplace  2000  thrpt   10    ≈ 10⁻³            ops/ms
+ * WorkSorting.arraySortByLookup    500  thrpt   10     0.005 ±   0.001  ops/ms
+ * WorkSorting.arraySortByLookup   1000  thrpt   10     0.001 ±   0.001  ops/ms
+ * WorkSorting.arraySortByLookup   2000  thrpt   10    ≈ 10⁻⁴            ops/ms
+ * WorkSorting.createQueue          500  thrpt   10     0.012 ±   0.001  ops/ms
+ * WorkSorting.createQueue         1000  thrpt   10     0.002 ±   0.001  ops/ms
+ * WorkSorting.createQueue         2000  thrpt   10    ≈ 10⁻³            ops/ms
+ * WorkSorting.arraySortByIndex     100   avgt    5     1.316 ±   0.159   ms/op
+ * WorkSorting.arraySortByIndex     500   avgt    5    86.425 ±  53.804   ms/op
+ * WorkSorting.arraySortByIndex    1000   avgt    5   562.002 ± 108.829   ms/op
+ * WorkSorting.arraySortByInplace   100   avgt    5     1.150 ±   0.200   ms/op
+ * WorkSorting.arraySortByInplace   500   avgt    5    97.350 ±  25.708   ms/op
+ * WorkSorting.arraySortByInplace  1000   avgt    5   661.552 ± 242.250   ms/op
+ * WorkSorting.arraySortByLookup    100   avgt    5     3.816 ±   0.101   ms/op
+ * WorkSorting.arraySortByLookup    500   avgt    5   246.060 ± 135.994   ms/op
+ * WorkSorting.arraySortByLookup   1000   avgt    5  1202.289 ± 268.211   ms/op
+ * WorkSorting.createQueue          100   avgt    5     1.106 ±   0.036   ms/op
+ * WorkSorting.createQueue          500   avgt    5    91.598 ±   8.875   ms/op
+ * WorkSorting.createQueue         1000   avgt    5   566.237 ±  51.298   ms/op
+ */

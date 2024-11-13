@@ -128,9 +128,6 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
 
 lazy val `benchmarking` = project.in(file("benchmarking"))
   .dependsOn(`backend`)
-  .settings(
-    javaOptions in run ++= Seq("-Xms2G", "-Xmx2G"),
-  )
   .enablePlugins(JmhPlugin)
 
 // merge strategy for the assembly plugin
