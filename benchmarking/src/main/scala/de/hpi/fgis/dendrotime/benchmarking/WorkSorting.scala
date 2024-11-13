@@ -138,4 +138,28 @@ class WorkSorting {
  * WorkSorting.createQueue          100   avgt    5     1.106 ±   0.036   ms/op
  * WorkSorting.createQueue          500   avgt    5    91.598 ±   8.875   ms/op
  * WorkSorting.createQueue         1000   avgt    5   566.237 ±  51.298   ms/op
+ *
+ * Server results
+ * Benchmark                        (n)  Mode  Cnt      Score      Error  Units
+ *|-------------------------------|-----|------|---|---------|----------|------|
+ * WorkSorting.arraySortByIndex     100  avgt   10      1.386 ±    0.071  ms/op
+ * WorkSorting.arraySortByIndex     500  avgt   10     72.660 ±    4.780  ms/op
+ * WorkSorting.arraySortByIndex    1000  avgt   10    482.809 ±   19.197  ms/op
+ * WorkSorting.arraySortByIndex    5000  avgt   10  21276.819 ± 1117.401  ms/op
+ * WorkSorting.arraySortByInplace   100  avgt   10      1.232 ±    0.008  ms/op
+ * WorkSorting.arraySortByInplace   500  avgt   10     87.878 ±    5.509  ms/op
+ * WorkSorting.arraySortByInplace  1000  avgt   10    505.748 ±   40.672  ms/op
+ * WorkSorting.arraySortByInplace  5000  avgt   10  20334.662 ± 2397.224  ms/op
+ * WorkSorting.arraySortByLookup    100  avgt   10      3.904 ±    0.052  ms/op
+ * WorkSorting.arraySortByLookup    500  avgt   10    213.911 ±    2.647  ms/op
+ * WorkSorting.arraySortByLookup   1000  avgt   10   1157.266 ±   36.386  ms/op
+ * WorkSorting.arraySortByLookup   5000  avgt   10  53385.723 ±  687.872  ms/op
+ * WorkSorting.createQueue          100  avgt   10      1.216 ±    0.003  ms/op
+ * WorkSorting.createQueue          500  avgt   10     88.846 ±    3.679  ms/op
+ * WorkSorting.createQueue         1000  avgt   10    509.795 ±   36.432  ms/op
+ * WorkSorting.createQueue         5000  avgt   10  19808.761 ± 1092.367  ms/op
+ * Total time: 5668 s (01:34:28), completed Nov 13, 2024, 12:11:29PM
+ *
+ * --> Current implementation is the fastest for larger input sizes.
+ * --> Do not sort!
  */
