@@ -39,8 +39,11 @@ object ShortestTsStrategy extends StrategyFactory {
       for left <- 0 until right do
         val idLeft = ids(left)
         val idRight = ids(right)
-        if !processedWork.contains((idLeft, idRight)) then
-          builder += ((idLeft, idRight))
+        val pair =
+          if idLeft < idRight then (idLeft, idRight)
+          else (idRight, idLeft)
+        if !processedWork.contains(pair) then
+          builder += (pair)
     builder.result()
   }
 }
@@ -72,7 +75,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
         Behaviors.same
 
     case TSLengthsResponse(lengths) =>
-      val f = Future {createQueue(lengths, processedWork) }
+      val f = Future { createQueue(lengths, processedWork) }
       ctx.pipeToSelf(f){
         case Success(queue) => QueueCreated(queue)
         case Failure(e) => throw e

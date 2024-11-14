@@ -37,7 +37,7 @@ object CSVReader {
    * @param file file name, can contain relative or absolute paths, see [[java.io.File]] for more infos
    * @return the parsed dataset as a 2D array
    */
-  def parse[T <: AnyVal : ClassTag : AnyValConverter](file: String): Array[Array[Double]] = parse(new File(file))
+  def parse[T <: AnyVal : ClassTag : AnyValConverter](file: String): Array[Array[T]] = parse(new File(file))
 
   /**
    * Reads a CSV file and parses it.
