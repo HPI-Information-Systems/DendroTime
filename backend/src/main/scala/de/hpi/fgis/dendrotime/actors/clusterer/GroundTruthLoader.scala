@@ -96,7 +96,8 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
     val path = gtPath.resolve(s"${dataset.name}/hierarchy-${params.metricName}-${params.linkageName}.csv").toFile
     try
       Some(HierarchyCSVReader.parse(path))
-    catch case _ =>
+    catch case e =>
+      ctx.log.warn("Failed to load ground truth hierarchy from path {}: {}", path.getAbsolutePath, e.getMessage)
       None
   }
 }

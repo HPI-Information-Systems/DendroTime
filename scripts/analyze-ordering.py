@@ -16,9 +16,10 @@ colors["approxAscending"] = "red"
 colors["approxDescending"] = "orange"
 colors["highestVar"] = "purple"
 colors["gtLargeError"] = "brown"
+colors["dynamicError"] = "pink"
 
 
-def main(dataset = "Coffee", n = 5, seed = 42):
+def main(dataset = "PickupGestureWiimoteZ", n = 5, seed = 2):
     print(f"Processing dataset '{dataset}' with {n} time series and seed {seed}")
     df = pd.read_csv(result_dir / f"traces-{n}-{dataset}-{seed}.csv", header=None)
     df_orderings = pd.read_csv(result_dir / f"orderings-{n}.csv", header=None)
