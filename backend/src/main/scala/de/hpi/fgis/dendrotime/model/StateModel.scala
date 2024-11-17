@@ -117,13 +117,19 @@ object StateModel {
         this
       }
 
-      def result(): QualityTrace = QualityTrace(
-        indices=nComputations.toArray,
-        timestamps=timestamps.toArray,
-        similarities=similarities.toArray,
-        gtSimilarities=gtSimilarities.toArray,
-        clusterQualities=clusterQualities.toArray
-      )
+      def result(): QualityTrace = {
+        val sims = similarities.toArray
+        val sliding = sims.sliding(20).map(arr => arr.sum / arr.length).toArray.prependedAll(Array.fill(19)(0.0))
+        val sum = sims.tail.scanLeft(sims.head)(_ + _).zipWithIndex.map((s, i) => s / (i + 1))
+
+        QualityTrace(
+          indices=nComputations.toArray,
+          timestamps=timestamps.toArray,
+          similarities=sliding,
+          gtSimilarities=gtSimilarities.toArray,
+          clusterQualities=clusterQualities.toArray
+        )
+      }
 
       def clear(): Unit = {
         nComputations.clear()
