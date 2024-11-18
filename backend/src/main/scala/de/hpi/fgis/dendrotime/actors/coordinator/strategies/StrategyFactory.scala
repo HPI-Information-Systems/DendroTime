@@ -1,9 +1,9 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.{StrategyCommand, StrategyEvent}
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
@@ -11,7 +11,7 @@ object StrategyFactory {
   case class StrategyParameters(
                                  dataset: Dataset,
                                  params: DendroTimeParams,
-                                 tsManager: ActorRef[TimeSeriesManager.Command],
+                                 tsManager: ActorRef[TsmProtocol.Command],
                                  clusterer: ActorRef[Clusterer.Command],
                                )
 

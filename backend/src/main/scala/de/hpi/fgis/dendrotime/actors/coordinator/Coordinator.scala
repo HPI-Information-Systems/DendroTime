@@ -7,8 +7,9 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{StrategyFactory, StrategyProtocol}
-import de.hpi.fgis.dendrotime.actors.worker.Worker
-import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
+import de.hpi.fgis.dendrotime.actors.worker.{Worker, WorkerProtocol}
+import de.hpi.fgis.dendrotime.actors.Communicator
+import de.hpi.fgis.dendrotime.actors.tsmanager.{TimeSeriesManager, TsmProtocol}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
@@ -40,7 +41,7 @@ object Coordinator {
   case class ProcessingStatus(id: Long, status: Status) extends Response
 
   def apply(
-             tsManager: ActorRef[TimeSeriesManager.Command],
+             tsManager: ActorRef[TsmProtocol.Command],
              id: Long,
              dataset: Dataset,
              params: DendroTimeParams,
@@ -58,7 +59,7 @@ object Coordinator {
 
 private class Coordinator private (
                    ctx: ActorContext[Coordinator.MessageType],
-                   tsManager: ActorRef[TimeSeriesManager.Command],
+                   tsManager: ActorRef[TsmProtocol.Command],
                    id: Long,
                    dataset: Dataset,
                    params: DendroTimeParams,
@@ -82,7 +83,7 @@ private class Coordinator private (
       .withRouteeProps(Worker.props)
       // broadcast supplier reference to all workers
       .withBroadcastPredicate{
-        case Worker.UseSupplier(_) => true
+        case WorkerProtocol.UseSupplier(_) => true
         case _ => false
       }
       .withRoundRobinRouting()
@@ -97,10 +98,10 @@ private class Coordinator private (
   private val workGenerator = new WorkTupleGenerator
 
 
-  private def start(): Behavior[MessageType] = {
-    tsManager ! TimeSeriesManager.GetTimeSeriesIds(Right(dataset), ctx.self)
+  def start(): Behavior[MessageType] = {
+    tsManager ! TsmProtocol.GetTimeSeriesIds(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
-    workers ! Worker.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
+    workers ! WorkerProtocol.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
 
     initializing(Vector.empty)
   }
@@ -128,7 +129,7 @@ private class Coordinator private (
       case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
         val work = workGenerator.next
         ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-        worker ! Worker.CheckApproximate(work._1, work._2)
+        worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
         initializing(tsIds)
 
       case m: StrategyProtocol.DispatchWork =>
@@ -171,7 +172,7 @@ private class Coordinator private (
       case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
         val work = workGenerator.next()
         ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-        worker ! Worker.CheckApproximate(work._1, work._2)
+        worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
         loading(nTimeseries, tsIds)
 
       case m: StrategyProtocol.DispatchWork =>
@@ -193,14 +194,14 @@ private class Coordinator private (
     case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
       val work = workGenerator.next()
       ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-      worker ! Worker.CheckApproximate(work._1, work._2)
+      worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
       Behaviors.same
 
     case StrategyProtocol.DispatchWork(worker) => // if approxWorkQueue.noWork
       ctx.log.debug("Approx queue ({}/{}) ran out of work, switching to full strategy", workGenerator.index, workGenerator.sizeTuples)
       fullStrategy ! StrategyProtocol.DispatchWork(worker)
       // switch supplier for worker
-      worker ! Worker.UseSupplier(fullStrategy)
+      worker ! WorkerProtocol.UseSupplier(fullStrategy)
       Behaviors.same
 
     case ApproxFinished =>

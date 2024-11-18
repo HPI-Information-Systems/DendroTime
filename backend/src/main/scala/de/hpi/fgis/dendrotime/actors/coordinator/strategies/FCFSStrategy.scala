@@ -5,7 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.worker.Worker
+import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
 
 object FCFSStrategy extends StrategyFactory {
@@ -40,7 +40,7 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
     case DispatchWork(worker) if workGenerator.hasNext =>
       val work = workGenerator.next()
       ctx.log.trace("Dispatching full job ({}), Stash={}", work, stash.size)
-      worker ! Worker.CheckFull(work._1, work._2)
+      worker ! WorkerProtocol.CheckFull(work._1, work._2)
       Behaviors.same
 
     case m: DispatchWork =>

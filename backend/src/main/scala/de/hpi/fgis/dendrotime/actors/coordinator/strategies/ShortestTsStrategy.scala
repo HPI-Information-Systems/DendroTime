@@ -3,10 +3,10 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.worker.Worker
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
+import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
 
 import scala.collection.mutable
@@ -56,13 +56,13 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
 
   import ShortestTsStrategy.*
   
-  private val tsAdapter = ctx.messageAdapter[TimeSeriesManager.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
+  private val tsAdapter = ctx.messageAdapter[TsmProtocol.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
   private val fallbackWorkGenerator = new WorkTupleGenerator
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
   def start(): Behavior[StrategyCommand] = {
-    params.tsManager ! TimeSeriesManager.GetTSLengths(params.dataset.id, tsAdapter)
+    params.tsManager ! TsmProtocol.GetTSLengths(params.dataset.id, tsAdapter)
     collecting(Set.empty)
   }
 
@@ -94,7 +94,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       if fallbackWorkGenerator.hasNext then
         val work = fallbackWorkGenerator.next()
         ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
-        worker ! Worker.CheckFull(work._1, work._2)
+        worker ! WorkerProtocol.CheckFull(work._1, work._2)
         collecting(processedWork + work)
       else
         ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
@@ -112,7 +112,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
     case DispatchWork(worker) if nextItem < workQueue.length =>
       val work = workQueue(nextItem)
       ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
-      worker ! Worker.CheckFull(work._1, work._2)
+      worker ! WorkerProtocol.CheckFull(work._1, work._2)
       serving(workQueue, nextItem + 1)
 
     case m @ DispatchWork(worker) =>

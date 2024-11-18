@@ -3,11 +3,11 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager.{GetTSIndexMapping, TSIndexMappingResponse}
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer.{ApproxDistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.worker.Worker
+import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
 
@@ -114,7 +114,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       if fallbackWorkGenerator.hasNext then
         val work = fallbackWorkGenerator.next()
         ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
-        worker ! Worker.CheckFull(work._1, work._2)
+        worker ! WorkerProtocol.CheckFull(work._1, work._2)
         collecting(processedWork + work, mapping, dists)
       else
         ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
@@ -134,7 +134,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
         if direction == Direction.Ascending then workQueue(nextItem)
         else workQueue(workQueue.length - nextItem - 1)
       ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
-      worker ! Worker.CheckFull(work._1, work._2)
+      worker ! WorkerProtocol.CheckFull(work._1, work._2)
       serving(workQueue, nextItem + 1)
 
     case m@DispatchWork(worker) =>

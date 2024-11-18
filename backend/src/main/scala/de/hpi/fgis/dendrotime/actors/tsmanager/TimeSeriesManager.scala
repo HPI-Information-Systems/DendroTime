@@ -1,42 +1,21 @@
-package de.hpi.fgis.dendrotime.actors
+package de.hpi.fgis.dendrotime.actors.tsmanager
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
+import de.hpi.fgis.dendrotime.actors.DatasetLoader
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 
+import scala.collection.AbstractIterator
 import scala.collection.immutable.{HashMap, Set}
 
 
 object TimeSeriesManager {
-
-  sealed trait Command
-  case class AddTimeSeries(datasetId: Int, timeseries: LabeledTimeSeries) extends Command
-  case class GetTimeSeries(tsId1: Long, tsId2: Long, replyTo: ActorRef[GetTimeSeriesResponse]) extends Command
-  case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
-  case class EvictDataset(datasetId: Int) extends Command
-  case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
-  case class GetTSLengths(datasetId: Int, replyTo: ActorRef[TSLengthsResponse]) extends Command
-  case class GetTSIndexMapping(datasetId: Int, replyTo: ActorRef[TSIndexMappingResponse]) extends Command
-  private case object ReportStatus extends Command
-
-  sealed trait GetTimeSeriesResponse
-  case class TimeSeriesFound(ts1: TimeSeries, ts2: TimeSeries) extends GetTimeSeriesResponse
-  case class TimeSeriesNotFound(id: Long) extends GetTimeSeriesResponse
-
-  sealed trait DatasetClassLabelsResponse
-  case class DatasetClassLabels(labels: Array[String]) extends DatasetClassLabelsResponse
-  case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
-
-  case class TSLengthsResponse(lengths: Map[Long, Int])
-
-  case class TSIndexMappingResponse(mapping: Map[Long, Int])
-
-  def apply(): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(): Behavior[TsmProtocol.Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
-      timers.startTimerWithFixedDelay(ReportStatus, Settings(ctx.system).reportingInterval)
+      timers.startTimerWithFixedDelay(TsmProtocol.ReportStatus, Settings(ctx.system).reportingInterval)
       Behaviors.withStash(100) { stash =>
         new TimeSeriesManager(ctx, stash).start()
       }
@@ -64,15 +43,16 @@ object TimeSeriesManager {
     }
 }
 
-private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Command],
-                                         stash: StashBuffer[TimeSeriesManager.Command]) {
+private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
+                                         stash: StashBuffer[TsmProtocol.Command]) {
 
+  import TsmProtocol.*
   import TimeSeriesManager.*
 
   private val loader = ctx.spawn(DatasetLoader(ctx.self), "ts-loader", DatasetLoader.props)
   ctx.watch(loader)
 
-  private def start(): Behavior[TimeSeriesManager.Command] = running(
+  private def start(): Behavior[Command] = running(
     HashMap.empty[Long, LabeledTimeSeries],
     HashMap.empty[Int, Set[Long]],
     HashMap.empty[Int, ActorRef[HandlerMessageType]]
@@ -82,7 +62,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
                        timeseries: HashMap[Long, LabeledTimeSeries],
                        datasetMapping: HashMap[Int, Set[Long]],
                        handlers: Map[Int, ActorRef[HandlerMessageType]]
-                     ): Behavior[TimeSeriesManager.Command] = Behaviors.receiveMessage[TimeSeriesManager.Command] {
+                     ): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ReportStatus =>
       ctx.log.info("[REPORT] Currently managing {} time series for {} datasets", timeseries.size, datasetMapping.size)
       Behaviors.same
@@ -97,15 +77,8 @@ private class TimeSeriesManager private (ctx: ActorContext[TimeSeriesManager.Com
         handlers
       )
 
-    case GetTimeSeries(id1, id2, replyTo) =>
-      val ts1 = timeseries.get(id1)
-      val ts2 = timeseries.get(id2)
-      if ts1.nonEmpty && ts2.nonEmpty then
-        replyTo ! TimeSeriesFound(ts1.get, ts2.get)
-      else if ts1.isEmpty then
-        replyTo ! TimeSeriesNotFound(id1)
-      else if ts2.isEmpty then
-        replyTo ! TimeSeriesNotFound(id2)
+    case m: GetTimeSeries =>
+      m.replyWith(timeseries)
       Behaviors.same
 
     case GetTimeSeriesIds(Right(d), replyTo) =>
