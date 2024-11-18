@@ -35,12 +35,19 @@ trait Distance {
 }
 
 object Distance {
-  def apply(name: String): Distance = name.toLowerCase match {
-    case "msm" => new MSM()
-    case "sbd" => new SBD()
-    case "dtw" => new DTW()
+  given defaultOptions: DistanceOptions = DistanceOptions(
+    msm = MSM.defaultOptions,
+    dtw = DTW.defaultOptions,
+    sbd = SBD.defaultOptions
+  )
+
+  def apply(name: String)(using DistanceOptions): Distance = name.toLowerCase match {
+    case "msm" => MSM.create
+    case "sbd" => SBD.create
+    case "dtw" => DTW.create
     case other => throw new IllegalArgumentException(s"Distance $other is not implemented. Use one of 'MSM' or 'SBD'")
   }
+
   def unapply(distance: Distance): String = distance match {
     case _: MSM => "msm"
     case _: SBD => "sbd"

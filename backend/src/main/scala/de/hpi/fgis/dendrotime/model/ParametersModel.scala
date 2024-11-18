@@ -1,30 +1,23 @@
 package de.hpi.fgis.dendrotime.model
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import de.hpi.fgis.dendrotime.clustering.distances.Distance
+import de.hpi.fgis.dendrotime.clustering.distances.{Distance, DistanceOptions}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, RootJsonFormat}
 
 object ParametersModel {
-  
+
   case class DendroTimeParams(metricName: String,
                               linkageName: String,
                               strategy: String = "fcfs",
                               approxLength: Int = 10) {
-    def metric: Distance = Distance(metricName)
+    def metric(using DistanceOptions): Distance = Distance(metricName)
     def linkage: Linkage = Linkage(linkageName)
   }
 
   val DefaultParams: DendroTimeParams = DendroTimeParams("msm", "average")
-  
+
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-    given RootJsonFormat[Distance] = new RootJsonFormat[Distance] {
-      override def read(json: JsValue): Distance = json match {
-        case JsString(value) => Distance(value)
-        case _ => throw DeserializationException("Distance must be a string")
-      }
-      override def write(obj: Distance): JsValue = JsString(Distance.unapply(obj))
-    }
     given RootJsonFormat[Linkage] = new RootJsonFormat[Linkage] {
       override def read(json: JsValue): Linkage = json match {
         case JsString(value) => Linkage(value)

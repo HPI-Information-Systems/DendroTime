@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors.worker
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
@@ -30,7 +31,10 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   import Worker.*
 
+  private val settings = Settings(ctx.context.system)
   private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
+  import settings.Distances.given
+  private val distanceMetric = params.metric
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial{
     case UseSupplier(supplier) =>
@@ -77,7 +81,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2
-    val dist = params.metric(
+    val dist = distanceMetric(
       ts1.data.slice(Math.max(0, ts1Center - params.approxLength/2), Math.min(ts1Center + params.approxLength/2, ts1.data.length)),
       ts2.data.slice(Math.max(0, ts2Center - params.approxLength/2), Math.min(ts2Center + params.approxLength/2, ts2.data.length)),
     )
@@ -86,7 +90,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   @inline
   private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
-    val dist = params.metric(ts1.data, ts2.data)
+    val dist = distanceMetric(ts1.data, ts2.data)
     ctx.clusterer ! Clusterer.FullDistance(ts1.idx, ts2.idx, dist)
   }
 }

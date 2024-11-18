@@ -1,9 +1,9 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.SBDOptions
 import fftw3.FFTWReal
 
 object SBD {
-
   @inline
   private final def standardize(x: Array[Double]): Array[Double] = {
     val xMean = x.sum / x.length
@@ -12,6 +12,10 @@ object SBD {
   }
 
   val DEFAULT_STANDARDIZE: Boolean = false
+
+  given defaultOptions: SBDOptions = SBDOptions(standardize = DEFAULT_STANDARDIZE)
+
+  def create(using opt: SBDOptions): SBD = SBD(opt.standardize)
 }
 
 /** Compute the shape-based distance (SBD) between two time series.

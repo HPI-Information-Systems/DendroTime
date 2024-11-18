@@ -1,10 +1,16 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.MSMOptions
+
 object MSM {
   val DEFAULT_COST: Double = 0.5
-// FIXME:  val DEFAULT_WINDOW: Double = 0.05
+  // FIXME: val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = Double.NaN
   val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
+
+  given defaultOptions: MSMOptions = MSMOptions(DEFAULT_COST, DEFAULT_WINDOW, DEFAULT_ITAKURA_MAX_SLOPE)
+
+  def create(using opt: MSMOptions): MSM = new MSM(opt.cost, opt.window, opt.itakuraMaxSlope)
 }
 
 /** Compute the MSM distance between two time series.

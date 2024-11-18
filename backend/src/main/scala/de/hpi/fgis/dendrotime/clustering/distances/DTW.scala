@@ -1,9 +1,15 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions}
+
 object DTW {
   // FIXME:  val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = 0.1
   val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
+
+  given defaultOptions: DTWOptions = DTWOptions(DEFAULT_WINDOW, DEFAULT_ITAKURA_MAX_SLOPE)
+
+  def create(using opt: DTWOptions): DTW = new DTW(opt.window, opt.itakuraMaxSlope)
 }
 
 /** Compute the DTW distance between two time series.

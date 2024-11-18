@@ -13,9 +13,9 @@ import scala.concurrent.duration.*
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
-class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with should.Matchers with LogCapturing {
+class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike with should.Matchers with LogCapturing
+  with TestUtil.ImplicitEqualitySupport(tol = 1e-6) {
 
-  import TestUtil.ImplicitEqualities.given
   import testKit.internalSystem.executionContext
 
   private val coffeeDatasetTest = TestUtil.findResource("test-data/datasets/Coffee/Coffee_TEST.ts")
@@ -66,7 +66,7 @@ class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike w
     }
   }
 
-  for (metric, i) <- Seq("msm", "sbd").zipWithIndex do
+  for (metric, i) <- Seq("msm", "sbd", "dtw").zipWithIndex do
     for (linkage, j) <- Seq("single", "complete", "average", "ward").zipWithIndex do
       s"DendroTime with $metric distance and $linkage linkage" should {
         "produce correct hierarchy for Coffee dataset" in {

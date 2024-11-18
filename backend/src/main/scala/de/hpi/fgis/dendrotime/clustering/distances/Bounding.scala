@@ -30,24 +30,6 @@ object Bounding {
       Array.tabulate(n, m)((_, _) => true)
   }
 
-//  @inline
-//  private final def sakoeChibaBounding(n: Int, m: Int, window: Double): Array[Array[Boolean]] = {
-//    val onePercent = Math.min(n, m) / 100.0
-//    val radius = (window * onePercent * 100).floor.toInt
-//    val boundingMatrix = Array.ofDim[Boolean](n, m)
-//
-//    val smallest = Math.min(n, m)
-//    val largest = Math.max(n, m)
-//    val width = largest - smallest + radius
-//
-//    for i <- 0 until smallest do
-//      val lower = Math.max(0, i - radius)
-//      val upper = Math.min(largest, i + width + 1)
-//      for j <- lower until upper do
-//        boundingMatrix(i)(j) = true
-//    boundingMatrix
-//  }
-
   @inline
   private final def sakoeChibaBounding(n: Int, m: Int, window: Double): Array[Array[Boolean]] = {
     val boundingMatrix = Array.ofDim[Boolean](n, m)
