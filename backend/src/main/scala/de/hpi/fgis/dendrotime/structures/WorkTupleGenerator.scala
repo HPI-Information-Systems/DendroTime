@@ -35,11 +35,7 @@ class WorkTupleGenerator extends AbstractIterator[(Long, Long)] with mutable.Gro
       throw new NoSuchElementException(s"WorkTupleGenerator has no (more) work {i=$i, j=$j, ids=$ids}")
     else
       val result = (ids(i), ids(j))
-      i += 1
-      if i == j then
-        i = 0
-        j += 1
-      count += 1
+      inc()
       result
   }
 
@@ -50,6 +46,31 @@ class WorkTupleGenerator extends AbstractIterator[(Long, Long)] with mutable.Gro
     count = 0
   }
 
-  /** Known size is ambivalent because we have n time series IDs, but generate/iterate over n(n-1)/2 tuples. */
+  /** Known size is ambiguous because we have n time series IDs, but generate/iterate over n(n-1)/2 tuples. */
   override def knownSize: Int = -1
+
+  def remaining: Int = sizeTuples - count
+
+  def nextBatch(n: Int): (Array[Long], Array[Long]) = {
+    if n > remaining then
+      throw new IllegalArgumentException(s"Cannot take batch of $n tuples, only $remaining remaining")
+    val left = new Array[Long](n)
+    val right = new Array[Long](n)
+    var k = 0
+    while k < n do
+      left(k) = ids(i)
+      right(k) = ids(j)
+      inc()
+      k += 1
+    (left, right)
+  }
+
+  @inline
+  private def inc(): Unit = {
+    count += 1
+    i += 1
+    if i == j then
+      i = 0
+      j += 1
+  }
 }

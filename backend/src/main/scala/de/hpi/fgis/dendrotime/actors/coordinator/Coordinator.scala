@@ -2,14 +2,14 @@ package de.hpi.fgis.dendrotime.actors.coordinator
 
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props, Terminated}
+import akka.actor.typed.*
 import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{StrategyFactory, StrategyProtocol}
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.actors.worker.{Worker, WorkerProtocol}
-import de.hpi.fgis.dendrotime.actors.Communicator
-import de.hpi.fgis.dendrotime.actors.tsmanager.{TimeSeriesManager, TsmProtocol}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
@@ -50,14 +50,21 @@ object Coordinator {
     val stashSize = settings.numberOfWorkers * 5
 
     Behaviors.withStash(stashSize) { stash =>
-      new Coordinator(ctx, tsManager, id, dataset, params, reportTo, stash).start()
+      new CoordinatorImpl(ctx, tsManager, id, dataset, params, reportTo, stash).start()
     }
   }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.coordinator-pinned-dispatcher")
 }
 
-private class Coordinator private (
+trait Coordinator (protected val ctx: ActorContext[Coordinator.MessageType]) {
+  protected val settings: Settings = Settings(ctx.system)
+  protected val workGenerator: WorkTupleGenerator = new WorkTupleGenerator
+
+  def start(): Behavior[Coordinator.MessageType]
+}
+
+private class CoordinatorImpl private[coordinator] (
                    ctx: ActorContext[Coordinator.MessageType],
                    tsManager: ActorRef[TsmProtocol.Command],
                    id: Long,
@@ -65,11 +72,10 @@ private class Coordinator private (
                    params: DendroTimeParams,
                    reportTo: ActorRef[Coordinator.Response],
                    stash: StashBuffer[Coordinator.MessageType]
-                 ) {
+                 ) extends Coordinator(ctx) with AdaptiveBatchingMixin {
 
   import Coordinator.*
 
-  private val settings = Settings(ctx.system)
   private val communicator = ctx.spawn(Communicator(dataset), s"communicator-$id")
   ctx.watch(communicator)
   private val clusterer = ctx.spawn(
@@ -95,10 +101,9 @@ private class Coordinator private (
     StrategyFactory.props
   )
   ctx.watch(fullStrategy)
-  private val workGenerator = new WorkTupleGenerator
 
 
-  def start(): Behavior[MessageType] = {
+  override def start(): Behavior[MessageType] = {
     tsManager ! TsmProtocol.GetTimeSeriesIds(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
     workers ! WorkerProtocol.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])

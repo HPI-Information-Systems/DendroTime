@@ -51,6 +51,11 @@ class Settings private(config: Config) extends Extension {
     val duration = config.getDuration(s"$namespace.reporting-interval")
     FiniteDuration(duration.toMillis, "milliseconds")
   }
+
+  val batchingTargetTime: FiniteDuration = {
+    val duration = config.getDuration(s"$namespace.batching-target-time")
+    FiniteDuration(duration.toMillis, "milliseconds")
+  }
   
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
