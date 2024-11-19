@@ -6,7 +6,7 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
-import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
+import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 object FCFSStrategy extends StrategyFactory {
   def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
@@ -25,7 +25,7 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
                            eventReceiver: ActorRef[StrategyEvent]
                           ) {
 
-  private val workGenerator = new WorkTupleGenerator
+  private val workGenerator = GrowableFCFSWorkGenerator.empty[Long]
 
   def start(): Behavior[StrategyCommand] = running()
 

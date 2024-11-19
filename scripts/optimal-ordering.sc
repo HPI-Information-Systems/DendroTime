@@ -6,6 +6,8 @@ import de.hpi.fgis.dendrotime.io.{CSVReader, CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
 import de.hpi.fgis.dendrotime.structures.*
+import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
+import de.hpi.fgis.dendrotime.structures.strategies.{ApproxDistanceWorkGenerator, ApproxFullErrorWorkGenerator, FCFSWorkGenerator, ShortestTsWorkGenerator}
 
 import java.io.{File, PrintWriter}
 import scala.Conversion
@@ -26,20 +28,7 @@ extension (n: Int)
 
 def loadTimeSeries(file: File, seed: Int, maxTimeseries: Option[Int] = None): Array[LabeledTimeSeries] = {
   val rng = Random(seed)
-  val parser = TsParser(TsParser.TsParserSettings(parseMetadata = false))
-  var idGen = 0L
-  var idx = 0
-  val builder = mutable.ArrayBuilder.make[LabeledTimeSeries]
-  val processor = new TsParser.TsProcessor {
-    override def processUnivariate(data: Array[Double], label: String): Unit = {
-      val ts = LabeledTimeSeries(idGen, idx, data, label)
-      builder += ts
-      idGen += 1
-      idx += 1
-    }
-  }
-  parser.parse(file, processor)
-  val allTs = builder.result()
+  val allTs = TsParser.loadAllLabeledTimeSeries(file)
   val indices: Seq[Int] = rng.shuffle(allTs.indices).take(maxTimeseries.getOrElse(allTs.length))
   indices.map(allTs).toArray
 }
@@ -58,53 +47,6 @@ def computeDistances(ts: Array[LabeledTimeSeries], distance: Distance): (PDist, 
       approxDists(i, j) = (start + end)/2
       dists(i, j) = distance(ts(i).data, ts(j).data)
   (approxDists, dists, variances.result())
-}
-
-def shortestTsStrategy(lengths: Map[Int, Int]): Array[(Int, Int)] = {
-  val idLengths = lengths.iterator.toArray
-  idLengths.sortInPlaceBy(_._2)
-  val ids = idLengths.map(_._1)
-  val tuples = for {
-    j <- 1 until ids.length
-    i <- 0 until j
-    idLeft = ids(i)
-    idRight = ids(j)
-    pair = if idLeft < idRight then (idLeft, idRight)
-           else (idRight, idLeft)
-  } yield pair
-  tuples.toArray
-}
-
-def highestVarStrategy(vars: Array[Double], ids: Array[Int]): Array[(Int, Int)] = {
-  val data = for {
-    i <- 0 until ids.length - 1
-    j <- i + 1 until ids.length
-    idLeft = ids(i)
-    idRight = ids(j)
-    variance = vars(PDist.index(idLeft, idRight, ids.length))
-  } yield (variance, idLeft, idRight)
-  data
-    .sortBy(_._1)
-    .map(t => (t._2, t._3))
-    .reverse
-    .toArray
-}
-
-def approxDistanceStrategy(dists: PDist, ids: Array[Int], direction: String = "ascending"): Array[(Int, Int)] = {
-  val data = for {
-    i <- 0 until ids.length - 1
-    j <- i + 1 until ids.length
-    idLeft = ids(i)
-    idRight = ids(j)
-  } yield (dists(idLeft, idRight), idLeft, idRight)
-  val queue = data
-    .sortBy(_._1)
-    .map(t => (t._2, t._3))
-    .toArray
-  if direction == "ascending" then
-    queue
-  else
-    queue.reverse
 }
 
 def gtLargeErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]): Array[(Int, Int)] = {
@@ -140,7 +82,8 @@ val n = 5
 val distance = MSM(window = 0.05)
 val seed = 2
 val linkage = Linkage.WardLinkage
-val dataset = "PickupGestureWiimoteZ"
+//val dataset = "PickupGestureWiimoteZ"
+val dataset = "Coffee"
 val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
 val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
 
@@ -165,85 +108,82 @@ def executeOrdering(order: IterableOnce[(Int, Int)]): Array[Double] = {
   similarities.result()
 }
 
-def executeDynamicStrategy(initialOrder: IndexedSeq[(Int, Int)]): Array[(Int, Int)] = {
+def executeDynamicStrategy(mapping: Map[Int, Int]): Array[(Int, Int)] = {
   val order = mutable.ArrayBuilder.make[(Int, Int)]
-  order.sizeHint(n * (n - 1) / 2 + 1)
+  val strategy = ApproxFullErrorWorkGenerator(mapping)
 
-  val errors = MeanErrorTracker(n)
-  val pairs = initialOrder.to(mutable.ArrayBuffer)
-  while pairs.nonEmpty do
-//    println(s"Updated errors:\n${errors.mkString(", ")}")
-    val nextPair = pairs.maxBy(t => (errors(t._1) + errors(t._2)) / 2)
-    pairs -= nextPair
-    order += nextPair
+  while strategy.hasNext do
+    val nextPair = strategy.next()
 
 //    println(s"Processing pair $nextPair")
     val (i, j) = nextPair
     val dist = dists(i, j)
-    val error = Math.abs(approxDists(i, j) - dist)
-    errors.update(i, error)
-    errors.update(j, error)
+    val error = approxDists(i, j) - dist
+    strategy.updateError(i, j, error)
+    order += nextPair
 
   order.result()
 }
 
 // compute all orderings
-val fcfs = (1 until n).flatMap(j => (0 until j).map(i => i -> j)).toArray
-val shortestTs = shortestTsStrategy(
+val fcfs = FCFSWorkGenerator(0 until n).toArray
+val mapping = timeseries.indices.zipWithIndex.toMap
+val shortestTs = ShortestTsWorkGenerator(
   timeseries.zipWithIndex.map((ts, i) => i -> ts.data.length).toMap
-)
-val highestVar = highestVarStrategy(vars, timeseries.indices.toArray)
-val approxAscending = approxDistanceStrategy(approxDists, timeseries.indices.toArray, "ascending")
-val approxDescending = approxDistanceStrategy(approxDists, timeseries.indices.toArray, "descending")
+).toArray
+val approxAscending = ApproxDistanceWorkGenerator(
+  mapping, Set.empty, approxDists, Direction.Ascending
+).toArray
+val approxDescending = ApproxDistanceWorkGenerator(
+  mapping, Set.empty, approxDists, Direction.Descending
+).toArray
 val gtLargeError = gtLargeErrorStrategy(approxDists, dists, timeseries.indices.toArray)
-val dynamicError = executeDynamicStrategy(approxAscending)
+val dynamicError = executeDynamicStrategy(mapping)
 println(s"Computing all orderings for $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 println(s"  n pair orderings = ${(n*(n-1)/2).factorial}")
 println(s"  fcfs\t\t= ${fcfs.mkString(", ")}")
 println(s"  shortestTs\t= ${shortestTs.mkString(", ")}")
-println(s"  highestVar\t= ${highestVar.mkString(", ")}")
 println(s"  approxAscending\t= ${approxAscending.mkString(", ")}")
 println(s"  approxDescending\t= ${approxDescending.mkString(", ")}")
 println(s"  gtLargeError\t= ${gtLargeError.mkString(", ")}")
 println(s"  dynamicError\t= ${dynamicError.mkString(", ")}")
 println()
 
-var t0 = System.nanoTime()
-val allOrderings = fcfs.permutations.toArray
-var t1 = System.nanoTime()
-println(s"Materialized all orderings in ${(t1 - t0) / 1e9} seconds, storing to CSV ...")
-if !File(resultFolder + s"orderings-$n.csv").isFile then
-  CSVWriter.write(
-    resultFolder + s"orderings-$n.csv",
-    allOrderings.map(_.flatMap(t => Array(t._1, t._2)))
-  )
+//var t0 = System.nanoTime()
+//val allOrderings = fcfs.permutations.toArray
+//var t1 = System.nanoTime()
+//println(s"Materialized all orderings in ${(t1 - t0) / 1e9} seconds, storing to CSV ...")
+//if !File(resultFolder + s"orderings-$n.csv").isFile then
+//  CSVWriter.write(
+//    resultFolder + s"orderings-$n.csv",
+//    allOrderings.map(_.flatMap(t => Array(t._1, t._2)))
+//  )
+//
+//
+//writeStrategiesToCsv(Map(
+//  "fcfs" -> (allOrderings.indexWhere(_.sameElements(fcfs)), fcfs),
+//  "shortestTs" -> (allOrderings.indexWhere(_.sameElements(shortestTs)), shortestTs),
+//  "approxAscending" -> (allOrderings.indexWhere(_.sameElements(approxAscending)), approxAscending),
+//  "approxDescending" -> (allOrderings.indexWhere(_.sameElements(approxDescending)), approxDescending),
+//  "gtLargeError" -> (allOrderings.indexWhere(_.sameElements(gtLargeError)), gtLargeError),
+//  "dynamicError" -> (allOrderings.indexWhere(_.sameElements(dynamicError)), dynamicError)
+//), resultFolder + s"strategies-$n-$dataset-$seed.csv")
 
-
-writeStrategiesToCsv(Map(
-  "fcfs" -> (allOrderings.indexWhere(_.sameElements(fcfs)), fcfs),
-  "shortestTs" -> (allOrderings.indexWhere(_.sameElements(shortestTs)), shortestTs),
-  "highestVar" -> (allOrderings.indexWhere(_.sameElements(highestVar)), highestVar),
-  "approxAscending" -> (allOrderings.indexWhere(_.sameElements(approxAscending)), approxAscending),
-  "approxDescending" -> (allOrderings.indexWhere(_.sameElements(approxDescending)), approxDescending),
-  "gtLargeError" -> (allOrderings.indexWhere(_.sameElements(gtLargeError)), gtLargeError),
-  "dynamicError" -> (allOrderings.indexWhere(_.sameElements(dynamicError)), dynamicError)
-), resultFolder + s"strategies-$n-$dataset-$seed.csv")
-
-println("Computing similarities for all orderings")
-val total = allOrderings.length
-val traces = mutable.ArrayBuilder.make[Array[Double]]
-t0 = System.nanoTime()
-for order <- allOrderings do
-  traces += executeOrdering(order)
-  if traces.length % 100_000 == 0 then
-    val progress = traces.length.toDouble / total
-    println(f"Progress: $progress%.2f")
-
-t1 = System.nanoTime()
-
-val tracesArray = traces.result()
-println(s"Computed similarities for all orderings in ${(t1 - t0) / 1e9} seconds, storing to CSV ...")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset-$seed.csv", tracesArray)
-println("Done!")
+//println("Computing similarities for all orderings")
+//val total = allOrderings.length
+//val traces = mutable.ArrayBuilder.make[Array[Double]]
+//t0 = System.nanoTime()
+//for order <- allOrderings do
+//  traces += executeOrdering(order)
+//  if traces.length % 100_000 == 0 then
+//    val progress = traces.length.toDouble / total
+//    println(f"Progress: $progress%.2f")
+//
+//t1 = System.nanoTime()
+//
+//val tracesArray = traces.result()
+//println(s"Computed similarities for all orderings in ${(t1 - t0) / 1e9} seconds, storing to CSV ...")
+//CSVWriter.write(resultFolder + s"traces-$n-$dataset-$seed.csv", tracesArray)
+//println("Done!")

@@ -7,7 +7,7 @@ import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
-import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
+import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -43,7 +43,7 @@ object ShortestTsStrategy extends StrategyFactory {
           if idLeft < idRight then (idLeft, idRight)
           else (idRight, idLeft)
         if !processedWork.contains(pair) then
-          builder += (pair)
+          builder += pair
     builder.result()
   }
 }
@@ -57,7 +57,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
   import ShortestTsStrategy.*
   
   private val tsAdapter = ctx.messageAdapter[TimeSeriesManager.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
-  private val fallbackWorkGenerator = new WorkTupleGenerator
+  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 

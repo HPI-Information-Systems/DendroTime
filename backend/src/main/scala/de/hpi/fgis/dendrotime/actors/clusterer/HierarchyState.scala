@@ -5,6 +5,7 @@ import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions.Similari
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, QualityTrace}
+import de.hpi.fgis.dendrotime.structures.HierarchyWithBF
 
 import scala.collection.mutable
 import scala.language.implicitConversions

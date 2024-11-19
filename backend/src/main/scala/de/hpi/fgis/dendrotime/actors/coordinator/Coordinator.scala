@@ -12,7 +12,7 @@ import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
-import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
+import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 import scala.concurrent.duration.*
 
@@ -94,7 +94,7 @@ private class Coordinator private (
     StrategyFactory.props
   )
   ctx.watch(fullStrategy)
-  private val workGenerator = new WorkTupleGenerator
+  private val workGenerator = GrowableFCFSWorkGenerator.empty[Long]
 
 
   private def start(): Behavior[MessageType] = {

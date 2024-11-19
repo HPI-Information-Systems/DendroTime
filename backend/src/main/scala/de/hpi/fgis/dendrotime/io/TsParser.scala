@@ -1,5 +1,7 @@
 package de.hpi.fgis.dendrotime.io
 
+import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+
 import java.io.*
 import java.nio.charset.Charset
 import scala.collection.mutable
@@ -34,8 +36,26 @@ object TsParser {
     def processTSCount(nTimeseries: Int): Unit = {}
   }
 
-
   def apply(settings: TsParserSettings): TsParser = new TsParser(settings)
+
+  def loadAllLabeledTimeSeries(file: File,
+                               settings: TsParserSettings = TsParser.TsParserSettings(parseMetadata = false),
+                               idOffset: Long = 0L): Array[LabeledTimeSeries] = {
+    val parser = TsParser(settings)
+    var idx = 0
+    val builder = mutable.ArrayBuilder.make[LabeledTimeSeries]
+    val processor = new TsParser.TsProcessor {
+      override def processTSCount(nTimeseries: Int): Unit =
+        builder.sizeHint(nTimeseries)
+      override def processUnivariate(data: Array[Double], label: String): Unit = {
+        val ts = LabeledTimeSeries(idOffset + idx, idx, data, label)
+        builder += ts
+        idx += 1
+      }
+    }
+    parser.parse(file, processor)
+    builder.result()
+  }
 }
 
 class TsParser(settings: TsParser.TsParserSettings) {

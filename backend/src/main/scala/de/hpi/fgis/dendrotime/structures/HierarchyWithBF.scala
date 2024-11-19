@@ -1,10 +1,10 @@
-package de.hpi.fgis.dendrotime.actors.clusterer
+package de.hpi.fgis.dendrotime.structures
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 
 
-private[clusterer] object HierarchyWithBF {
+object HierarchyWithBF {
   def empty: HierarchyWithBF = HierarchyWithBF(Hierarchy.empty, Array.empty)
 
   def emptyBFs(n: Int)(using BloomFilterOptions): HierarchyWithBF =
@@ -26,8 +26,7 @@ private[clusterer] object HierarchyWithBF {
   }
 }
 
-private[clusterer] case class HierarchyWithBF(hierarchy: Hierarchy,
-                                              bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
+case class HierarchyWithBF(hierarchy: Hierarchy, bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
   def length: Int = bloomFilters.length
 
   def apply(i: Int): BloomFilter[Int] = bloomFilters(i)

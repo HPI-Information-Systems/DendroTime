@@ -1,14 +1,14 @@
-package de.hpi.fgis.dendrotime.structures
+package de.hpi.fgis.dendrotime.structures.strategies
 
 import org.scalatest.Assertion
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpec
 
-class WorkTupleGeneratorSpec extends AnyWordSpec with should.Matchers {
+class GrowableFCFSWorkGeneratorSpec extends AnyWordSpec with should.Matchers {
 
-  "The WorkTupleGnerator" should {
+  "The GrowableFCFSWorkGenerator" should {
     "generate the correct tuples even when more IDs are added" in {
-      val gen = new WorkTupleGenerator
+      val gen = GrowableFCFSWorkGenerator.empty[Long]
 
       def testNext(id1: Long, id2: Long): Assertion = {
         gen.hasNext shouldBe true

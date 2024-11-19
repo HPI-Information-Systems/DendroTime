@@ -9,7 +9,7 @@ import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.Stra
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.Worker
 import de.hpi.fgis.dendrotime.clustering.PDist
-import de.hpi.fgis.dendrotime.structures.WorkTupleGenerator
+import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -75,7 +75,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
 
   import ApproxDistanceStrategy.*
 
-  private val fallbackWorkGenerator = new WorkTupleGenerator
+  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
   private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
   private val approxDistancesAdapter = ctx.messageAdapter[ApproxDistanceMatrix](m => ApproxDistances(m.distances))
   // Executor for internal futures (CPU-heavy work)
