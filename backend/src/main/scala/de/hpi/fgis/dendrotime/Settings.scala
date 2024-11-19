@@ -5,6 +5,8 @@ import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigException}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, SBDOptions}
 
 import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
@@ -60,6 +62,35 @@ class Settings private(config: Config) extends Extension {
       FiniteDuration(duration.toMillis, "milliseconds")
     }
     val disabled: Boolean = !computeHierarchySimilarity && !computeHierarchyQuality && !computeClusterQuality
+  }
+
+  object Distances {
+    object MSM {
+      private val internalNamespace = s"$namespace.distances.msm"
+
+      given msmOpts: MSMOptions = MSMOptions(
+        cost = config.getDouble(s"$internalNamespace.cost"),
+        window = config.getDouble(s"$internalNamespace.window"),
+        itakuraMaxSlope = config.getDouble(s"$internalNamespace.itakura-max-slope")
+      )
+    }
+
+    object SBD {
+      private val internalNamespace = s"$namespace.distances.sbd"
+
+      given sbdOpts: SBDOptions = SBDOptions(config.getBoolean(s"$internalNamespace.standardize"))
+    }
+
+    object DTW {
+      private val internalNamespace = s"$namespace.distances.dtw"
+
+      given dtwOpts: DTWOptions = DTWOptions(
+        window = config.getDouble(s"$internalNamespace.window"),
+        itakuraMaxSlope = config.getDouble(s"$internalNamespace.itakura-max-slope")
+      )
+    }
+
+    given options: DistanceOptions = DistanceOptions(Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts)
   }
 
   given bloomFilterOptions: BloomFilterOptions = {

@@ -1,87 +1,16 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
-object MSM {
-  extension (d: Double) {
-    /** Round a double to a given number of decimal places.
-     *
-     * @param decimals Number of decimal places to round to.
-     * @return The rounded double.
-     */
-    @inline
-    private def roundTo(decimals: Int): Double = {
-      val factor = Math.pow(10, decimals)
-      (d * factor).round / factor
-    }
-  }
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.MSMOptions
 
+object MSM {
   val DEFAULT_COST: Double = 0.5
-// FIXME:  val DEFAULT_WINDOW: Double = 0.05
+  // FIXME: val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = Double.NaN
   val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
 
-  private def createBoundingMatrix(n: Int, m: Int, window: Double = DEFAULT_WINDOW, itakuraMaxSlope: Double = DEFAULT_ITAKURA_MAX_SLOPE): Array[Array[Boolean]] = {
-    require(!(itakuraMaxSlope.isFinite && window.isFinite), "itakuraMaxSlope and window cannot be set at the same time")
-    if itakuraMaxSlope.isFinite then
-      require(0 < itakuraMaxSlope && itakuraMaxSlope < 1, "itakuraMaxSlope must be between 0 and 1")
-      require(n == m, "itakuraMaxSlope can only be used for equal length time series")
-      itakuraParallelogram(n, m, itakuraMaxSlope)
-    else if window.isFinite then
-      require(0 < window && window < 1, "window must be between 0 and 1")
-      if n <= m then
-        sakoeChibaBounding(n, m, window)
-      else
-        sakoeChibaBounding(m, n, window).transpose
-    else
-      Array.tabulate(n, m)((_, _) => true)
-  }
+  given defaultOptions: MSMOptions = MSMOptions(DEFAULT_COST, DEFAULT_WINDOW, DEFAULT_ITAKURA_MAX_SLOPE)
 
-  @inline
-  private final def sakoeChibaBounding(n: Int, m: Int, window: Double): Array[Array[Boolean]] = {
-    val onePercent = Math.min(n, m) / 100.0
-    val radius = (window * onePercent * 100).floor.toInt
-    val boundingMatrix = Array.ofDim[Boolean](n, m)
-
-    val smallest = Math.min(n, m)
-    val largest = Math.max(n, m)
-    val width = largest - smallest + radius
-
-    for i <- 0 until smallest do
-      val lower = Math.max(0, i - radius)
-      val upper = Math.min(largest, i + width + 1)
-      for j <- lower until upper do
-        boundingMatrix(i)(j) = true
-    boundingMatrix
-  }
-
-  @inline
-  private final def itakuraParallelogram(n: Int, m: Int, itakuraMaxSlope: Double): Array[Array[Boolean]] = {
-    val onePercent = Math.min(n, m) / 100.0
-    var maxSlope = Math.floor((itakuraMaxSlope * onePercent) * 100)
-    var minSlope = 1 / maxSlope
-    maxSlope *= n.toDouble / m
-    minSlope *= n.toDouble / m
-
-    @inline
-    def computeBound(i: Int, upper: Boolean): Int =
-      if upper then
-        Math.min(
-          (i * maxSlope).roundTo(2),
-          ((n - 1) - minSlope * (m - 1) + minSlope * i).roundTo(2)
-        ).floor.toInt + 1
-      else
-        Math.max(
-          (i * minSlope).roundTo(2),
-          ((n - 1) - maxSlope * (m - 1) + maxSlope * i).roundTo(2)
-        ).ceil.toInt
-
-    val boundingMatrix = Array.ofDim[Boolean](n, m)
-    for i <- 0 until m do
-      val lowerBound = computeBound(i, upper = false)
-      val upperBound = computeBound(i, upper = true)
-      for x <- boundingMatrix.slice(lowerBound, upperBound) do
-        x(i) = true
-    boundingMatrix
-  }
+  def create(using opt: MSMOptions): MSM = new MSM(opt.cost, opt.window, opt.itakuraMaxSlope)
 }
 
 /** Compute the MSM distance between two time series.
@@ -107,7 +36,7 @@ object MSM {
  *
  * Where :math:`D_{0,j}` and :math:`D_{i,0}` are initialised to a constant value,
  * and $c$ is a parameter that represents the cost of moving off the diagonal.
- * The point wise distance function $d$ is the absolute difference rather than the
+ * The point-wise distance function $d$ is the absolute difference rather than the
  * squared distance.
  *
  * $cost$ is the cost function that calculates the cost of inserting and deleting
@@ -156,7 +85,7 @@ class MSM(
     if x.length == 0 || y.length == 0 then
       return 0.0
 
-    val boundingMatrix = MSM.createBoundingMatrix(x.length, y.length, window, itakuraMaxSlope)
+    val boundingMatrix = Bounding.createBoundingMatrix(x.length, y.length, window, itakuraMaxSlope)
     val currentCostMatrix = costMatrix(x, y, boundingMatrix, c)
     currentCostMatrix(x.length - 1)(y.length - 1)
   }
@@ -177,26 +106,7 @@ class MSM(
       val n_timesteps = lengths.head
       fastPairwiseDistance(x, n_timesteps)
     else
-      val n_instances = x.length
-      val distances = Array.ofDim[Double](n_instances, n_instances)
-      for i <- 0 until n_instances do
-        for j <- i + 1 until n_instances do
-          val distance = apply(x(i), x(j))
-          distances(i)(j) = distance
-          distances(j)(i) = distance
-
-      distances
-
-  /** Compute the MSM distance between pairs of time series in `x` and `y`.
-   *
-   * @param x Time series collection of shape ``(n_instances, n_timepoints)``.
-   * @param y Time series collection of shape ``(m_instances, m_timepoints)``.
-   * @return The MSM distances between pairs of time series in `x` and `y` of shape ``(n_instances, m_instances)``.
-   * @see [[apply]] Compute the Move-Split-Merge distance (MSM) between two time series.
-   * @see [[pairwise]] Compute the Move-Split-Merge distance (MSM) between all pairs of time series.
-   */
-  override def multiPairwise(x: Array[Array[Double]], y: Array[Array[Double]]): Array[Array[Double]] =
-    x.map(xi => y.map(yi => apply(xi, yi)))
+      super.pairwise(x)
 
   override def toString: String = s"MSM(c=$c, window=$window, itakuraMaxSlope=$itakuraMaxSlope)"
 
@@ -204,7 +114,7 @@ class MSM(
   private final def fastPairwiseDistance(x: Array[Array[Double]], n_timesteps: Int) = {
     val n_instances = x.length
     val distances = Array.ofDim[Double](n_instances, n_instances)
-    val boundingMatrix = MSM.createBoundingMatrix(n_timesteps, n_timesteps, window, itakuraMaxSlope)
+    val boundingMatrix = Bounding.createBoundingMatrix(n_timesteps, n_timesteps, window, itakuraMaxSlope)
 
     for i <- 0 until n_instances do
       for j <- i + 1 until n_instances do

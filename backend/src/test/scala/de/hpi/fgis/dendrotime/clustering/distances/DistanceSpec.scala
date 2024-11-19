@@ -5,6 +5,8 @@ import org.scalatest.wordspec.AnyWordSpec
 
 class DistanceSpec extends AnyWordSpec with should.Matchers {
 
+  import Distance.defaultOptions
+
   "The distance factory" should {
     "create a MSM distance with default options" in {
       val d = Distance("msm")

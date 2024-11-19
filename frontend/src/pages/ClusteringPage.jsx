@@ -132,6 +132,7 @@ function ClusteringPage() {
         <Select id="metric-picker" value={metric} onValueChange={setMetric}>
           <SelectItem key="msm" value="msm">MSM</SelectItem>
           <SelectItem key="sbd" value="sbd">SBD</SelectItem>
+          <SelectItem key="dtw" value="dtw">DTW</SelectItem>
         </Select>
         <label htmlFor="linkage-picker" className="ml-2 mr-2">Linkage:</label>
         <Select id="linkage-picker" value={linkage} onValueChange={setLinkage}>

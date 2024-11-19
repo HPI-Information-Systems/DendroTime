@@ -11,8 +11,8 @@ import scala.collection.mutable
 
 object TestUtil {
   /** Defines triple-equals implicits to mixin. */
-  trait ImplicitEqualitySupport extends TripleEquals {
-    given tolDoubleEquality: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(1e-9)
+  trait ImplicitEqualitySupport(tol: Double = 1e-9) extends TripleEquals {
+    given tolDoubleEquality: Equality[Double] = TolerantNumerics.tolerantDoubleEquality(tol)
 
     given tolDouble1DArrayEquality: Equality[Array[Double]] = (a: Array[Double], b: Any) => b match {
       case bArray: Array[Double] => a.corresponds(bArray)(_ === _)
@@ -41,7 +41,7 @@ object TestUtil {
   }
 
   /** Import triple-equals implicits. */
-  object ImplicitEqualities extends ImplicitEqualitySupport
+  object ImplicitEqualities extends ImplicitEqualitySupport()
 
   /** Returns the path to a file in the test-resources folder. */
   def findResource(filepath: String): String =

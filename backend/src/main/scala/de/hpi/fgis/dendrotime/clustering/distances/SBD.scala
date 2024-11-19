@@ -1,9 +1,9 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.SBDOptions
 import fftw3.FFTWReal
 
 object SBD {
-
   @inline
   private final def standardize(x: Array[Double]): Array[Double] = {
     val xMean = x.sum / x.length
@@ -12,6 +12,10 @@ object SBD {
   }
 
   val DEFAULT_STANDARDIZE: Boolean = false
+
+  given defaultOptions: SBDOptions = SBDOptions(standardize = DEFAULT_STANDARDIZE)
+
+  def create(using opt: SBDOptions): SBD = SBD(opt.standardize)
 }
 
 /** Compute the shape-based distance (SBD) between two time series.
@@ -91,36 +95,6 @@ class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE) extends Distance {
     val b = Math.sqrt(xStd.map(xi => xi * xi).sum * yStd.map(yi => yi * yi).sum)
     Math.abs(1.0 - a.max / b)
   }
-
-  /** Compute the SBD distance between all pairs of time series in `x`.
-   *
-   * @param x Time series collection of shape ``(n_instances, n_timepoints)``.
-   *          The time series could be of unequal length.
-   * @return The SBD distances between all pairs of time series in `x` in an array of shape ``(n_instances, n_instances)``.
-   *         The diagonal of the returned matrix is 0. The matrix is symmetric.
-   * @see [[apply]] Compute the shape-based distance (SBD) between two time series.
-   * @see [[multiPairwise]] Compute the shape-based distance (SBD) between pairs of two time series collections.
-   */
-  override def pairwise(x: Array[Array[Double]]): Array[Array[Double]] =
-    val n_instances = x.length
-    val distances = Array.ofDim[Double](n_instances, n_instances)
-    for i <- 0 until n_instances do
-      for j <- i + 1 until n_instances do
-        distances(i)(j) = apply(x(i), x(j))
-        distances(j)(i) = distances(i)(j)
-
-    distances
-
-  /** Compute the SBD distance between pairs of time series in `x` and `y`.
-   *
-   * @param x Time series collection of shape ``(n_instances, n_timepoints)``.
-   * @param y Time series collection of shape ``(m_instances, m_timepoints)``.
-   * @return The SBD distances between pairs of time series in `x` and `y` of shape ``(n_instances, m_instances)``.
-   * @see [[apply]] Compute the shape-based distance (SBD) between two time series.
-   * @see [[pairwise]] Compute the shape-based distance (SBD) between all pairs of time series.
-   */
-  override def multiPairwise(x: Array[Array[Double]], y: Array[Array[Double]]): Array[Array[Double]] =
-    x.map(xi => y.map(yi => apply(xi, yi)))
 
   override def toString: String = s"SBD(standardize=$standardize)"
 }
