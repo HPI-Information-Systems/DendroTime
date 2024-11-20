@@ -7,7 +7,6 @@ import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
 import scala.util.boundary
-import scala.util.boundary.break
 
 object ApproxFullErrorWorkGenerator {
 
@@ -19,8 +18,8 @@ object ApproxFullErrorWorkGenerator {
   }
 }
 
-class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int],
-                                                          idMap: Array[T]) extends WorkGenerator[T] {
+class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idMap: Array[T])
+  extends WorkGenerator[T] with TsErrorMixin(tsIds.length, tsIds.length * (tsIds.length - 1) / 2) {
   // memory consumption:
   // - idMap: n * Long = 8n bytes
   // - tsIds: n * Int = 4n bytes
@@ -35,15 +34,15 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int],
   // --> O(m * n²) = O(n * (n-1) * n²) = O(n^4) for the whole process :(
   private val n = idMap.length
   private val m = n * (n - 1) / 2
-  private val errors = MeanErrorTracker(n)
-  private val processed = new mutable.BitSet(m)
+  private val tracker = MeanErrorTracker(n)
+  override protected val errors: scala.collection.IndexedSeq[Double] = tracker
   private var count = 0
   private var sortNecessary = false
 
   def updateError(i: Int, j: Int, error: Double): Unit = {
     val absError = Math.abs(error)
-    errors.update(i, absError)
-    errors.update(j, absError)
+    tracker.update(i, absError)
+    tracker.update(j, absError)
     sortNecessary = true
   }
 
@@ -63,72 +62,21 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int],
 
   override def next(): (T, T) = {
     if !hasNext then
-      throw new NoSuchElementException(s"GrowableFCFSWorkGenerator has no (more) work {count=$count, processed=${processed.size}, ids=$n}")
+      throw new NoSuchElementException(s"GrowableFCFSWorkGenerator has no (more) work {processed=$count/$m, ids=$n}")
 
-    // find next non-processed tuple with the largest error involving the top-error time series
     if sortNecessary then
       tsIds.sortInPlaceBy(id => -errors(id))
       sortNecessary = false
-    var i = 0
-    var j = i + 1
-    while wasProcessed(tsIds(i), tsIds(j)) do
-      j += 1
-      if j == n then
-        i += 1
-        j = i + 1
-    val lowerBound = meanError(tsIds(i), tsIds(j))
 
-    // check if there is a pair with a larger error
-    var k = i + 1
-    var l = k + 1
-    boundary {
-      while k < j && l <= j do
-        val pair = tsIds(k) -> tsIds(l)
-        if meanError(pair) <= lowerBound then
-          // all other pairs have a smaller error --> use the lower bound
-          break()
-        if !wasProcessed(pair) then
-          // we found a larger error than the lower bound --> use it
-          i = k
-          j = l
-          break()
-
-        if l == j then
-          k += 1
-          l = k + 1
-        else
-          l += 1
-    }
-
-    // get the time series indices, update the processed set, and map to target IDs
-    val pair = (tsIds(i), tsIds(j))
-    setProcessed(pair)
+    val nextPair = nextLargestErrorPair(tsIds)
     count += 1
-    var result = (idMap(pair._1), idMap(pair._2))
+    var result = (idMap(nextPair._1), idMap(nextPair._2))
     if result._2 < result._1 then
       result = result.swap
     result
   }
 
   override def knownSize: Int = m
-
-  @inline
-  private def setProcessed(p: (Int, Int)): Unit =
-    val k = if p._1 <= p._2 then PDist.index(p._1, p._2, n) else PDist.index(p._2, p._1, n)
-    processed += k
-
-  @inline
-  private def wasProcessed(p: (Int, Int)): Boolean =
-    val k = if p._1 <= p._2 then PDist.index(p._1, p._2, n) else PDist.index(p._2, p._1, n)
-    processed.contains(k)
-
-  @inline
-  private def meanError(p: (Int, Int)): Double =
-    meanError(p._1, p._2)
-
-  @inline
-  private def meanError(id1: Int, id2: Int): Double =
-    (errors(id1) + errors(id2)) / 2
 }
 
 @main

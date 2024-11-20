@@ -10,21 +10,8 @@ import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 
 import java.io.{File, PrintWriter}
-import scala.Conversion
-import scala.collection.{BitSet, mutable}
-import scala.language.implicitConversions
+import scala.collection.mutable
 import scala.util.{Random, Using}
-
-extension (n: Int)
-  // do not use in production! (limited to int)
-  def factorial: Int = {
-    var result = n
-    var i = n-1
-    while i > 1 do
-      result *= i
-      i -= 1
-    result
-  }
 
 extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
@@ -32,12 +19,13 @@ extension (order: Array[(Int, Int)])
 ///////////////////////////////////////////////////////////
 val distance = MSM(window = 0.05)
 val linkage = Linkage.WardLinkage
-//val dataset = "PickupGestureWiimoteZ"
+val dataset = "PickupGestureWiimoteZ"
 //val dataset = "Coffee"
 //val dataset = "BeetleFly"
-val dataset = "HouseTwenty"
+//val dataset = "HouseTwenty"
 val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
-val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-quality/"
+val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
+val seed = 42
 ///////////////////////////////////////////////////////////
 new File(resultFolder).mkdirs()
 val datasetTrainFile = {
@@ -45,6 +33,7 @@ val datasetTrainFile = {
   if f.exists() then Some(f) else None
 }
 val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
+val rng = Random(seed)
 
 // load time series
 val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f => TsParser.loadAllLabeledTimeSeries(f))
@@ -56,7 +45,7 @@ val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
 
-class GtLargeErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extends WorkGenerator[Int] {
+class GtLargestPairErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extends WorkGenerator[Int] {
   val data = (
       for {
         i <- 0 until ids.length - 1
@@ -80,7 +69,7 @@ class GtLargeErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extend
   override def next(): (Int, Int) = {
     if !hasNext then
       throw new NoSuchElementException(
-        s"GtLargeErrorStrategy has no (more) work {i=$i, data.length=${data.length}}"
+        s"GtLargestPairErrorStrategy has no (more) work {i=$i, data.length=${data.length}}"
       )
     else
       val result = data(i)
@@ -89,11 +78,61 @@ class GtLargeErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extend
   }
 }
 
-def writeStrategiesToCsv(strategies: Map[String, (Double, Long, Array[(Int, Int)])], filename: String): Unit = {
-  val data = strategies.map { case (name, (auc, duration, order)) =>
-    s"$name,$auc,$duration,${order.toCsvRecord}"
+class GtLargestTsErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int])
+    extends WorkGenerator[Int] with TsErrorMixin(aDists.n, aDists.length) {
+
+  override protected val errors: scala.collection.IndexedSeq[Double] = createErrorArray()
+  private val tsIds = ids.sortBy(id => -errors(id))
+  private var i = 0
+
+  override def sizeIds: Int = aDists.n
+  override def sizeTuples: Int = aDists.size
+  override def index: Int = i
+  override def hasNext: Boolean = i < aDists.length
+  override def next(): (Int, Int) = {
+    if !hasNext then
+      throw new NoSuchElementException(
+        s"GtLargestTsErrorStrategy has no (more) work {i=$i/$sizeTuples}"
+      )
+
+    val result = nextLargestErrorPair(tsIds)
+    i += 1
+    if result._2 < result._1 then
+      result.swap
+    else
+      result
   }
-  val header = "strategy,quality,time_ms,order"
+
+  private def createErrorArray(): Array[Double] = {
+    val n = ids.length
+    val errors = Array.ofDim[Double](n)
+    var i = 0
+    var j = 1
+    while i < n - 1 && j < n do
+      val idLeft = ids(i)
+      val idRight = ids(j)
+      val approx = aDists(idLeft, idRight)
+      val full = fDists(idLeft, idRight)
+      errors(i) += Math.abs(approx - full)
+      errors(j) += Math.abs(approx - full)
+      j += 1
+      if j == n then
+        i += 1
+        j = i + 1
+
+    i = 0
+    while i < n do
+      errors(i) /= n
+      i += 1
+    errors
+  }
+}
+
+def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])], filename: String): Unit = {
+  val data = strategies.map { case (name, (index, auc, duration, order)) =>
+    s"$name,$index,$auc,$duration,${order.toCsvRecord}"
+  }
+  val header = "strategy,index,quality,time_ms,order"
   val content = Seq(header) ++ data
   Using.resource(new PrintWriter(new File(filename), "UTF-8")){ writer =>
     content.foreach(writer.println)
@@ -158,15 +197,16 @@ val strategies: Map[String, WorkGenerator[Int]] = Map(
   "approxDescending" -> ApproxDistanceWorkGenerator(
     timeseries.indices.zipWithIndex.toMap, Set.empty, approxDists, Direction.Descending
   ),
-  "gtLargeError" -> GtLargeErrorStrategy(approxDists, dists, timeseries.indices.toArray),
+  "gtLargestPairError" -> GtLargestPairErrorStrategy(approxDists, dists, timeseries.indices.toArray),
+  "gtLargestTsError" -> GtLargestTsErrorStrategy(approxDists, dists, timeseries.indices.toArray),
   "approxFullError" -> ApproxFullErrorWorkGenerator(timeseries.indices.zipWithIndex.toMap),
 )
 println(s"Executing all strategies for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
-println(s"  n pair orderings = ${(n*(n-1)/2).factorial}")
 
-// to warm up the JVM
+// TODO: remove JVM warmup, generate 1000 orderings by shuffling the FCFS order
+// TODO: integrate progress bar
 val smallN = 20
 executeStaticStrategy(FCFSWorkGenerator(0 until smallN))
 executeDynamicStrategy(ApproxFullErrorWorkGenerator((0 until smallN).zipWithIndex.toMap))
@@ -187,7 +227,7 @@ for i <- names.indices do
 println()
 
 println(s"Computed similarities for all orderings, storing to CSVs ...")
-val results = names.zipWithIndex.map((name, i) => name -> (aucs(i), durations(i), orders(i))).toMap
+val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
 CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", similarities)
 println("Done!")

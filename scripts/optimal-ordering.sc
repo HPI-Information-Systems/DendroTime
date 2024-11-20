@@ -137,7 +137,7 @@ val approxAscending = ApproxDistanceWorkGenerator(
 val approxDescending = ApproxDistanceWorkGenerator(
   mapping, Set.empty, approxDists, Direction.Descending
 ).toArray
-val gtLargeError = gtLargeErrorStrategy(approxDists, dists, timeseries.indices.toArray)
+val gtLargestPairError = gtLargeErrorStrategy(approxDists, dists, timeseries.indices.toArray)
 val dynamicError = executeDynamicStrategy(mapping)
 println(s"Computing all orderings for $n time series")
 println(s"  n time series = $n")
@@ -147,7 +147,7 @@ println(s"  fcfs\t\t= ${fcfs.mkString(", ")}")
 println(s"  shortestTs\t= ${shortestTs.mkString(", ")}")
 println(s"  approxAscending\t= ${approxAscending.mkString(", ")}")
 println(s"  approxDescending\t= ${approxDescending.mkString(", ")}")
-println(s"  gtLargeError\t= ${gtLargeError.mkString(", ")}")
+println(s"  gtLargestPairError\t= ${gtLargestPairError.mkString(", ")}")
 println(s"  dynamicError\t= ${dynamicError.mkString(", ")}")
 println()
 
@@ -167,7 +167,7 @@ println()
 //  "shortestTs" -> (allOrderings.indexWhere(_.sameElements(shortestTs)), shortestTs),
 //  "approxAscending" -> (allOrderings.indexWhere(_.sameElements(approxAscending)), approxAscending),
 //  "approxDescending" -> (allOrderings.indexWhere(_.sameElements(approxDescending)), approxDescending),
-//  "gtLargeError" -> (allOrderings.indexWhere(_.sameElements(gtLargeError)), gtLargeError),
+//  "gtLargestPairError" -> (allOrderings.indexWhere(_.sameElements(gtLargestPairError)), gtLargestPairError),
 //  "dynamicError" -> (allOrderings.indexWhere(_.sameElements(dynamicError)), dynamicError)
 //), resultFolder + s"strategies-$n-$dataset-$seed.csv")
 
