@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import argparse
+import sys
 
 import pandas as pd
 import numpy as np
@@ -8,7 +10,6 @@ from collections import defaultdict
 from pathlib import Path
 
 
-result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
 colors = defaultdict(lambda: "blue")
 colors["fcfs"] = "green"
 colors["shortestTs"] = "cyan"
@@ -22,7 +23,35 @@ colors["dynamicError"] = "pink"
 colors["approxFullError"] = "pink"
 
 
-def main(dataset = "PickupGestureWiimoteZ", n = 5, seed = 1):
+def parse_args(args):
+    parser = argparse.ArgumentParser(description="Analyze an ordering strategy experiment and plot the results.")
+    parser.add_argument("resultfile", type=str,
+                        help="The strategy CSV file to analyze.")
+
+    return parser.parse_args(args)
+
+
+def main(sys_args):
+    args = parse_args(sys_args)
+    results_file = Path(args.resultfile)
+    # parse result file name for dataset, n, and seed
+    filename = results_file.stem
+    if not filename.startswith("strategies"):
+        raise ValueError("The filename must start with 'strategies'")
+
+    dataset = filename.split("-")[2]
+    n = int(filename.split("-")[1])
+    if len(filename.split("-")) == 4:
+        seed = int(filename.split("-")[3])
+    else:
+        seed = None
+
+#     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
+    result_dir = results_file.parent
+    plot_results(result_dir, dataset, n, seed)
+
+
+def plot_results(result_dir, dataset, n, seed = None):
     print(f"Processing dataset '{dataset}' with {n} time series and seed {seed}")
     if seed is None:
         tracesPath = result_dir / f"traces-{n}-{dataset}.csv"
@@ -32,8 +61,15 @@ def main(dataset = "PickupGestureWiimoteZ", n = 5, seed = 1):
         tracesPath = result_dir / f"traces-{n}-{dataset}-{seed}.csv"
         orderingsPath = result_dir / f"orderings-{n}.csv"
         strategiesPath = result_dir / f"strategies-{n}-{dataset}-{seed}.csv"
+
+    if not tracesPath.exists():
+        raise FileNotFoundError(f"Traces file {tracesPath} not found!")
+
+    figures_dir = result_dir / "figures"
+
     df = pd.read_csv(tracesPath, header=None)
     df_strategies = pd.read_csv(strategiesPath)
+    m = n*(n-1)//2
 
     aucs = df.sum(axis=1)/df.shape[1]
     if "auc" not in df_strategies.columns:
@@ -81,13 +117,14 @@ def main(dataset = "PickupGestureWiimoteZ", n = 5, seed = 1):
     plt.ylabel("Frequency")
     plt.xlim(-0.1, 1.1)
     plt.legend()
-    plt.savefig(result_dir / f"hist-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
+    plt.savefig(figures_dir / f"hist-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
 
     plt.figure()
     plt.title("Solutions")
     best_id = aucs.index[-1]
     worst_id = aucs.index[0]
-    index = np.arange(0, df.shape[1])
+    factor = int(np.floor(m / min(1000, m)))
+    index = np.r_[0, 1+np.arange(0, df.shape[1]-2)*factor, m]
     plt.plot(index, df.iloc[best_id, :], linestyle="--", color="black", label="Best ordering")
     plt.plot(index, df.iloc[worst_id, :], linestyle="--", color="black", label="Worst ordering")
     for _, row in df_strategies.iterrows():
@@ -95,12 +132,13 @@ def main(dataset = "PickupGestureWiimoteZ", n = 5, seed = 1):
         i = row["index"]
         color = colors[strategy]
         plt.plot(index, df.iloc[i, :], color=color, label=strategy)
-    plt.xlabel(f"Available distances (of {df.shape[1]-1})")
+    plt.xlabel(f"Available distances (of {n*(n-1)/2})")
     plt.ylabel("Hierarchy Quality")
     plt.ylim(0, 1.1)
     plt.legend()
-    plt.savefig(result_dir / f"solutions-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
+    plt.savefig(figures_dir / f"solutions-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
     plt.show()
 
+
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])

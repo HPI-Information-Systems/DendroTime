@@ -1,4 +1,10 @@
-//> using target.scala "3"
+//> using scala 3.3.3
+//> using repository central
+//> using repository ivy2local
+//> using repository m2local
+//> using repository https://repo.akka.io/maven
+//> using dep de.hpi.fgis:progress-bar_3:0.1.0
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+126-a0ac6db9+20241121-1011
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Linkage, computeHierarchy}
@@ -8,24 +14,78 @@ import de.hpi.fgis.dendrotime.structures.*
 import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
 import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
+import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
 
 import java.io.{File, PrintWriter}
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Random, Using}
 
-extension (order: Array[(Int, Int)])
+extension (order: Array[(Int, Int)]) {
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
+
+  def shuffleInPlace(rng: Random): Unit = {
+    var i = order.length
+    while i >= 2 do
+      val k = rng.nextInt(i)
+      i -= 1
+      val tmp = order(i)
+      order(i) = order(k)
+      order(k) = tmp
+  }
+}
+
+// parse options
+@tailrec
+def parseOptions(args: List[String], required: List[String], optional: List[String], parsed: Map[String, String] = Map.empty): Map[String, String] = args match {
+  case Nil =>
+    parsed
+  case "--help" :: _ =>
+    println("Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder>")
+    sys.exit(0)
+  case "--" :: _ =>
+    parsed
+  case key :: value :: tail if key.startsWith("--") && optional.contains(key) =>
+    parseOptions(tail, required, optional, parsed + (key.drop(2) -> value))
+  case value :: tail if required.nonEmpty =>
+    parseOptions(tail, required.tail, optional, parsed + (required.head -> value))
+  case _ =>
+    println(s"Invalid arguments: ${args.mkString(" ,")}\nUsage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder>")
+    sys.exit(1)
+}
+
+val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getParent
+val options: Map[String, String] = parseOptions(
+  args = args.toList,
+  required = List("dataset"),
+  optional = List("--resultFolder", "--dataFolder"),
+  parsed = Map(
+    "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
+    "dataFolder" -> s"$folder/data/datasets/"
+  )
+)
 
 ///////////////////////////////////////////////////////////
 val distance = MSM(window = 0.05)
 val linkage = Linkage.WardLinkage
-val dataset = "PickupGestureWiimoteZ"
+//val dataset = "PickupGestureWiimoteZ"
 //val dataset = "Coffee"
 //val dataset = "BeetleFly"
 //val dataset = "HouseTwenty"
-val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
-val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
+val dataset = options("dataset")
+//val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
+//val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
+val inputDataFolder = {
+  val f = options("dataFolder")
+  if !f.endsWith("/") then f + "/" else f
+}
+val resultFolder = {
+  val f = options("resultFolder")
+  if !f.endsWith("/") then f + "/" else f
+}
 val seed = 42
+val orderingSamples = 1000
+val maxHierarchySimilarities = 1000
 ///////////////////////////////////////////////////////////
 new File(resultFolder).mkdirs()
 val datasetTrainFile = {
@@ -39,6 +99,8 @@ val rng = Random(seed)
 val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f => TsParser.loadAllLabeledTimeSeries(f))
 val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(datasetTestFile, idOffset = trainTimeseries.length)
 val n = timeseries.length
+val m = n * (n - 1) / 2
+val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
 val approxDists = PDist(distance.pairwise(timeseries.map(_.data.slice(0, 10))), n)
 val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
 // prepare ground truth
@@ -139,11 +201,12 @@ def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int,
   }
 }
 
-def executeStaticStrategy(strategy: WorkGenerator[Int]): (Array[(Int, Int)], Array[Double]) = {
-  val order = Array.ofDim[(Int, Int)](n * (n - 1) / 2)
-  val similarities = Array.ofDim[Double]((n * (n - 1) / 2) + 1)
+def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
+  val order = Array.ofDim[(Int, Int)](m)
+  val similarities = mutable.ArrayBuilder.make[Double]
+  similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities(0) =  approxHierarchy.similarity(targetHierarchy)
+  similarities += approxHierarchy.similarity(targetHierarchy)
 
   var k = 0
   while strategy.hasNext do
@@ -151,17 +214,19 @@ def executeStaticStrategy(strategy: WorkGenerator[Int]): (Array[(Int, Int)], Arr
     wDists(i, j) = dists(i, j)
     val hierarchy = computeHierarchy(wDists, linkage)
     order(k) = (i, j)
-    similarities(k+1) = hierarchy.similarity(targetHierarchy)
+    if k % hierarchyCalcFactor == 0 || k == m-1 then
+      similarities += hierarchy.similarity(targetHierarchy)
     k += 1
 
-  order -> similarities
+  order -> similarities.result()
 }
 
 def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[(Int, Int)], Array[Double]) = {
-  val order = Array.ofDim[(Int, Int)](n * (n - 1) / 2)
-  val similarities = Array.ofDim[Double]((n * (n - 1) / 2) + 1)
+  val order = Array.ofDim[(Int, Int)](m)
+  val similarities = mutable.ArrayBuilder.make[Double]
+  similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities(0) =  approxHierarchy.similarity(targetHierarchy)
+  similarities += approxHierarchy.similarity(targetHierarchy)
 
   var k = 0
   while strategy.hasNext do
@@ -172,10 +237,11 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
     strategy.updateError(i, j, error)
     order(k) = (i, j)
     val hierarchy = computeHierarchy(wDists, linkage)
-    similarities(k+1) = hierarchy.similarity(targetHierarchy)
+    if k % hierarchyCalcFactor == 0 || k == m-1 then
+      similarities += hierarchy.similarity(targetHierarchy)
     k += 1
 
-  order -> similarities
+  order -> similarities.result()
 }
 
 def timed[T](f: => T): (T, Long) = {
@@ -205,29 +271,40 @@ println(s"Executing all strategies for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
-// TODO: remove JVM warmup, generate 1000 orderings by shuffling the FCFS order
-// TODO: integrate progress bar
-val smallN = 20
-executeStaticStrategy(FCFSWorkGenerator(0 until smallN))
-executeDynamicStrategy(ApproxFullErrorWorkGenerator((0 until smallN).zipWithIndex.toMap))
+// execute 1000 random orderings
+val pb = ProgressBar.forTotal(orderingSamples + strategies.size, format = ProgressBarFormat.FiraFont)
+val fcfsOrder = FCFSWorkGenerator(0 until n).toArray
+val randomSims = Array.ofDim[Array[Double]](orderingSamples)
+var i = 0
+while i < orderingSamples do
+  fcfsOrder.shuffleInPlace(rng)
+  val (_, sim) = executeStaticStrategy(fcfsOrder.iterator)
+  randomSims(i) = sim
+  pb.step()
+  i += 1
 
+// execute all strategies
 val (namesIt, resultsIt) = strategies.map {
   case (name, s: ApproxFullErrorWorkGenerator[_]) =>
     val res = timed { executeDynamicStrategy(s) }
+    pb.step()
     name -> (res._1._1, res._1._2, res._2)
   case (name, s) =>
     val res = timed { executeStaticStrategy(s) }
+    pb.step()
     name -> (res._1._1, res._1._2, res._2)
 }.unzip
+pb.finish()
+
 val names = namesIt.toArray
 val (orders, similarities, durations) = resultsIt.toArray.unzip3
 val aucs = similarities.map(sim => sim.sum / sim.length)
 for i <- names.indices do
-  println(s"  ${names(i)} (${aucs(i)%.2f})\t= ${orders(i).mkString(", ")}")
+  println(s"  ${names(i)} (${aucs(i)%.2f})")
 println()
 
 println(s"Computed similarities for all orderings, storing to CSVs ...")
 val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", similarities)
+CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", randomSims ++ similarities)
 println("Done!")
