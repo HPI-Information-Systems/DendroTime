@@ -46,6 +46,6 @@ echo "... done."
 
 echo ""
 echo "Processing datasets:"
-for dataset in "${variable_datasets[@]}"; do
+for dataset in "${equal_datasets[@]}"; do
   java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder data/datasets/
 done

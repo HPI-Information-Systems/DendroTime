@@ -82,8 +82,8 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2
     val dist = distanceMetric(
-      ts1.data.slice(Math.max(0, ts1Center - params.approxLength/2), Math.min(ts1Center + params.approxLength/2, ts1.data.length)),
-      ts2.data.slice(Math.max(0, ts2Center - params.approxLength/2), Math.min(ts2Center + params.approxLength/2, ts2.data.length)),
+      ts1.data.slice(ts1Center - params.approxLength/2, ts1Center + params.approxLength/2),
+      ts2.data.slice(ts2Center - params.approxLength/2, ts2Center + params.approxLength/2),
     )
     ctx.clusterer ! Clusterer.ApproximateDistance(ts1.idx, ts2.idx, dist)
   }
