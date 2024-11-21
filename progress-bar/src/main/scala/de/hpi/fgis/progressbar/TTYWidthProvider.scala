@@ -1,4 +1,4 @@
-package de.hpi.fgis.progress
+package de.hpi.fgis.progressbar
 
 import java.io.{BufferedReader, InputStreamReader}
 import scala.util.Using

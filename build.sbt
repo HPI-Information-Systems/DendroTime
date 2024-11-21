@@ -29,6 +29,7 @@ ThisBuild / assembly / test := {}
 lazy val `DendroTime` = project.in(file("."))
   .dependsOn(`backend`, `frontend`)
   .settings(
+    name := "DendroTime-Server",
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 
@@ -45,6 +46,10 @@ lazy val `runner` = project.in(file("runner"))
 //    assembly / assemblyJarName := "DendroTime-runner.jar",
     assembly / assemblyOutputPath := file("experiments/DendroTime-runner.jar"),
   )
+
+lazy val `benchmarking` = project.in(file("benchmarking"))
+  .dependsOn(`backend`)
+  .enablePlugins(JmhPlugin)
 
 lazy val `backend` = project.in(file("backend"))
   .dependsOn(`bloom-filter`)
@@ -126,9 +131,11 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
     )
   )
 
-lazy val `benchmarking` = project.in(file("benchmarking"))
-  .dependsOn(`backend`)
-  .enablePlugins(JmhPlugin)
+lazy val `progress-bar` = project.in(file("progress-bar"))
+  .settings(
+    name := "progress-bar",
+    version := "0.1.0",
+  )
 
 // merge strategy for the assembly plugin
 ThisBuild / assembly / assemblyMergeStrategy := {

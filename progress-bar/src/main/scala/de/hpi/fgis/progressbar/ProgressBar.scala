@@ -1,4 +1,4 @@
-package de.hpi.fgis.progress
+package de.hpi.fgis.progressbar
 
 import scala.annotation.targetName
 import scala.concurrent.duration.*
@@ -22,9 +22,9 @@ object ProgressBar {
 
   val defaultConfig: Config = Config()
 
-  def of(n: Int,
-         format: ProgressBarFormat = ProgressBarFormat.Default,
-         config: ProgressBar.Config = ProgressBar.defaultConfig
+  def forTotal(n: Int,
+               format: ProgressBarFormat = ProgressBarFormat.Default,
+               config: ProgressBar.Config = ProgressBar.defaultConfig
         )(using print: Output, ttyWidthProvider: TTYWidthProvider): ProgressBar = {
     new ProgressBar(n, format, config)
   }
@@ -84,6 +84,8 @@ class ProgressBar(n: Int,
   @targetName("plusEquals")
   def +=(i: Int): Int = add(i)
 
+  def step(): Unit = add(1)
+
   private def draw(): Unit = {
     val width = ttyWidthProvider.width
     val prefix = new StringBuilder
@@ -110,7 +112,7 @@ class ProgressBar(n: Int,
     if config.showTimeLeft then
       val left = (fromStart.toDouble / current) * (total - current)
       val dur = FiniteDuration(left.toLong, MILLISECONDS)
-      suffix.append(" ").append(dur.toString)
+      suffix.append(" ").append(dur.toCoarsest.toString)
 
     // counter
     if config.showCounter then
@@ -146,9 +148,12 @@ class ProgressBar(n: Int,
       .append(prefix)
       .append(base)
       .append(suffix)
-    if (out.length < width) then
+    if out.length < width then
       out.append(" " * (width - out.length))
     print("\r" + out)
+
+    if current >= total then
+      print(System.lineSeparator())
   }
 
   def finish(): Unit = {
