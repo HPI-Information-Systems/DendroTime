@@ -3,6 +3,7 @@
 # - python with aeon
 # - java
 # - test-strategies.jar (built with scala-cli --power package --assembly scripts/test-strategies.sc)
+set -eu
 
 # Run the experiments for the ordering strategy analysis
 variable_datasets=(
@@ -37,7 +38,7 @@ equal_datasets=(
 mkdir -p ordering-strategy-analysis
 
 echo "Downloading datasets ..."
-for dataset in "${variable_datasets[@]}"; do
+for dataset in "${equal_datasets[@]}"; do
   echo "  ${dataset}"
   python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='data/datasets/')"
 done
