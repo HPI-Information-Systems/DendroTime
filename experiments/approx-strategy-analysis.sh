@@ -41,6 +41,10 @@ for dataset in "${equal_datasets[@]}"; do
   echo "  ${dataset}"
   python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='data/datasets/')"
 done
+for dataset in "${variable_datasets[@]}"; do
+  echo "  ${dataset}"
+  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='data/datasets/')"
+done
 echo "... done."
 
 echo ""
@@ -51,6 +55,6 @@ done
 
 echo ""
 echo "Processing variable length datasets:"
-for dataset in "${equal_datasets[@]}"; do
+for dataset in "${variable_datasets[@]}"; do
   java -jar test-approximations.jar "${dataset}" --resultFolder approx-strategy-analysis/ --dataFolder data/datasets/ --all true
 done
