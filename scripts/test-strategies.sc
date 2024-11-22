@@ -4,10 +4,11 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+126-a0ac6db9+20241121-1011
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+126-a0ac6db9+20241121-1454
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{MSM, SBD}
-import de.hpi.fgis.dendrotime.clustering.hierarchy.{Linkage, computeHierarchy}
+import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
+import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.structures.*
@@ -35,93 +36,28 @@ extension (order: Array[(Int, Int)]) {
   }
 }
 
-// parse options
-@tailrec
-def parseOptions(args: List[String], required: List[String], optional: List[String], parsed: Map[String, String] = Map.empty): Map[String, String] = args match {
-  case Nil =>
-    parsed
-  case "--help" :: _ =>
-    println("Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder>")
-    sys.exit(0)
-  case "--" :: _ =>
-    parsed
-  case key :: value :: tail if key.startsWith("--") && optional.contains(key) =>
-    parseOptions(tail, required, optional, parsed + (key.drop(2) -> value))
-  case value :: tail if required.nonEmpty =>
-    parseOptions(tail, required.tail, optional, parsed + (required.head -> value))
-  case _ =>
-    println(s"Invalid arguments: ${args.mkString(" ,")}\nUsage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder>")
-    sys.exit(1)
+extension (hierarchy: Hierarchy) {
+  def quality(classes: Array[Int], nClasses: Int): Double = {
+    val clusters = CutTree(hierarchy, nClasses)
+    AdjustedRandScore(classes, clusters)
+  }
 }
-
-val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getParent
-val options: Map[String, String] = parseOptions(
-  args = args.toList,
-  required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder"),
-  parsed = Map(
-    "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
-    "dataFolder" -> s"$folder/data/datasets/"
-  )
-)
-
-///////////////////////////////////////////////////////////
-val distance = MSM(window = 0.05)
-val linkage = Linkage.WardLinkage
-//val dataset = "PickupGestureWiimoteZ"
-//val dataset = "Coffee"
-//val dataset = "BeetleFly"
-//val dataset = "HouseTwenty"
-val dataset = options("dataset")
-//val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
-//val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
-val inputDataFolder = {
-  val f = options("dataFolder")
-  if !f.endsWith("/") then f + "/" else f
-}
-val resultFolder = {
-  val f = options("resultFolder")
-  if !f.endsWith("/") then f + "/" else f
-}
-val seed = 42
-val orderingSamples = 1000
-val maxHierarchySimilarities = 1000
-///////////////////////////////////////////////////////////
-new File(resultFolder).mkdirs()
-val datasetTrainFile = {
-  val f = new File(inputDataFolder + s"$dataset/${dataset}_TRAIN.ts")
-  if f.exists() then Some(f) else None
-}
-val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
-val rng = Random(seed)
-
-// load time series
-val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f => TsParser.loadAllLabeledTimeSeries(f))
-val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(datasetTestFile, idOffset = trainTimeseries.length)
-val n = timeseries.length
-val m = n * (n - 1) / 2
-val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
-val approxDists = PDist(distance.pairwise(timeseries.map(_.data.slice(0, 10))), n)
-val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
-// prepare ground truth
-val approxHierarchy = computeHierarchy(approxDists, linkage)
-val targetHierarchy = computeHierarchy(dists, linkage)
 
 class GtLargestPairErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extends WorkGenerator[Int] {
   val data = (
-      for {
-        i <- 0 until ids.length - 1
-        j <- i + 1 until ids.length
-        idLeft = ids(i)
-        idRight = ids(j)
-        approx = aDists(idLeft, idRight)
-        full = fDists(idLeft, idRight)
-        error = Math.abs(approx - full)
-      } yield (error, idLeft, idRight)
+    for {
+      i <- 0 until ids.length - 1
+      j <- i + 1 until ids.length
+      idLeft = ids(i)
+      idRight = ids(j)
+      approx = aDists(idLeft, idRight)
+      full = fDists(idLeft, idRight)
+      error = Math.abs(approx - full)
+    } yield (error, idLeft, idRight)
     ).sortBy(_._1)
-     .map(t => (t._2, t._3))
-     .reverse
-     .toArray
+    .map(t => (t._2, t._3))
+    .reverse
+    .toArray
   var i = 0
 
   override def sizeIds: Int = aDists.n
@@ -141,7 +77,7 @@ class GtLargestPairErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) 
 }
 
 class GtLargestTsErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int])
-    extends WorkGenerator[Int] with TsErrorMixin(aDists.n, aDists.length) {
+  extends WorkGenerator[Int] with TsErrorMixin(aDists.n, aDists.length) {
 
   override protected val errors: scala.collection.IndexedSeq[Double] = createErrorArray()
   private val tsIds = ids.sortBy(id => -errors(id))
@@ -201,12 +137,107 @@ def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int,
   }
 }
 
+// parse options
+@tailrec
+def parseOptions(args: List[String], required: List[String], optional: List[String], parsed: Map[String, String] = Map.empty): Map[String, String] = args match {
+  case Nil =>
+    parsed
+  case "--help" :: _ =>
+    println(usage)
+    sys.exit(0)
+  case "--" :: _ =>
+    parsed
+  case key :: value :: tail if key.startsWith("--") && optional.contains(key) =>
+    parseOptions(tail, required, optional, parsed + (key.drop(2) -> value))
+  case value :: tail if required.nonEmpty =>
+    parseOptions(tail, required.tail, optional, parsed + (required.head -> value))
+  case _ =>
+    println(s"Invalid arguments: ${args.mkString(", ")}\n" + usage)
+    sys.exit(1)
+}
+
+val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getParent
+val options: Map[String, String] = parseOptions(
+  args = args.toList,
+  required = List("dataset"),
+  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure"),
+  parsed = Map(
+    "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
+    "dataFolder" -> s"$folder/data/datasets/",
+    "qualityMeasure" -> "ari"
+  )
+)
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari>"
+
+///////////////////////////////////////////////////////////
+val distance = MSM(window = 0.05)
+val linkage = Linkage.WardLinkage
+//val dataset = "PickupGestureWiimoteZ"
+//val dataset = "Coffee"
+//val dataset = "BeetleFly"
+//val dataset = "HouseTwenty"
+val dataset = options("dataset")
+val qualityMeasure = options("qualityMeasure").toLowerCase.strip
+//val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
+//val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
+val inputDataFolder = {
+  val f = options("dataFolder")
+  if !f.endsWith("/") then f + "/" else f
+}
+val resultFolder = {
+  val f = options("resultFolder")
+  if !f.endsWith("/") then f + "/" else f
+}
+val seed = 42
+val orderingSamples = 1000
+val maxHierarchySimilarities = 1000
+///////////////////////////////////////////////////////////
+new File(resultFolder).mkdirs()
+val datasetTrainFile = {
+  val f = new File(inputDataFolder + s"$dataset/${dataset}_TRAIN.ts")
+  if f.exists() then Some(f) else None
+}
+val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
+val rng = Random(seed)
+
+println(s"Processing dataset: $dataset")
+println("Configuration:")
+println(s"  inputDataFolder = $inputDataFolder")
+println(s"  resultFolder = $resultFolder")
+println(s"  distance = $distance")
+println(s"  linkage = $linkage")
+println(s"  seed = $seed")
+println(s"  orderingSamples = $orderingSamples")
+println(s"  maxHierarchySimilarities = $maxHierarchySimilarities")
+println(s"  qualityMeasure = $qualityMeasure")
+println()
+
+// load time series
+println("Loading time series ...")
+val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f => TsParser.loadAllLabeledTimeSeries(f))
+val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(datasetTestFile, idOffset = trainTimeseries.length)
+val n = timeseries.length
+val m = n * (n - 1) / 2
+val classes = timeseries.map(_.label.toInt)
+val nClasses = classes.distinct.length
+val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
+
+println("Computing pairwise distances ...")
+val approxDists = PDist(distance.pairwise(timeseries.map(_.data.slice(0, 10))), n)
+val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
+// prepare ground truth
+val approxHierarchy = computeHierarchy(approxDists, linkage)
+val targetHierarchy = computeHierarchy(dists, linkage)
+
 def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
   val order = Array.ofDim[(Int, Int)](m)
   val similarities = mutable.ArrayBuilder.make[Double]
   similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities += approxHierarchy.similarity(targetHierarchy)
+  similarities += (
+    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+    else approxHierarchy.quality(classes, nClasses)
+  )
 
   var k = 0
   while strategy.hasNext do
@@ -215,7 +246,10 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     val hierarchy = computeHierarchy(wDists, linkage)
     order(k) = (i, j)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += hierarchy.similarity(targetHierarchy)
+      similarities += (
+        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+        else hierarchy.quality(classes, nClasses)
+      )
     k += 1
 
   order -> similarities.result()
@@ -226,7 +260,10 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
   val similarities = mutable.ArrayBuilder.make[Double]
   similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities += approxHierarchy.similarity(targetHierarchy)
+  similarities += (
+    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+    else approxHierarchy.quality(classes, nClasses)
+  )
 
   var k = 0
   while strategy.hasNext do
@@ -238,7 +275,10 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
     order(k) = (i, j)
     val hierarchy = computeHierarchy(wDists, linkage)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += hierarchy.similarity(targetHierarchy)
+      similarities += (
+        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+        else approxHierarchy.quality(classes, nClasses)
+      )
     k += 1
 
   order -> similarities.result()
@@ -274,16 +314,16 @@ println(s"  n pairs = ${n*(n-1)/2}")
 // execute 1000 random orderings
 val pb = ProgressBar.forTotal(orderingSamples + strategies.size, format = ProgressBarFormat.FiraFont)
 val fcfsOrder = FCFSWorkGenerator(0 until n).toArray
-val randomSims = Array.ofDim[Array[Double]](orderingSamples)
+val randomQualities = Array.ofDim[Array[Double]](orderingSamples)
 var i = 0
 while i < orderingSamples do
   fcfsOrder.shuffleInPlace(rng)
-  val (_, sim) = executeStaticStrategy(fcfsOrder.iterator)
-  randomSims(i) = sim
+  val (_, quality) = executeStaticStrategy(fcfsOrder.iterator)
+  randomQualities(i) = quality
   pb.step()
   i += 1
 
-// execute all strategies
+// execute all defined strategies
 val (namesIt, resultsIt) = strategies.map {
   case (name, s: ApproxFullErrorWorkGenerator[_]) =>
     val res = timed { executeDynamicStrategy(s) }
@@ -297,14 +337,14 @@ val (namesIt, resultsIt) = strategies.map {
 pb.finish()
 
 val names = namesIt.toArray
-val (orders, similarities, durations) = resultsIt.toArray.unzip3
-val aucs = similarities.map(sim => sim.sum / sim.length)
+val (orders, qualities, durations) = resultsIt.toArray.unzip3
+val aucs = qualities.map(sim => sim.sum / sim.length)
 for i <- names.indices do
   println(s"  ${names(i)} (${aucs(i)%.2f})")
 println()
 
-println(s"Computed similarities for all orderings, storing to CSVs ...")
+println(s"Computed qualities for all orderings, storing to CSVs ...")
 val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", randomSims ++ similarities)
+CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", randomQualities ++ qualities)
 println("Done!")

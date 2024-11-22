@@ -7,32 +7,31 @@ set -eu
 
 # Run the experiments for the ordering strategy analysis
 variable_datasets=(
-  "AllGestureWiimoteX"
-  "AllGestureWiimoteY"
-  "AllGestureWiimoteZ"
+  "PickupGestureWiimoteZ"
+  "ShakeGestureWiimoteZ"
+  "GesturePebbleZ1"
+  "GesturePebbleZ2"
   "GestureMidAirD1"
   "GestureMidAirD2"
   "GestureMidAirD3"
-  "GesturePebbleZ1"
-  "GesturePebbleZ2"
+  "AllGestureWiimoteX"
+  "AllGestureWiimoteY"
+  "AllGestureWiimoteZ"
   "PLAID"
-  "PickupGestureWiimoteZ"
-  "ShakeGestureWiimoteZ"
 )
 
 equal_datasets=(
-  "Coffee"
-  "BeetleFly"
-  "Beef"
-  "Meat"
   "BirdChicken"
-  "BasicMotions"
-  "ItalyPowerDemand"
+  "BeetleFly"
+  "Coffee"
+  "Beef"
   "Wine"
-  "Worms"
-  "HouseTwenty"
+  "Meat"
   "Lightning2"
   "Lightning7"
+  "Worms"
+  "HouseTwenty"
+  "ItalyPowerDemand"
 )
 
 mkdir -p ordering-strategy-analysis
