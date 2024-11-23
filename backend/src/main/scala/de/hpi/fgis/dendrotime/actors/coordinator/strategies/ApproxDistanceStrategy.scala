@@ -110,7 +110,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
       stash.unstashAll(serving(newQueue, nextItem = 0))
 
-    case m@DispatchWork(worker) =>
+    case m@DispatchWork(worker, _, _) =>
       if fallbackWorkGenerator.hasNext then
         val work = fallbackWorkGenerator.next()
         ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
@@ -129,7 +129,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker) if nextItem < workQueue.length =>
+    case DispatchWork(worker, _, _) if nextItem < workQueue.length =>
       val work =
         if direction == Direction.Ascending then workQueue(nextItem)
         else workQueue(workQueue.length - nextItem - 1)
@@ -137,7 +137,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       worker ! WorkerProtocol.CheckFull(work._1, work._2)
       serving(workQueue, nextItem + 1)
 
-    case m@DispatchWork(worker) =>
+    case m@DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork

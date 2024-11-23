@@ -3,14 +3,11 @@ package de.hpi.fgis.dendrotime.actors.worker
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
-import de.hpi.fgis.dendrotime.actors.tsmanager.{TimeSeriesManager, TsmProtocol}
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
-
-import scala.collection.AbstractIterator
 
 object Worker {
   def apply(tsManager: ActorRef[TsmProtocol.Command],
@@ -24,7 +21,6 @@ object Worker {
 
 private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
-  import Worker.*
   import WorkerProtocol.*
 
   private val settings = Settings(ctx.context.system)
@@ -49,22 +45,27 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
   }
 
   private def waitingForTs(workSupplier: ActorRef[DispatchWork],
-                           job: CheckCommand): Behavior[Command] = Behaviors.receiveMessagePartial {
+                           job: CheckCommand,
+                           sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
       ctx.context.log.debug("Switching supplier to {}", supplier)
-      waitingForTs(supplier, job)
+      waitingForTs(supplier, job, sendBatchStatistics = false)
 
     case GetTimeSeriesResponse(ts: TsmProtocol.TimeSeriesFound) =>
-      val timeseries = ts.tsMap
+      val start = System.nanoTime()
       if job.isApproximate then
         while job.hasNext do
           val (t1, t2) = job.next()
-          checkApproximate(timeseries(t1), timeseries(t2))
+          checkApproximate(ts(t1), ts(t2))
       else
         while job.hasNext do
           val (t1, t2) = job.next()
-          checkFull(timeseries(t1), timeseries(t2))
-      workSupplier ! DispatchWork(ctx.context.self)
+          checkFull(ts(t1), ts(t2))
+      val duration = System.nanoTime() - start
+      if sendBatchStatistics then
+        workSupplier ! DispatchWork(ctx.context.self, lastJobDuration = duration, lastBatchSize = job.size)
+      else
+        workSupplier ! DispatchWork(ctx.context.self)
       idle(workSupplier)
 
     // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)

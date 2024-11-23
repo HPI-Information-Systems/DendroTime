@@ -7,7 +7,9 @@ object StrategyProtocol {
 
   trait StrategyCommand
   case class AddTimeSeries(timeseriesIds: Seq[Long]) extends StrategyCommand
-  case class DispatchWork(worker: ActorRef[WorkerProtocol.Command]) extends StrategyCommand
+  case class DispatchWork(worker: ActorRef[WorkerProtocol.Command],
+                          lastJobDuration: Long = 0,
+                          lastBatchSize: Int = 1) extends StrategyCommand
 
   trait StrategyEvent
   case object FullStrategyOutOfWork extends StrategyEvent

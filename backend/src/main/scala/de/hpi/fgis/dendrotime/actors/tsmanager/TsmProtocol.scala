@@ -6,9 +6,9 @@ import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import scala.collection.AbstractIterator
+import scala.collection.immutable.HashMap
 import scala.collection.immutable.Map.Map1
-import scala.collection.immutable.{AbstractMap, HashMap}
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 object TsmProtocol {
   sealed trait Command
@@ -212,24 +212,29 @@ object TsmProtocol {
 
   case object TimeSeriesNotFound extends GetTimeSeriesResponse
 
-  case class TimeSeriesFound(tsMap: Map[Long, LabeledTimeSeries]) extends GetTimeSeriesResponse
+  trait TimeSeriesFound extends GetTimeSeriesResponse with Iterable[(Long, LabeledTimeSeries)] {
+    def apply(key: Long): LabeledTimeSeries
+
+    def contains(key: Long): Boolean
+
+    def get(key: Long): Option[LabeledTimeSeries] = if contains(key) then Some(apply(key)) else None
+  }
 
   object TimeSeriesFound {
     // Use specialized implementations for small number of time series to optimize for speed and memory.
-    // Because we need Maps, don't bother with having our own specialized implementations and reuse the Maps.
     def apply(id: Long, ts: LabeledTimeSeries): GetTimeSeriesResponse =
-      new TimeSeriesFound(Map.Map1(id, ts))
+      new TimeSeriesFound1(id, ts)
 
     def apply(id1: Long, ts1: LabeledTimeSeries, id2: Long, ts2: LabeledTimeSeries): GetTimeSeriesResponse =
-      new TimeSeriesFound(Map.Map2(id1, ts1, id2, ts2))
+      new TimeSeriesFound2(id1, ts1, id2, ts2)
 
     def apply(id1: Long, ts1: LabeledTimeSeries, id2: Long, ts2: LabeledTimeSeries,
               id3: Long, ts3: LabeledTimeSeries): GetTimeSeriesResponse =
-      new TimeSeriesFound(Map.Map3(id1, ts1, id2, ts2, id3, ts3))
+      new TimeSeriesFound3(id1, ts1, id2, ts2, id3, ts3)
 
     def apply(id1: Long, ts1: LabeledTimeSeries, id2: Long, ts2: LabeledTimeSeries,
               id3: Long, ts3: LabeledTimeSeries, id4: Long, ts4: LabeledTimeSeries): GetTimeSeriesResponse =
-      new TimeSeriesFound(Map.Map4(id1, ts1, id2, ts2, id3, ts3, id4, ts4))
+      new TimeSeriesFound4(id1, ts1, id2, ts2, id3, ts3, id4, ts4)
 
     def apply(ids: Array[Long], timeseries: Array[LabeledTimeSeries]): GetTimeSeriesResponse =
       val b = HashMap.newBuilder[Long, LabeledTimeSeries]
@@ -237,6 +242,67 @@ object TsmProtocol {
       while i < ids.length do
         b += ids(i) -> timeseries(i)
         i += 1
-      new TimeSeriesFound(b.result())
+      new TimeSeriesFoundN(b.result())
+  }
+
+  private final class TimeSeriesFound1(id: Long, ts: LabeledTimeSeries) extends TimeSeriesFound {
+    override def contains(key: Long): Boolean = key == id
+
+    override def apply(key: Long): LabeledTimeSeries =
+      if key == id then ts
+      else throw new NoSuchElementException(s"key not found: $key")
+
+    override def iterator: Iterator[(Long, LabeledTimeSeries)] = Iterator.single((id, ts))
+  }
+
+  private final class TimeSeriesFound2(id1: Long, ts1: LabeledTimeSeries,
+                                       id2: Long, ts2: LabeledTimeSeries) extends TimeSeriesFound {
+    override def contains(key: Long): Boolean = key == id1 || key == id2
+
+    override def apply(key: Long): LabeledTimeSeries =
+      if key == id1 then ts1
+      else if key == id2 then ts2
+      else throw new NoSuchElementException(s"key not found: $key")
+
+    override def iterator: Iterator[(Long, LabeledTimeSeries)] = Iterator((id1, ts1), (id2, ts2))
+  }
+
+  private final class TimeSeriesFound3(id1: Long, ts1: LabeledTimeSeries,
+                                       id2: Long, ts2: LabeledTimeSeries,
+                                       id3: Long, ts3: LabeledTimeSeries) extends TimeSeriesFound {
+    override def contains(key: Long): Boolean = key == id1 || key == id2 || key == id3
+
+    override def apply(key: Long): LabeledTimeSeries =
+      if key == id1 then ts1
+      else if key == id2 then ts2
+      else if key == id3 then ts3
+      else throw new NoSuchElementException(s"key not found: $key")
+
+    override def iterator: Iterator[(Long, LabeledTimeSeries)] = Iterator((id1, ts1), (id2, ts2), (id3, ts3))
+  }
+
+  private final class TimeSeriesFound4(id1: Long, ts1: LabeledTimeSeries,
+                                       id2: Long, ts2: LabeledTimeSeries,
+                                       id3: Long, ts3: LabeledTimeSeries,
+                                       id4: Long, ts4: LabeledTimeSeries) extends TimeSeriesFound {
+    override def contains(key: Long): Boolean = key == id1 || key == id2 || key == id3 || key == id4
+
+    override def apply(key: Long): LabeledTimeSeries =
+      if key == id1 then ts1
+      else if key == id2 then ts2
+      else if key == id3 then ts3
+      else if key == id4 then ts4
+      else throw new NoSuchElementException(s"key not found: $key")
+
+    override def iterator: Iterator[(Long, LabeledTimeSeries)] =
+      Iterator((id1, ts1), (id2, ts2), (id3, ts3), (id4, ts4))
+  }
+
+  private final class TimeSeriesFoundN(tsMap: HashMap[Long, LabeledTimeSeries]) extends TimeSeriesFound {
+    override def contains(key: Long): Boolean = tsMap.contains(key)
+
+    override def apply(key: Long): LabeledTimeSeries = tsMap(key)
+
+    override def iterator: Iterator[(Long, LabeledTimeSeries)] = tsMap.iterator
   }
 }

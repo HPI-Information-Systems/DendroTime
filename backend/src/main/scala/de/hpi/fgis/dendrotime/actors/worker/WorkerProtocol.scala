@@ -170,8 +170,17 @@ object WorkerProtocol {
     def apply(t1: Long, t2: Long, t3: Long, t4: Long, t5: Long, t6: Long, t7: Long, t8: Long): CheckCommand =
       Check4(t1, t2, t3, t4, t5, t6, t7, t8, isApproximate = true)
 
-    def apply(ids: Array[(Long, Long)]): CheckCommand =
-      CheckN(ids, isApproximate = true)
+    def apply(pairs: Array[(Long, Long)]): CheckCommand =
+      if pairs.length == 1 then
+        Check1(pairs(0)._1, pairs(0)._2, isApproximate = true)
+      else if pairs.length == 2 then
+        Check2(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, isApproximate = true)
+      else if pairs.length == 3 then
+        Check3(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, pairs(2)._1, pairs(2)._2, isApproximate = true)
+      else if pairs.length == 4 then
+        Check4(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, pairs(2)._1, pairs(2)._2, pairs(3)._1, pairs(3)._2, isApproximate = true)
+      else
+        CheckN(pairs, isApproximate = true)
   }
 
   object CheckFull {
@@ -187,7 +196,16 @@ object WorkerProtocol {
     def apply(t1: Long, t2: Long, t3: Long, t4: Long, t5: Long, t6: Long, t7: Long, t8: Long): CheckCommand =
       Check4(t1, t2, t3, t4, t5, t6, t7, t8, isApproximate = false)
 
-    def apply(ids: Array[(Long, Long)]): CheckCommand =
-      CheckN(ids, isApproximate = false)
+    def apply(pairs: Array[(Long, Long)]): CheckCommand =
+      if pairs.length == 1 then
+        Check1(pairs(0)._1, pairs(0)._2, isApproximate = false)
+      else if pairs.length == 2 then
+        Check2(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, isApproximate = false)
+      else if pairs.length == 3 then
+        Check3(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, pairs(2)._1, pairs(2)._2, isApproximate = false)
+      else if pairs.length == 4 then
+        Check4(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, pairs(2)._1, pairs(2)._2, pairs(3)._1, pairs(3)._2, isApproximate = false)
+      else
+        CheckN(pairs, isApproximate = false)
   }
 }

@@ -51,18 +51,15 @@ class WorkTupleGenerator extends AbstractIterator[(Long, Long)] with mutable.Gro
 
   def remaining: Int = sizeTuples - count
 
-  def nextBatch(n: Int): (Array[Long], Array[Long]) = {
-    if n > remaining then
-      throw new IllegalArgumentException(s"Cannot take batch of $n tuples, only $remaining remaining")
-    val left = new Array[Long](n)
-    val right = new Array[Long](n)
+  def nextBatch(maxN: Int): Array[(Long, Long)] = {
+    val n = Math.min(maxN, remaining)
+    val batch = new Array[(Long, Long)](n)
     var k = 0
     while k < n do
-      left(k) = ids(i)
-      right(k) = ids(j)
+      batch(k) = ids(i) -> ids(j)
       inc()
       k += 1
-    (left, right)
+    batch
   }
 
   @inline

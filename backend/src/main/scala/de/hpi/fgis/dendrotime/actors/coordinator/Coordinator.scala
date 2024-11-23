@@ -50,21 +50,14 @@ object Coordinator {
     val stashSize = settings.numberOfWorkers * 5
 
     Behaviors.withStash(stashSize) { stash =>
-      new CoordinatorImpl(ctx, tsManager, id, dataset, params, reportTo, stash).start()
+      new Coordinator(ctx, tsManager, id, dataset, params, reportTo, stash).start()
     }
   }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.coordinator-pinned-dispatcher")
 }
 
-trait Coordinator (protected val ctx: ActorContext[Coordinator.MessageType]) {
-  protected val settings: Settings = Settings(ctx.system)
-  protected val workGenerator: WorkTupleGenerator = new WorkTupleGenerator
-
-  def start(): Behavior[Coordinator.MessageType]
-}
-
-private class CoordinatorImpl private[coordinator] (
+private class Coordinator private[coordinator] (
                    ctx: ActorContext[Coordinator.MessageType],
                    tsManager: ActorRef[TsmProtocol.Command],
                    id: Long,
@@ -72,10 +65,12 @@ private class CoordinatorImpl private[coordinator] (
                    params: DendroTimeParams,
                    reportTo: ActorRef[Coordinator.Response],
                    stash: StashBuffer[Coordinator.MessageType]
-                 ) extends Coordinator(ctx) with AdaptiveBatchingMixin {
+                 ) extends AdaptiveBatchingMixin(ctx.system) {
 
   import Coordinator.*
 
+  protected val settings: Settings = Settings(ctx.system)
+  protected val workGenerator: WorkTupleGenerator = new WorkTupleGenerator
   private val communicator = ctx.spawn(Communicator(dataset), s"communicator-$id")
   ctx.watch(communicator)
   private val clusterer = ctx.spawn(
@@ -103,7 +98,7 @@ private class CoordinatorImpl private[coordinator] (
   ctx.watch(fullStrategy)
 
 
-  override def start(): Behavior[MessageType] = {
+  def start(): Behavior[MessageType] = {
     tsManager ! TsmProtocol.GetTimeSeriesIds(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
     workers ! WorkerProtocol.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
@@ -131,10 +126,11 @@ private class CoordinatorImpl private[coordinator] (
         clusterer ! Clusterer.Initialize(n)
         stash.unstashAll(loading(n, tsIds))
 
-      case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
-        val work = workGenerator.next
-        ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-        worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
+      case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>
+        val batchSize = nextBatchSize(time, size)
+        val work = workGenerator.nextBatch(batchSize)
+        ctx.log.trace("Dispatching approx batch (n={}) ApproxQueue={}/{}", batchSize, workGenerator.index, workGenerator.sizeTuples)
+        worker ! WorkerProtocol.CheckApproximate(work)
         initializing(tsIds)
 
       case m: StrategyProtocol.DispatchWork =>
@@ -174,10 +170,11 @@ private class CoordinatorImpl private[coordinator] (
         communicator ! Communicator.NewStatus(Status.Approximating)
         stash.unstashAll(running())
 
-      case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
-        val work = workGenerator.next()
-        ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-        worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
+      case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>
+        val batchSize = nextBatchSize(time, size)
+        val work = workGenerator.nextBatch(batchSize)
+        ctx.log.trace("Dispatching approx batch ({}) ApproxQueue={}/{}", batchSize, workGenerator.index, workGenerator.sizeTuples)
+        worker ! WorkerProtocol.CheckApproximate(work)
         loading(nTimeseries, tsIds)
 
       case m: StrategyProtocol.DispatchWork =>
@@ -196,14 +193,16 @@ private class CoordinatorImpl private[coordinator] (
     }
 
   private def running(): Behavior[MessageType] = Behaviors.receiveMessagePartial {
-    case StrategyProtocol.DispatchWork(worker) if workGenerator.hasNext =>
-      val work = workGenerator.next()
-      ctx.log.trace("Dispatching approx job ({}) ApproxQueue={}/{}", work, workGenerator.index, workGenerator.sizeTuples)
-      worker ! WorkerProtocol.CheckApproximate(work._1, work._2)
+    case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>
+      val batchSize = nextBatchSize(time, size)
+      val work = workGenerator.nextBatch(batchSize)
+      ctx.log.trace("Dispatching approx batch ({}) ApproxQueue={}/{}", batchSize, workGenerator.index, workGenerator.sizeTuples)
+      worker ! WorkerProtocol.CheckApproximate(work)
       Behaviors.same
 
-    case StrategyProtocol.DispatchWork(worker) => // if approxWorkQueue.noWork
+    case StrategyProtocol.DispatchWork(worker, _, _) => // if approxWorkQueue.noWork
       ctx.log.debug("Approx queue ({}/{}) ran out of work, switching to full strategy", workGenerator.index, workGenerator.sizeTuples)
+      // do not forward batch runtimes!
       fullStrategy ! StrategyProtocol.DispatchWork(worker)
       // switch supplier for worker
       worker ! WorkerProtocol.UseSupplier(fullStrategy)

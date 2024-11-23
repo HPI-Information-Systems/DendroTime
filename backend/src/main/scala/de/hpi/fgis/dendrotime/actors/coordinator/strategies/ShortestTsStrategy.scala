@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
@@ -90,7 +91,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
       stash.unstashAll(serving(newQueue, nextItem = 0))
 
-    case m@DispatchWork(worker) =>
+    case m@DispatchWork(worker, _, _) =>
       if fallbackWorkGenerator.hasNext then
         val work = fallbackWorkGenerator.next()
         ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
@@ -109,13 +110,13 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker) if nextItem < workQueue.length =>
+    case DispatchWork(worker, _, _) if nextItem < workQueue.length =>
       val work = workQueue(nextItem)
       ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
       worker ! WorkerProtocol.CheckFull(work._1, work._2)
       serving(workQueue, nextItem + 1)
 
-    case m @ DispatchWork(worker) =>
+    case m @ DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork

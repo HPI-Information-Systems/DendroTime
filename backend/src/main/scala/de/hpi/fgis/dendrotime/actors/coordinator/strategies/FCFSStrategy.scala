@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
@@ -23,7 +24,7 @@ object FCFSStrategy extends StrategyFactory {
 class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
                            stash: StashBuffer[StrategyCommand],
                            eventReceiver: ActorRef[StrategyEvent]
-                          ) {
+                          ) extends AdaptiveBatchingMixin(ctx.system) {
 
   private val workGenerator = new WorkTupleGenerator
 
@@ -37,10 +38,11 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
       else
         Behaviors.same
 
-    case DispatchWork(worker) if workGenerator.hasNext =>
-      val work = workGenerator.next()
-      ctx.log.trace("Dispatching full job ({}), Stash={}", work, stash.size)
-      worker ! WorkerProtocol.CheckFull(work._1, work._2)
+    case DispatchWork(worker, time, size) if workGenerator.hasNext =>
+      val batchSize = nextBatchSize(time, size)
+      val work = workGenerator.nextBatch(batchSize)
+      ctx.log.trace("Dispatching full batch ({}), Stash={}", batchSize, stash.size)
+      worker ! WorkerProtocol.CheckFull(work)
       Behaviors.same
 
     case m: DispatchWork =>
