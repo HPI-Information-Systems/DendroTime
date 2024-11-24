@@ -59,7 +59,7 @@ object App extends CaseApp[Arguments] {
   }
 
   private def loadDataset(dataPath: Path, datasetName: String): Dataset = {
-    val localDatasetsFolder = dataPath.toFile
+    val localDatasetsFolder = dataPath.toAbsolutePath.toFile
     if !localDatasetsFolder.exists() then
       throw new IllegalArgumentException(s"Data path $localDatasetsFolder does not exist")
 

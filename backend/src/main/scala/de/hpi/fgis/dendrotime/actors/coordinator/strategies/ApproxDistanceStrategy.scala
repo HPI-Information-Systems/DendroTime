@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer.{ApproxDistanceMatrix, RegisterApproxDistMatrixReceiver}
+import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
@@ -71,7 +72,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
                                      eventReceiver: ActorRef[StrategyEvent],
                                      params: StrategyParameters,
                                      direction: ApproxDistanceStrategy.Direction
-                                    ) {
+                                    ) extends AdaptiveBatchingMixin(ctx.system) {
 
   import ApproxDistanceStrategy.*
 
@@ -110,12 +111,13 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
       stash.unstashAll(serving(newQueue, nextItem = 0))
 
-    case m@DispatchWork(worker, _, _) =>
+    case m@DispatchWork(worker, time, size) =>
       if fallbackWorkGenerator.hasNext then
-        val work = fallbackWorkGenerator.next()
-        ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
-        worker ! WorkerProtocol.CheckFull(work._1, work._2)
-        collecting(processedWork + work, mapping, dists)
+        val batchSize = Math.max(nextBatchSize(time, size), 16)
+        val work = fallbackWorkGenerator.nextBatch(batchSize)
+        ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work.length, processedWork.size, stash.size)
+        worker ! WorkerProtocol.CheckFull(work)
+        collecting(processedWork ++ work, mapping, dists)
       else
         ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
         if stash.isEmpty then
@@ -129,13 +131,14 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker, _, _) if nextItem < workQueue.length =>
+    case DispatchWork(worker, time, size) if nextItem < workQueue.length =>
+      val batchSize = nextBatchSize(time, size)
       val work =
-        if direction == Direction.Ascending then workQueue(nextItem)
-        else workQueue(workQueue.length - nextItem - 1)
-      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
-      worker ! WorkerProtocol.CheckFull(work._1, work._2)
-      serving(workQueue, nextItem + 1)
+        if direction == Direction.Ascending then workQueue.slice(nextItem, nextItem + batchSize)
+        else workQueue.slice(workQueue.length - nextItem - batchSize - 1, workQueue.length - nextItem)
+      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work.length, nextItem + 1, workQueue.length, stash.size)
+      worker ! WorkerProtocol.CheckFull(work)
+      serving(workQueue, nextItem + work.length)
 
     case m@DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)

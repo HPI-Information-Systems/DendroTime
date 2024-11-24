@@ -53,7 +53,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
                                  stash: StashBuffer[StrategyCommand],
                                  eventReceiver: ActorRef[StrategyEvent],
                                  params: StrategyParameters
-                                ) {
+                                ) extends AdaptiveBatchingMixin(ctx.system) {
 
   import ShortestTsStrategy.*
   
@@ -91,12 +91,13 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
       stash.unstashAll(serving(newQueue, nextItem = 0))
 
-    case m@DispatchWork(worker, _, _) =>
+    case m@DispatchWork(worker, time, size) =>
       if fallbackWorkGenerator.hasNext then
-        val work = fallbackWorkGenerator.next()
-        ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work, processedWork.size, stash.size)
-        worker ! WorkerProtocol.CheckFull(work._1, work._2)
-        collecting(processedWork + work)
+        val batchSize = Math.max(nextBatchSize(time, size), 16)
+        val work = fallbackWorkGenerator.nextBatch(batchSize)
+        ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work.length, processedWork.size, stash.size)
+        worker ! WorkerProtocol.CheckFull(work)
+        collecting(processedWork ++ work)
       else
         ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
         if stash.isEmpty then
@@ -110,11 +111,13 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker, _, _) if nextItem < workQueue.length =>
-      val work = workQueue(nextItem)
-      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work, nextItem + 1, workQueue.length, stash.size)
-      worker ! WorkerProtocol.CheckFull(work._1, work._2)
-      serving(workQueue, nextItem + 1)
+    case DispatchWork(worker, time, size) if nextItem < workQueue.length =>
+      val batchSize = nextBatchSize(time, size)
+      val end = Math.min(workQueue.length, nextItem + batchSize)
+      val work = workQueue.slice(nextItem, end)
+      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work.length, nextItem + 1, workQueue.length, stash.size)
+      worker ! WorkerProtocol.CheckFull(work)
+      serving(workQueue, nextItem + work.length)
 
     case m @ DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
