@@ -4,23 +4,15 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
-import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
-import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.Status
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
 object Worker {
-  sealed trait Command
-  case class UseSupplier(supplier: ActorRef[DispatchWork]) extends Command
-  case class CheckApproximate(t1: Long, t2: Long) extends Command
-  case class CheckFull(t1: Long, t2: Long) extends Command
-  private case class GetTimeSeriesResponse(msg: TimeSeriesManager.GetTimeSeriesResponse) extends Command
-
-  def apply(tsManager: ActorRef[TimeSeriesManager.Command],
+  def apply(tsManager: ActorRef[TsmProtocol.Command],
             clusterer: ActorRef[Clusterer.Command],
-            params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
+            params: DendroTimeParams): Behavior[WorkerProtocol.Command] = Behaviors.setup { ctx =>
     new Worker(WorkerContext(ctx, tsManager, clusterer), params).start()
   }
 
@@ -29,7 +21,7 @@ object Worker {
 
 private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
-  import Worker.*
+  import WorkerProtocol.*
 
   private val settings = Settings(ctx.context.system)
   private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
@@ -42,37 +34,43 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
       idle(supplier)
   }
 
-  private def idle(workSupplier: ActorRef[DispatchWork]): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def idle(workSupplier: ActorRef[DispatchWork], job: Option[CheckCommand] = None): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
       ctx.context.log.debug("Switching supplier to {}", supplier)
       idle(supplier)
 
-    case CheckApproximate(t1, t2) =>
-      ctx.tsManager ! TimeSeriesManager.GetTimeSeries(t1, t2, getTSAdapter)
-      waitingForTs(workSupplier)
-
-    case CheckFull(t1, t2) =>
-      ctx.tsManager ! TimeSeriesManager.GetTimeSeries(t1, t2, getTSAdapter)
-      waitingForTs(workSupplier, full = true)
+    case m: CheckCommand =>
+      ctx.tsManager ! m.tsRequest(getTSAdapter)
+      waitingForTs(workSupplier, m)
   }
 
   private def waitingForTs(workSupplier: ActorRef[DispatchWork],
-                           full: Boolean = false): Behavior[Command] = Behaviors.receiveMessagePartial {
+                           job: CheckCommand,
+                           sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
       ctx.context.log.debug("Switching supplier to {}", supplier)
-      waitingForTs(supplier, full)
+      waitingForTs(supplier, job, sendBatchStatistics = false)
 
-    case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesFound(t1, t2)) =>
-      if full then
-        checkFull(t1, t2)
+    case GetTimeSeriesResponse(ts: TsmProtocol.TimeSeriesFound) =>
+      val start = System.nanoTime()
+      if job.isApproximate then
+        while job.hasNext do
+          val (t1, t2) = job.next()
+          checkApproximate(ts(t1), ts(t2))
       else
-        checkApproximate(t1, t2)
-      workSupplier ! DispatchWork(ctx.context.self)
+        while job.hasNext do
+          val (t1, t2) = job.next()
+          checkFull(ts(t1), ts(t2))
+      val duration = System.nanoTime() - start
+      if sendBatchStatistics then
+        workSupplier ! DispatchWork(ctx.context.self, lastJobDuration = duration, lastBatchSize = job.size)
+      else
+        workSupplier ! DispatchWork(ctx.context.self)
       idle(workSupplier)
 
     // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)
-    case GetTimeSeriesResponse(TimeSeriesManager.TimeSeriesNotFound(ids)) =>
-      ctx.context.log.error("Time series {} not found", ids)
+    case GetTimeSeriesResponse(TsmProtocol.TimeSeriesNotFound) =>
+      ctx.context.log.error("Time series for job {} not found", job)
       // report failure to coordinator?
       Behaviors.stopped
   }

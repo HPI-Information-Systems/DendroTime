@@ -73,4 +73,12 @@ class ApproxDistanceWorkGenerator[T] private(queue: Array[(T, T)],
       result
   }
 
+  override def nextBatch(maxN: Int): Array[(T, T)] = {
+    val n = Math.min(maxN, remaining)
+    val batch =
+      if direction == ApproxDistanceWorkGenerator.Direction.Ascending then queue.slice(i, i + n)
+      else queue.slice(queue.length - i - n - 1, queue.length - i)
+    i += n
+    batch
+  }
 }

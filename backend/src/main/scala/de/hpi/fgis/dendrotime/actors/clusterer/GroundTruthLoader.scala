@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.TimeSeriesManager
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVReader
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
@@ -15,10 +15,10 @@ object GroundTruthLoader {
   sealed trait Command
   private case object LoadHierarchyGroundTruth extends Command
   private case object LoadClassesGroundTruth extends Command
-  private case class ClassLabelResponseWrapper(m: TimeSeriesManager.DatasetClassLabelsResponse) extends Command
+  private case class ClassLabelResponseWrapper(m: TsmProtocol.DatasetClassLabelsResponse) extends Command
 
   def apply(hierarchyCalculator: ActorRef[HierarchyCalculator.Command],
-            tsManager: ActorRef[TimeSeriesManager.Command],
+            tsManager: ActorRef[TsmProtocol.Command],
             dataset: Dataset,
             params: DendroTimeParams): Behavior[Command] =
     Behaviors.setup ( ctx =>
@@ -33,7 +33,7 @@ object GroundTruthLoader {
 class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
                         timer: TimerScheduler[GroundTruthLoader.Command],
                         hierarchyCalculator: ActorRef[HierarchyCalculator.Command],
-                        tsManager: ActorRef[TimeSeriesManager.Command],
+                        tsManager: ActorRef[TsmProtocol.Command],
                         dataset: Dataset,
                         params: DendroTimeParams) {
 
@@ -69,7 +69,7 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
       // also load the class labels if needed
       if settings.ProgressIndicators.computeClusterQuality then
         ctx.log.debug("Loading ground truth classes")
-        tsManager ! TimeSeriesManager.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
+        tsManager ! TsmProtocol.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
         waiting(gtHierarchy = gth)
       else
         hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gth, None)
@@ -77,14 +77,14 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
 
     case LoadClassesGroundTruth =>
       ctx.log.debug("Loading ground truth classes")
-      tsManager ! TimeSeriesManager.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
+      tsManager ! TsmProtocol.GetDatasetClassLabels(dataset.id, labelResponseAdapter)
       Behaviors.same
 
-    case ClassLabelResponseWrapper(TimeSeriesManager.DatasetClassLabels(labels)) =>
+    case ClassLabelResponseWrapper(TsmProtocol.DatasetClassLabels(labels)) =>
       hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gtHierarchy, Some(labels))
       Behaviors.stopped
 
-    case ClassLabelResponseWrapper(TimeSeriesManager.DatasetClassLabelsNotFound) =>
+    case ClassLabelResponseWrapper(TsmProtocol.DatasetClassLabelsNotFound) =>
       ctx.log.warn("Ground truth classes not available, but cluster quality computation is enabled!")
       hierarchyCalculator ! HierarchyCalculator.GroundTruthLoaded(gtHierarchy, None)
       Behaviors.stopped

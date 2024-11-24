@@ -31,6 +31,15 @@ class GrowableFCFSWorkGenerator[T: ClassTag] extends WorkGenerator[T] with mutab
   private var j = 1
   private var count = 0
 
+  @inline
+  private def inc(): Unit = {
+    count += 1
+    i += 1
+    if i == j then
+      i = 0
+      j += 1
+  }
+
   /** Resizes the internal buffer for the IDs. */
   def sizeHint(n: Int): Unit = ids.sizeHint(n)
 
@@ -57,12 +66,19 @@ class GrowableFCFSWorkGenerator[T: ClassTag] extends WorkGenerator[T] with mutab
       throw new NoSuchElementException(s"GrowableFCFSWorkGenerator has no (more) work {i=$i, j=$j, ids=$ids}")
     else
       val result = ids(i) -> ids(j)
-      i += 1
-      if i == j then
-        i = 0
-        j += 1
-      count += 1
+      inc()
       result
+  }
+
+  override def nextBatch(maxN: Int): Array[(T, T)] = {
+    val n = Math.min(maxN, remaining)
+    val batch = new Array[(T, T)](n)
+    var k = 0
+    while k < n do
+      batch(k) = ids(i) -> ids(j)
+      inc()
+      k += 1
+    batch
   }
 
   override def clear(): Unit = {

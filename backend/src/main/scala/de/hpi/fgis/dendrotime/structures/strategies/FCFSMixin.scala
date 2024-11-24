@@ -10,6 +10,15 @@ trait FCFSMixin[T: Numeric] {
   private var j = 1
   private var count = 0
 
+  @inline
+  private def inc(): Unit = {
+    count += 1
+    i += 1
+    if i == j then
+      i = 0
+      j += 1
+  }
+
   override def sizeIds: Int = tsIds.size
 
   override def sizeTuples: Int = tsIds.size * (tsIds.size - 1) / 2
@@ -25,12 +34,19 @@ trait FCFSMixin[T: Numeric] {
       var result = (tsIds(i), tsIds(j))
       if result._2 < result._1 then
         result = result.swap
-      i += 1
-      if i == j then
-        i = 0
-        j += 1
-      count += 1
+      inc()
       result
+  }
+
+  override def nextBatch(maxN: Int): Array[(T, T)] = {
+    val n = Math.min(maxN, remaining)
+    val batch = new Array[(T, T)](n)
+    var k = 0
+    while k < n do
+      batch(k) = tsIds(i) -> tsIds(j)
+      inc()
+      k += 1
+    batch
   }
 
   override def knownSize: Int = tsIds.size * (tsIds.size - 1) / 2

@@ -4,7 +4,8 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props, Terminated}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
-import de.hpi.fgis.dendrotime.actors.{Communicator, TimeSeriesManager}
+import de.hpi.fgis.dendrotime.actors.Communicator
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -22,7 +23,7 @@ object Clusterer {
   case class ApproxDistanceMatrix(distances: PDist)
 
   def apply(coordinator: ActorRef[Coordinator.Command],
-            tsManager: ActorRef[TimeSeriesManager.Command],
+            tsManager: ActorRef[TsmProtocol.Command],
             communicator: ActorRef[Communicator.Command],
             dataset: Dataset,
             params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
@@ -46,7 +47,7 @@ object Clusterer {
 private class Clusterer private(ctx: ActorContext[Clusterer.Command],
                                 coordinator: ActorRef[Coordinator.Command],
                                 communicator: ActorRef[Communicator.Command],
-                                tsManager: ActorRef[TimeSeriesManager.Command],
+                                tsManager: ActorRef[TsmProtocol.Command],
                                 n: Int,
                                 dataset: Dataset,
                                 params: DendroTimeParams,

@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.actors
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
@@ -22,7 +23,7 @@ object DatasetLoader {
   case class DatasetNTimeseries(n: Int) extends Response
   case class NewTimeSeries(datasetId: Int, tsId: Long) extends Response
 
-  def apply(tsManager: ActorRef[TimeSeriesManager.Command]): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(tsManager: ActorRef[TsmProtocol.Command]): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetLoader(ctx, tsManager).start()
   }
 
@@ -31,7 +32,7 @@ object DatasetLoader {
 
 private class DatasetLoader private (
                              ctx: ActorContext[DatasetLoader.Command],
-                             tsManager: ActorRef[TimeSeriesManager.Command]
+                             tsManager: ActorRef[TsmProtocol.Command]
                            ) {
 
   import DatasetLoader.*
@@ -74,7 +75,7 @@ private class DatasetLoader private (
     val processor = new TsParser.TsProcessor {
       override def processUnivariate(data: Array[Double], label: String): Unit = {
         val ts = LabeledTimeSeries(idGen, idx, data, label)
-        tsManager ! TimeSeriesManager.AddTimeSeries(d.id, ts)
+        tsManager ! TsmProtocol.AddTimeSeries(d.id, ts)
         replyTo ! NewTimeSeries(datasetId = d.id, tsId = idGen)
         idGen += 1
         idx += 1
