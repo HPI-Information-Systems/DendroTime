@@ -110,7 +110,6 @@ private class Coordinator private[coordinator] (
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        fullStrategy ! StrategyProtocol.AddTimeSeries(Seq(tsId))
         workGenerator += tsId
         if workGenerator.hasNext then
           stash.unstashAll(
@@ -152,7 +151,6 @@ private class Coordinator private[coordinator] (
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        fullStrategy ! StrategyProtocol.AddTimeSeries(Seq(tsId))
         workGenerator += tsId
         if workGenerator.hasNext then
           stash.unstashAll(
@@ -164,6 +162,8 @@ private class Coordinator private[coordinator] (
       case AllTimeSeriesLoaded(allTsIds) =>
         if allTsIds.size != tsIds.size || allTsIds.size != nTimeseries then
           throw new IllegalStateException(f"Not all time series were loaded (${tsIds.size} of $nTimeseries)")
+
+        fullStrategy ! StrategyProtocol.AddTimeSeries(tsIds)
 
         // switch to approximating state
         ctx.log.info("All {} time series loaded for dataset d-{}, SWITCHING TO APPROXIMATING STATE", allTsIds.size, dataset.id)

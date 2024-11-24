@@ -6,7 +6,7 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.worker.{Worker, WorkerProtocol}
+import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 object FCFSStrategy extends StrategyFactory {

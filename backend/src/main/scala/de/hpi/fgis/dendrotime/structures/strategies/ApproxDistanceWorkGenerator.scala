@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.structures.strategies
 
 import de.hpi.fgis.dendrotime.clustering.PDist
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object ApproxDistanceWorkGenerator {
@@ -21,7 +22,8 @@ object ApproxDistanceWorkGenerator {
 
   private def createQueue[T: ClassTag](
                                         mapping: Map[T, Int],
-                                        processedWork: Set[(T, T)], dists: PDist
+                                        processedWork: Set[(T, T)],
+                                        dists: PDist
                                       )(
                                         using ord: Numeric[T]
                                       ): Array[(T, T)] = {
@@ -80,5 +82,18 @@ class ApproxDistanceWorkGenerator[T] private(queue: Array[(T, T)],
       else queue.slice(queue.length - i - n - 1, queue.length - i)
     i += n
     batch
+  }
+
+  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+    val buf = mutable.ArrayBuilder.make[(T, T)]
+    buf.sizeHint(maxN)
+    while buf.length < maxN && hasNext do
+      val item =
+        if direction == ApproxDistanceWorkGenerator.Direction.Ascending then queue(i)
+        else queue(queue.length - i - 1)
+      if !ignore.contains(item) then
+        buf += item
+      i += 1
+    buf.result()
   }
 }

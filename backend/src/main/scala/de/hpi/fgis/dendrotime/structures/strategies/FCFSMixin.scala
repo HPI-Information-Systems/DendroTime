@@ -1,5 +1,6 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
+import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 
 trait FCFSMixin[T: Numeric] {
@@ -38,15 +39,15 @@ trait FCFSMixin[T: Numeric] {
       result
   }
 
-  override def nextBatch(maxN: Int): Array[(T, T)] = {
-    val n = Math.min(maxN, remaining)
-    val batch = new Array[(T, T)](n)
-    var k = 0
-    while k < n do
-      batch(k) = tsIds(i) -> tsIds(j)
+  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+    val batch = mutable.ArrayBuilder.make[(T, T)]
+    batch.sizeHint(maxN)
+    while batch.length < maxN && hasNext do
+      val pair = tsIds(i) -> tsIds(j)
+      if !ignore.contains(pair) && !ignore.contains(pair.swap) then
+        batch += pair
       inc()
-      k += 1
-    batch
+    batch.result()
   }
 
   override def knownSize: Int = tsIds.size * (tsIds.size - 1) / 2

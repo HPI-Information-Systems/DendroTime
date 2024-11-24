@@ -76,23 +76,22 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
     result
   }
 
-  def nextBatch(maxN: Int): Array[(T, T)] = {
+  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
     if sortNecessary then
       tsIds.sortInPlaceBy(id => -errors(id))
       sortNecessary = false
 
-    val n = Math.min(maxN, remaining)
-    val batch = new Array[(T, T)](n)
-    var k = 0
-    while k < n do
+    val buf = mutable.ArrayBuilder.make[(T, T)]
+    buf.sizeHint(maxN)
+    while buf.length < n && hasNext do
       val pair = nextLargestErrorPair(tsIds)
-      val mappedPair = (idMap(pair._1), idMap(pair._2))
-      batch(k) =
-        if mappedPair._2 < mappedPair._1 then mappedPair.swap
-        else mappedPair
-      k += 1
+      var mappedPair = (idMap(pair._1), idMap(pair._2))
+      if mappedPair._2 < mappedPair._1 then
+        mappedPair = mappedPair.swap
+      if !ignore.contains(mappedPair) then
+        buf += mappedPair
     count += n
-    batch
+    buf.result()
   }
 
   override def knownSize: Int = m

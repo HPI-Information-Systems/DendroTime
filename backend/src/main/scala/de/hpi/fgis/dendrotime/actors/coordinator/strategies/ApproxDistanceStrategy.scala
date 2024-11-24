@@ -3,30 +3,25 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer.{ApproxDistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.clustering.PDist
-import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
+import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
+import de.hpi.fgis.dendrotime.structures.strategies.{ApproxDistanceWorkGenerator, GrowableFCFSWorkGenerator, WorkGenerator}
 
-import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
 object ApproxDistanceStrategy {
 
-  private enum Direction {
-    case Ascending
-    case Descending
-  }
-
   private case class TSIndexMapping(mapping: Map[Long, Int]) extends StrategyCommand
   private case class ApproxDistances(dists: PDist) extends StrategyCommand
-  private case class WorkQueue(queue: Array[(Long, Long)]) extends StrategyCommand
+  private case class WorkGenCreated(queue: WorkGenerator[Long]) extends StrategyCommand
 
   object Ascending extends StrategyFactory {
     def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
@@ -47,31 +42,13 @@ object ApproxDistanceStrategy {
         new ApproxDistanceStrategy(ctx, stash, eventReceiver, params, direction).start()
       }
     }
-
-  private def createQueue(mapping: Map[Long, Int], processedWork: Set[(Long, Long)], dists: PDist): Array[(Long, Long)] = {
-    val ids = mapping.keys.toArray
-    val builder = mutable.ArrayBuilder.make[(Double, Long, Long)]
-    builder.sizeHint(dists.n * (dists.n - 1) / 2 - processedWork.size)
-    for i <- 0 until ids.length - 1 do
-      for j <- i + 1 until ids.length do
-        val idLeft = ids(i)
-        val idRight = ids(j)
-        if !processedWork.contains((idLeft, idRight)) && !processedWork.contains((idRight, idLeft)) then
-          val distance = dists(mapping(idLeft), mapping(idRight))
-          builder += ((distance, idLeft, idRight))
-    val work = builder.result()
-
-    work.sortInPlaceBy(_._1)
-    val queue = work.map(t => (t._2, t._3))
-    queue
-  }
 }
 
 class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
                                      stash: StashBuffer[StrategyCommand],
                                      eventReceiver: ActorRef[StrategyEvent],
                                      params: StrategyParameters,
-                                     direction: ApproxDistanceStrategy.Direction
+                                     direction: Direction
                                     ) extends AdaptiveBatchingMixin(ctx.system) {
 
   import ApproxDistanceStrategy.*
@@ -90,7 +67,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
 
   private def collecting(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
-      fallbackWorkGenerator.addAll(timeseriesIds)
+      fallbackWorkGenerator.addAll(timeseriesIds.sorted)
       if fallbackWorkGenerator.hasNext then
         stash.unstashAll(Behaviors.same)
       else
@@ -104,12 +81,11 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       ctx.log.debug(s"Received approximate distances", dists.n)
       potentiallyBuildQueue(processedWork, mapping, Some(dists))
 
-    case WorkQueue(queue) =>
-      val newQueue = queue.filterNot(processedWork.contains)
-      if newQueue.isEmpty then
+    case WorkGenCreated(queue) =>
+      if queue.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
-      ctx.log.info("Received work queue of size {} ({} already processed), serving", newQueue.length, processedWork.size)
-      stash.unstashAll(serving(newQueue, nextItem = 0))
+      ctx.log.info("Received work queue of size {} ({} already processed), serving", queue.sizeTuples, processedWork.size)
+      stash.unstashAll(serving(queue, processedWork))
 
     case m@DispatchWork(worker, time, size) =>
       if fallbackWorkGenerator.hasNext then
@@ -126,19 +102,17 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
         Behaviors.same
   }
 
-  private def serving(workQueue: Array[(Long, Long)], nextItem: Int): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
+  private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker, time, size) if nextItem < workQueue.length =>
+    case DispatchWork(worker, time, size) if workGen.hasNext =>
       val batchSize = nextBatchSize(time, size)
-      val work =
-        if direction == Direction.Ascending then workQueue.slice(nextItem, nextItem + batchSize)
-        else workQueue.slice(workQueue.length - nextItem - batchSize - 1, workQueue.length - nextItem)
-      ctx.log.trace("Dispatching full job ({}) nextItem={}/{}, Stash={}", work.length, nextItem + 1, workQueue.length, stash.size)
+      val work = workGen.nextBatch(batchSize, processedWork)
+      ctx.log.trace("Dispatching full job ({}) remaining={}, Stash={}", work.length, workGen.remaining, stash.size)
       worker ! WorkerProtocol.CheckFull(work)
-      serving(workQueue, nextItem + work.length)
+      Behaviors.same
 
     case m@DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
@@ -153,9 +127,9 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       case (Some(m), Some(d)) =>
         val size = d.n * (d.n - 1) / 2 - processedWork.size
         ctx.log.debug("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processedWork.size)
-        val f = Future { createQueue(m, processedWork, d) }
+        val f = Future { ApproxDistanceWorkGenerator[Long](m, processedWork, d, direction) }
         ctx.pipeToSelf(f) {
-          case Success(queue) => WorkQueue(queue)
+          case Success(queue) => WorkGenCreated(queue)
           case Failure(e) => throw e
         }
       case _ =>

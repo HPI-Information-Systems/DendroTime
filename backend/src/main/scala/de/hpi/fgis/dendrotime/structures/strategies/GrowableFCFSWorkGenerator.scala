@@ -1,30 +1,31 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
 import scala.collection.{AbstractIterator, mutable}
+import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
 
 object GrowableFCFSWorkGenerator {
-  def empty[T: ClassTag]: GrowableFCFSWorkGenerator[T] = new GrowableFCFSWorkGenerator
+  def empty[T: Numeric : ClassTag]: GrowableFCFSWorkGenerator[T] = new GrowableFCFSWorkGenerator
 
-  def apply[T: ClassTag](initialTsIds: IterableOnce[T]): GrowableFCFSWorkGenerator[T] = {
+  def apply[T: Numeric : ClassTag](initialTsIds: IterableOnce[T]): GrowableFCFSWorkGenerator[T] = {
     val generator = new GrowableFCFSWorkGenerator
     generator.addAll(initialTsIds)
   }
 
-  def apply[T: ClassTag](initialTsIds: Seq[T]): GrowableFCFSWorkGenerator[T] = {
+  def apply[T: Numeric : ClassTag](initialTsIds: Seq[T]): GrowableFCFSWorkGenerator[T] = {
     val generator = new GrowableFCFSWorkGenerator
     generator.sizeHint(initialTsIds.size)
     generator.addAll(initialTsIds)
   }
 
-  def ofExpectedSize[T: ClassTag](n: Int): GrowableFCFSWorkGenerator[T] = {
+  def ofExpectedSize[T: Numeric : ClassTag](n: Int): GrowableFCFSWorkGenerator[T] = {
     val generator = new GrowableFCFSWorkGenerator
     generator.sizeHint(n)
     generator
   }
 }
 
-class GrowableFCFSWorkGenerator[T: ClassTag] extends WorkGenerator[T] with mutable.Growable[T] {
+class GrowableFCFSWorkGenerator[T: Numeric : ClassTag] extends WorkGenerator[T] with mutable.Growable[T] {
 
   private val ids = mutable.ArrayBuffer.empty[T]
   private var i = 0
@@ -72,13 +73,29 @@ class GrowableFCFSWorkGenerator[T: ClassTag] extends WorkGenerator[T] with mutab
 
   override def nextBatch(maxN: Int): Array[(T, T)] = {
     val n = Math.min(maxN, remaining)
-    val batch = new Array[(T, T)](n)
+    val batch = Array.ofDim[(T, T)](n)
     var k = 0
     while k < n do
-      batch(k) = ids(i) -> ids(j)
+      var pair = ids(i) -> ids(j)
+      if pair._2 < pair._1 then
+        pair = pair.swap
+      batch(k) = pair
       inc()
       k += 1
     batch
+  }
+
+  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+    val batch = mutable.ArrayBuilder.make[(T, T)]
+    batch.sizeHint(maxN)
+    while batch.length < maxN && hasNext do
+      var pair = ids(i) -> ids(j)
+      if pair._2 < pair._1 then
+        pair = pair.swap
+      if !ignore.contains(pair) then
+        batch += pair
+      inc()
+    batch.result()
   }
 
   override def clear(): Unit = {
