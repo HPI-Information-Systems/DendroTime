@@ -13,38 +13,33 @@ import de.hpi.fgis.dendrotime.model.StateModel.Status
 
 
 object Clusterer {
-  sealed trait Command
-  case class Initialize(n: Int) extends Command
-  case class ApproximateDistance(t1: Int, t2: Int, dist: Double) extends Command
-  case class FullDistance(t1: Int, t2: Int, dist: Double) extends Command
-  case class RegisterApproxDistMatrixReceiver(receiver: ActorRef[ApproxDistanceMatrix]) extends Command
-  private[clusterer] case object GetDistances extends Command
-
-  case class ApproxDistanceMatrix(distances: PDist)
 
   def apply(coordinator: ActorRef[Coordinator.Command],
             tsManager: ActorRef[TsmProtocol.Command],
             communicator: ActorRef[Communicator.Command],
             dataset: Dataset,
-            params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
+            params: DendroTimeParams): Behavior[ClustererProtocol.Command] = Behaviors.setup { ctx =>
 
-    def uninitialized(stash: StashBuffer[Command]): Behavior[Command] = Behaviors.receiveMessage {
-      case Initialize(n) =>
-        stash.unstashAll(
-          new Clusterer(ctx, coordinator, communicator, tsManager, n, dataset: Dataset, params).start()
-        )
-      case m =>
-        stash.stash(m)
-        Behaviors.same
+    def uninitialized(stash: StashBuffer[ClustererProtocol.Command]): Behavior[ClustererProtocol.Command] =
+      Behaviors.receiveMessage {
+        case ClustererProtocol.Initialize(n) =>
+          stash.unstashAll(
+            new Clusterer(ctx, coordinator, communicator, tsManager, n, dataset: Dataset, params).start()
+          )
+        case m =>
+          stash.stash(m)
+          Behaviors.same
+      }
+    Behaviors.withTimers { timers =>
+      timers.startTimerWithFixedDelay(ClustererProtocol.ReportStatus, Settings(ctx.system).reportingInterval)
+      Behaviors.withStash(100)(uninitialized)
     }
-
-    Behaviors.withStash(100)(uninitialized)
   }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.clustering-dispatcher")
 }
 
-private class Clusterer private(ctx: ActorContext[Clusterer.Command],
+private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
                                 coordinator: ActorRef[Coordinator.Command],
                                 communicator: ActorRef[Communicator.Command],
                                 tsManager: ActorRef[TsmProtocol.Command],
@@ -53,7 +48,7 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
                                 params: DendroTimeParams,
                                ) {
 
-  import Clusterer.*
+  import ClustererProtocol.*
 
   private val settings = Settings(ctx.system)
   private val distances: MutablePDist = PDist.empty(n).mutable
@@ -86,34 +81,37 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
         ctx.watch(receiver)
         running(reg + receiver, hasWork, waiting)
 
-      case ApproximateDistance(t1, t2, dist) =>
-        ctx.log.trace("Received new approx distance between {} and {}", t1, t2)
-        approxCount += 1
-        // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
-        if distances(t1, t2) != Double.PositiveInfinity then
-          ctx.log.warn(
-            "Distance between {} and {} was already set to {}; not overwriting with received approximate distance!",
-            t1, t2, distances(t1, t2)
-          )
-          Behaviors.same
-        else
-          distances(t1, t2) = dist
-          communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
-          if approxCount == distances.size then
-            coordinator ! Coordinator.ApproxFinished
-            reg.foreach {
-              _ ! ApproxDistanceMatrix(distances)
-            }
-          if waiting then
-            calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
-            running(reg, hasWork = false, waiting = false)
+      case m : DistanceResult if m.isApproximate =>
+        ctx.log.trace("Received {} new approx distances", m.size)
+        approxCount += m.size
+        m.foreach { (t1, t2, dist) =>
+          // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
+          if distances(t1, t2) != Double.PositiveInfinity then
+            ctx.log.warn(
+              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance!",
+              t1, t2, distances(t1, t2)
+            )
           else
-            running(reg, hasWork = true, waiting = false)
+            distances(t1, t2) = dist
+        }
+        communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
+        if approxCount == distances.size then
+          coordinator ! Coordinator.ApproxFinished
+          reg.foreach {
+            _ ! ApproxDistanceMatrix(distances)
+          }
+        if waiting then
+          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
+          running(reg, hasWork = false, waiting = false)
+        else
+          running(reg, hasWork = true, waiting = false)
 
-      case FullDistance(t1, t2, dist) =>
-        ctx.log.trace("Received new full distance between {} and {}", t1, t2)
-        fullCount += 1
-        distances(t1, t2) = dist
+      case m : DistanceResult =>
+        ctx.log.trace("Received {} new full distance", m.size)
+        fullCount += m.size
+        m.foreach { (t1, t2, dist) =>
+          distances(t1, t2) = dist
+        }
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
         if fullCount == distances.size then
           coordinator ! Coordinator.FullFinished
@@ -138,6 +136,17 @@ private class Clusterer private(ctx: ActorContext[Clusterer.Command],
           Behaviors.stopped
         else
           running(reg, hasWork = false, waiting = true)
+
+      case ReportStatus =>
+        ctx.log.info(
+          "[REPORT] {}/{} approx, {}/{} full distances received",
+          approxCount, distances.size, fullCount, distances.size
+        )
+        Behaviors.same
+
+      case m =>
+        ctx.log.warn("Received unexpected message: {}", m)
+        Behaviors.same
 
     } receiveSignal {
       case (_, Terminated(ref)) =>

@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.worker
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
+import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -11,7 +11,7 @@ import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
 
 object Worker {
   def apply(tsManager: ActorRef[TsmProtocol.Command],
-            clusterer: ActorRef[Clusterer.Command],
+            clusterer: ActorRef[ClustererProtocol.Command],
             params: DendroTimeParams): Behavior[WorkerProtocol.Command] = Behaviors.setup { ctx =>
     new Worker(WorkerContext(ctx, tsManager, clusterer), params).start()
   }
@@ -52,20 +52,32 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
       waitingForTs(supplier, job, sendBatchStatistics = false)
 
     case GetTimeSeriesResponse(ts: TsmProtocol.TimeSeriesFound) =>
+      // compute distances
       val start = System.nanoTime()
-      if job.isApproximate then
-        while job.hasNext do
-          val (t1, t2) = job.next()
-          checkApproximate(ts(t1), ts(t2))
-      else
-        while job.hasNext do
-          val (t1, t2) = job.next()
-          checkFull(ts(t1), ts(t2))
+      val tas = Array.ofDim[Int](job.size)
+      val tbs = Array.ofDim[Int](job.size)
+      val dists = Array.ofDim[Double](job.size)
+      var k = 0
+      while job.hasNext do
+        val (t1, t2) = job.next()
+        val (idx1, idx2, dist) = if job.isApproximate then checkApproximate(ts(t1), ts(t2)) else checkFull(ts(t1), ts(t2))
+        tas(k) = idx1
+        tbs(k) = idx2
+        dists(k) = dist
+        k += 1
       val duration = System.nanoTime() - start
+
+      // send batch statistics to coordinator and request more work
       if sendBatchStatistics then
         workSupplier ! DispatchWork(ctx.context.self, lastJobDuration = duration, lastBatchSize = job.size)
       else
         workSupplier ! DispatchWork(ctx.context.self)
+
+      // send distances to clusterer
+      if job.isApproximate then
+        ctx.clusterer ! ClustererProtocol.ApproximateDistance(tas, tbs, dists)
+      else
+        ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
       idle(workSupplier)
 
     // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)
@@ -76,19 +88,19 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
   }
 
   @inline
-  private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): Unit = {
+  private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2
     val dist = distanceMetric(
       ts1.data.slice(ts1Center - params.approxLength/2, ts1Center + params.approxLength/2),
       ts2.data.slice(ts2Center - params.approxLength/2, ts2Center + params.approxLength/2),
     )
-    ctx.clusterer ! Clusterer.ApproximateDistance(ts1.idx, ts2.idx, dist)
+    (ts1.idx, ts2.idx, dist)
   }
 
   @inline
-  private def checkFull(ts1: TimeSeries, ts2: TimeSeries): Unit = {
+  private def checkFull(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
     val dist = distanceMetric(ts1.data, ts2.data)
-    ctx.clusterer ! Clusterer.FullDistance(ts1.idx, ts2.idx, dist)
+    (ts1.idx, ts2.idx, dist)
   }
 }

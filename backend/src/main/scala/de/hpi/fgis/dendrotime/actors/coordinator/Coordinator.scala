@@ -1,11 +1,11 @@
 package de.hpi.fgis.dendrotime.actors.coordinator
 
 import akka.actor.Cancellable
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import akka.actor.typed.*
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
-import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
+import de.hpi.fgis.dendrotime.actors.clusterer.{Clusterer, ClustererProtocol}
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{StrategyFactory, StrategyProtocol}
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
@@ -122,7 +122,7 @@ private class Coordinator private[coordinator] (
         ctx.log.info("Dataset d-{} has {} time series, starting clusterer and SWITCHING TO LOADING STATE", dataset.id, n)
         workGenerator.sizeHint(n)
         // switch to loading state
-        clusterer ! Clusterer.Initialize(n)
+        clusterer ! ClustererProtocol.Initialize(n)
         stash.unstashAll(loading(n, tsIds))
 
       case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>

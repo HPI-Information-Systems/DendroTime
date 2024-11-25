@@ -1,8 +1,9 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
-import de.hpi.fgis.dendrotime.actors.clusterer.Clusterer
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.{StrategyCommand, StrategyEvent}
+import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -12,7 +13,7 @@ object StrategyFactory {
                                  dataset: Dataset,
                                  params: DendroTimeParams,
                                  tsManager: ActorRef[TsmProtocol.Command],
-                                 clusterer: ActorRef[Clusterer.Command],
+                                 clusterer: ActorRef[ClustererProtocol.Command],
                                )
 
   def get(strategy: String): StrategyFactory = strategy.toLowerCase.strip().replace(" ", "-").replace("_", "-") match {

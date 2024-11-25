@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.*
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
@@ -15,7 +15,7 @@ private[clusterer] object HierarchyCalculator {
   case class GroundTruthLoaded(gtHierarchy: Option[Hierarchy], gtClassLabels: Option[Array[String]]) extends Command
   case object ReportRuntime extends Command
 
-  def apply(clusterer: ActorRef[Clusterer.Command],
+  def apply(clusterer: ActorRef[ClustererProtocol.Command],
             communicator: ActorRef[Communicator.Command],
             n: Int,
             params: DendroTimeParams,
@@ -30,7 +30,7 @@ private[clusterer] object HierarchyCalculator {
 }
 
 private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculator.Command],
-                                             clusterer: ActorRef[Clusterer.Command],
+                                             clusterer: ActorRef[ClustererProtocol.Command],
                                              communicator: ActorRef[Communicator.Command],
                                              n: Int,
                                              params: DendroTimeParams) {
@@ -48,14 +48,14 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   private var computations = 0
 
   private def start(): Behavior[Command] = {
-    clusterer ! Clusterer.GetDistances
+    clusterer ! ClustererProtocol.GetDistances
     running()
   }
 
   private def running(): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ComputeHierarchy(index, distances) =>
       computeHierarchy(state, index, distances)
-      clusterer ! Clusterer.GetDistances
+      clusterer ! ClustererProtocol.GetDistances
       Behaviors.same
 
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
@@ -72,7 +72,7 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       computations = state.computations
       Behaviors.same
 
-  }.receiveSignal {
+  } receiveSignal {
     case (_, PostStop) =>
       val newComps = state.computations - computations
       if newComps > 0 then
