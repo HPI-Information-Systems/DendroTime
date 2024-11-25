@@ -53,10 +53,12 @@ class Settings private(config: Config) extends Extension {
   }
 
   val batchingTargetTime: FiniteDuration = {
-    val duration = config.getDuration(s"$namespace.batching-target-time")
+    val duration = config.getDuration(s"$namespace.batching.target-time")
     FiniteDuration(duration.toMillis, "milliseconds")
   }
-  
+
+  val batchingMaxBatchSize: Int = config.getInt(s"$namespace.batching.max-batch-size")
+
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
     val computeHierarchySimilarity: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-similarity")

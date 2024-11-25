@@ -121,6 +121,7 @@ private class Coordinator private[coordinator] (
       case DatasetHasNTimeseries(n) =>
         ctx.log.info("Dataset d-{} has {} time series, starting clusterer and SWITCHING TO LOADING STATE", dataset.id, n)
         workGenerator.sizeHint(n)
+        limitBatchSize(n)
         // switch to loading state
         clusterer ! ClustererProtocol.Initialize(n)
         stash.unstashAll(loading(n, tsIds))
