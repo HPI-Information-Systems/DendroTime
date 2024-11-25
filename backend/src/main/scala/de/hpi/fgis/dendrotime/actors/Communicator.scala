@@ -8,6 +8,7 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, ProgressMessage, Status}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 
+import scala.collection.mutable
 import scala.language.postfixOps
 import scala.math.Ordering.Implicits.infixOrderingOps
 
@@ -23,14 +24,7 @@ object Communicator {
   def apply(dataset: Dataset): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(ReportStatus, Settings(ctx.system).reportingInterval)
-      val startProgress = Map[Status, Int](
-        Status.Initializing -> 20,
-        Status.Approximating -> 0,
-        Status.ComputingFullDistances -> 0,
-        Status.Finalizing -> 0,
-        Status.Finished -> 100
-      )
-      new Communicator(ctx, dataset).running(Status.Initializing, startProgress, ClusteringState())
+      new Communicator(ctx, dataset).running(Status.Initializing, ClusteringState())
     }
   }
 
@@ -43,20 +37,29 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
   import Communicator.*
 
   private val settings = Settings(ctx.system)
+  private val progress = mutable.SortedMap[Status, Int](
+    Status.Initializing -> 20,
+    Status.Approximating -> 0,
+    Status.ComputingFullDistances -> 0,
+    Status.Finalizing -> 0,
+    Status.Finished -> 100
+  )
 
-  private def running(status: Status, progress: Map[Status, Int], clusteringState: ClusteringState): Behavior[Command] =
+  private def running(status: Status, clusteringState: ClusteringState): Behavior[Command] =
     Behaviors.receiveMessage[Command] {
       case NewStatus(newStatus) =>
         // set all previous progresses to 100
-        val newP = for (k, v) <- progress yield (k, if k < newStatus then 100 else v)
-        ctx.log.debug("Updating progress bc. state change to {}: {}", newStatus, newP)
-        running(newStatus, newP, clusteringState)
+        for k <- progress.keys if k < newStatus do
+          progress(k) = 100
+        ctx.log.debug("Updating progress bc. state change to {}: {}", newStatus, progress)
+        running(newStatus, clusteringState)
 
       case ProgressUpdate(s, p) =>
-        running(status, progress.updated(s, p), clusteringState)
+        progress.update(s, p)
+        running(status, clusteringState)
 
       case NewHierarchy(state) =>
-        running(status, progress, state)
+        running(status, state)
 
       case GetProgress(replyTo) =>
         replyTo ! ProgressMessage.progressFromClusteringState(status, progress(status), clusteringState)
