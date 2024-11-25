@@ -2,8 +2,9 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.{StrategyCommand, StrategyEvent}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.{ReportStatus, StrategyCommand, StrategyEvent}
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -27,7 +28,12 @@ object StrategyFactory {
   }
 
   def apply(strategy: String, params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
-    get(strategy)(params, eventReceiver)
+    Behaviors.setup { ctx =>
+      Behaviors.withTimers { timers =>
+        timers.startTimerWithFixedDelay(ReportStatus, Settings(ctx.system).reportingInterval)
+        get(strategy)(params, eventReceiver)
+      }
+    }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.coordinator-pinned-dispatcher")
 }

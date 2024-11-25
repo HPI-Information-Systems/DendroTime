@@ -51,5 +51,12 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
         eventReceiver ! FullStrategyOutOfWork
       stash.stash(m)
       Behaviors.same
+
+    case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] Serving, {}/{} work items remaining, {}",
+        workGenerator.remaining, workGenerator.sizeTuples, getBatchStats
+      )
+      Behaviors.same
   }
 }

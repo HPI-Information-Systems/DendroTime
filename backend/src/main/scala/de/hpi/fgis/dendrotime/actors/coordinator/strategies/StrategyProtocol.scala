@@ -10,6 +10,7 @@ object StrategyProtocol {
   case class DispatchWork(worker: ActorRef[WorkerProtocol.Command],
                           lastJobDuration: Long = 0,
                           lastBatchSize: Int = 1) extends StrategyCommand
+  private[coordinator] case object ReportStatus extends StrategyCommand
 
   trait StrategyEvent
   case object FullStrategyOutOfWork extends StrategyEvent

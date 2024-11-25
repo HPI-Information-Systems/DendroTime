@@ -49,8 +49,11 @@ object Coordinator {
     val settings = Settings(ctx.system)
     val stashSize = settings.numberOfWorkers * 5
 
-    Behaviors.withStash(stashSize) { stash =>
-      new Coordinator(ctx, tsManager, id, dataset, params, reportTo, stash).start()
+    Behaviors.withTimers { timers =>
+      timers.startTimerWithFixedDelay(StrategyProtocol.ReportStatus, settings.reportingInterval)
+      Behaviors.withStash(stashSize) { stash =>
+        new Coordinator(ctx, tsManager, id, dataset, params, reportTo, stash).start()
+      }
     }
   }
 
@@ -138,6 +141,10 @@ private class Coordinator private[coordinator] (
         stash.stash(m)
         Behaviors.same
 
+      case StrategyProtocol.ReportStatus =>
+        ctx.log.info("[REPORT] Initializing, {} time series loaded, {}", tsIds.size, getBatchStats)
+        Behaviors.same
+
       case FailedToLoadAllTimeSeries(_) =>
         reportTo ! ProcessingFailed(id)
         Behaviors.stopped
@@ -183,6 +190,10 @@ private class Coordinator private[coordinator] (
         stash.stash(m)
         Behaviors.same
 
+      case StrategyProtocol.ReportStatus =>
+        ctx.log.info("[REPORT] Loading, {}/{} time series loaded, {}", tsIds.size, nTimeseries, getBatchStats)
+        Behaviors.same
+
       case FailedToLoadAllTimeSeries(_) =>
         reportTo ! ProcessingFailed(id)
         Behaviors.stopped
@@ -202,11 +213,15 @@ private class Coordinator private[coordinator] (
       Behaviors.same
 
     case StrategyProtocol.DispatchWork(worker, _, _) => // if approxWorkQueue.noWork
-      ctx.log.debug("Approx queue ({}/{}) ran out of work, switching to full strategy", workGenerator.index, workGenerator.sizeTuples)
+      ctx.log.debug("Approx queue ({}/{}) ran out of work, switching to full strategy", workGenerator.remaining, workGenerator.sizeTuples)
       // do not forward batch runtimes!
       fullStrategy ! StrategyProtocol.DispatchWork(worker)
       // switch supplier for worker
       worker ! WorkerProtocol.UseSupplier(fullStrategy)
+      Behaviors.same
+
+    case StrategyProtocol.ReportStatus =>
+      ctx.log.info("[REPORT] Running {}/{} remaining approx jobs, {}", workGenerator.remaining, workGenerator.sizeTuples, getBatchStats)
       Behaviors.same
 
     case ApproxFinished =>
@@ -239,6 +254,10 @@ private class Coordinator private[coordinator] (
       ctx.log.info("FINISHED processing job {}", id)
       val stopTimer = ctx.scheduleOnce(30 seconds span, ctx.self, Stop)
       waitingForClustering(stopTimer)
+
+    case StrategyProtocol.ReportStatus =>
+      ctx.log.info("[REPORT] Waiting for clustering to finish")
+      Behaviors.same
 
     case Stop =>
       // do not directly stop coordinator to let communicator store the final state to disk (if enabled)

@@ -7,7 +7,6 @@ import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import scala.collection.AbstractIterator
 import scala.collection.immutable.HashMap
-import scala.collection.immutable.Map.Map1
 import scala.reflect.ClassTag
 
 object TsmProtocol {
@@ -212,7 +211,9 @@ object TsmProtocol {
 
   case object TimeSeriesNotFound extends GetTimeSeriesResponse
 
-  trait TimeSeriesFound extends GetTimeSeriesResponse with Iterable[(Long, LabeledTimeSeries)] {
+  sealed trait TimeSeriesFound extends GetTimeSeriesResponse with Iterable[(Long, LabeledTimeSeries)] {
+    def size: Int
+
     def apply(key: Long): LabeledTimeSeries
 
     def contains(key: Long): Boolean
@@ -238,6 +239,7 @@ object TsmProtocol {
 
     def apply(ids: Array[Long], timeseries: Array[LabeledTimeSeries]): GetTimeSeriesResponse =
       val b = HashMap.newBuilder[Long, LabeledTimeSeries]
+      b.sizeHint(ids.length)
       var i = 0
       while i < ids.length do
         b += ids(i) -> timeseries(i)
@@ -246,6 +248,8 @@ object TsmProtocol {
   }
 
   private final class TimeSeriesFound1(id: Long, ts: LabeledTimeSeries) extends TimeSeriesFound {
+    override def size: Int = 1
+
     override def contains(key: Long): Boolean = key == id
 
     override def apply(key: Long): LabeledTimeSeries =
@@ -257,6 +261,8 @@ object TsmProtocol {
 
   private final class TimeSeriesFound2(id1: Long, ts1: LabeledTimeSeries,
                                        id2: Long, ts2: LabeledTimeSeries) extends TimeSeriesFound {
+    override def size: Int = 2
+
     override def contains(key: Long): Boolean = key == id1 || key == id2
 
     override def apply(key: Long): LabeledTimeSeries =
@@ -270,6 +276,8 @@ object TsmProtocol {
   private final class TimeSeriesFound3(id1: Long, ts1: LabeledTimeSeries,
                                        id2: Long, ts2: LabeledTimeSeries,
                                        id3: Long, ts3: LabeledTimeSeries) extends TimeSeriesFound {
+    override def size: Int = 3
+
     override def contains(key: Long): Boolean = key == id1 || key == id2 || key == id3
 
     override def apply(key: Long): LabeledTimeSeries =
@@ -285,6 +293,8 @@ object TsmProtocol {
                                        id2: Long, ts2: LabeledTimeSeries,
                                        id3: Long, ts3: LabeledTimeSeries,
                                        id4: Long, ts4: LabeledTimeSeries) extends TimeSeriesFound {
+    override def size: Int = 4
+
     override def contains(key: Long): Boolean = key == id1 || key == id2 || key == id3 || key == id4
 
     override def apply(key: Long): LabeledTimeSeries =
@@ -299,6 +309,8 @@ object TsmProtocol {
   }
 
   private final class TimeSeriesFoundN(tsMap: HashMap[Long, LabeledTimeSeries]) extends TimeSeriesFound {
+    override def size: Int = tsMap.size
+
     override def contains(key: Long): Boolean = tsMap.contains(key)
 
     override def apply(key: Long): LabeledTimeSeries = tsMap(key)

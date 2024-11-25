@@ -85,6 +85,10 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
           eventReceiver ! FullStrategyOutOfWork
         stash.stash(m)
         Behaviors.same
+
+    case ReportStatus =>
+      ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processedWork.size)
+      Behaviors.same
   }
   
   private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
@@ -104,6 +108,13 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
       stash.stash(m)
+      Behaviors.same
+
+    case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] Serving, {}/{} work items remaining, {}",
+        workGen.remaining, workGen.sizeTuples, getBatchStats
+      )
       Behaviors.same
   }
 }

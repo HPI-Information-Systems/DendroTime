@@ -100,6 +100,10 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
           eventReceiver ! FullStrategyOutOfWork
         stash.stash(m)
         Behaviors.same
+
+    case ReportStatus =>
+      ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processedWork.size)
+      Behaviors.same
   }
 
   private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
@@ -120,13 +124,20 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
         eventReceiver ! FullStrategyOutOfWork
       stash.stash(m)
       Behaviors.same
+
+    case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] Serving, {}/{} work items remaining, {}",
+        workGen.remaining, workGen.sizeTuples, getBatchStats
+      )
+      Behaviors.same
   }
 
   private def potentiallyBuildQueue(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
     (mapping, dists) match {
       case (Some(m), Some(d)) =>
         val size = d.n * (d.n - 1) / 2 - processedWork.size
-        ctx.log.debug("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processedWork.size)
+        ctx.log.info("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processedWork.size)
         val f = Future { ApproxDistanceWorkGenerator[Long](m, processedWork, d, direction) }
         ctx.pipeToSelf(f) {
           case Success(queue) => WorkGenCreated(queue)
