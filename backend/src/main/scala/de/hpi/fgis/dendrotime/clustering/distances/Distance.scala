@@ -15,10 +15,14 @@ trait Distance {
   def pairwise(x: Array[Array[Double]]): Array[Array[Double]] =
     val n_instances = x.length
     val distances = Array.ofDim[Double](n_instances, n_instances)
-    for i <- 0 until n_instances do
-      for j <- i + 1 until n_instances do
+    var i = 0
+    while i < n_instances do
+      var j = i + 1
+      while j < n_instances do
         distances(i)(j) = apply(x(i), x(j))
         distances(j)(i) = distances(i)(j)
+        j += 1
+      i += 1
 
     distances
 

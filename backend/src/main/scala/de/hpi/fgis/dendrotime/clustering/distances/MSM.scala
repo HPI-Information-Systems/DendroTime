@@ -116,12 +116,16 @@ class MSM(
     val distances = Array.ofDim[Double](n_instances, n_instances)
     val boundingMatrix = Bounding.createBoundingMatrix(n_timesteps, n_timesteps, window, itakuraMaxSlope)
 
-    for i <- 0 until n_instances do
-      for j <- i + 1 until n_instances do
+    var i = 0
+    while i < n_instances do
+      var j = i + 1
+      while j < n_instances do
         val currentCostMatrix = costMatrix(x(i), x(j), boundingMatrix, c)
         val distance = currentCostMatrix(n_timesteps - 1)(n_timesteps - 1)
         distances(i)(j) = distance
         distances(j)(i) = distance
+        j += 1
+      i += 1
 
     distances
   }
@@ -135,24 +139,32 @@ class MSM(
     }
     costMatrix(0)(0) = Math.abs(x(0) - y(0))
 
-    for i <- 1 until n do
+    var i = 1
+    while i < n do
       if boundingMatrix(i)(0) then
         val cost = independentCost(x(i), x(i - 1), y(0), c)
         costMatrix(i)(0) = costMatrix(i - 1)(0) + cost
+      i += 1
 
-    for j <- 1 until m do
+    var j = 1
+    while j < m do
       if boundingMatrix(0)(j) then
         val cost = independentCost(y(j), y(j - 1), x(0), c)
         costMatrix(0)(j) = costMatrix(0)(j - 1) + cost
+      j += 1
 
-    for i <- 1 until n do
-      for j <- 1 until m do
+    i = 1
+    while i < n do
+      j = 1
+      while j < m do
         if boundingMatrix(i)(j) then
           val cost1 = costMatrix(i - 1)(j - 1) + Math.abs(x(i) - y(j))
           val cost2 = costMatrix(i - 1)(j) + independentCost(x(i), x(i - 1), y(j), c)
           val cost3 = costMatrix(i)(j - 1) + independentCost(y(j), x(i), y(j - 1), c)
 
           costMatrix(i)(j) = Math.min(cost1, Math.min(cost2, cost3))
+        j += 1
+      i += 1
     costMatrix
   }
 

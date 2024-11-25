@@ -91,6 +91,7 @@ class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE) extends Distance {
     else
       x -> y
 
+    // FIXME: avoid re-allocating a new FFTWReal instance for each call
     val a = FFTWReal.fftwConvolve(xStd, yStd)
     val b = Math.sqrt(xStd.map(xi => xi * xi).sum * yStd.map(yi => yi * yi).sum)
     Math.abs(1.0 - a.max / b)

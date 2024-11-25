@@ -120,12 +120,16 @@ class DTW(
     val distances = Array.ofDim[Double](n_instances, n_instances)
     val boundingMatrix = Bounding.createBoundingMatrix(n_timesteps, n_timesteps, window, itakuraMaxSlope)
 
-    for i <- 0 until n_instances do
-      for j <- i + 1 until n_instances do
+    var i = 0
+    while i < n_instances do
+      var j = i + 1
+      while j < n_instances do
         val currentCostMatrix = costMatrix(x(i), x(j), boundingMatrix)
         val distance = currentCostMatrix(n_timesteps - 1)(n_timesteps - 1)
         distances(i)(j) = distance
         distances(j)(i) = distance
+        j += 1
+      i += 1
 
     distances
   }
@@ -139,14 +143,22 @@ class DTW(
     }
     costMatrix(0)(0) = univariateSquared(x(0), y(0))
 
-    for i <- 1 until n if boundingMatrix(i)(0) do
+    var i = 1
+    while i < n do
+      if boundingMatrix(i)(0) then
         costMatrix(i)(0) = costMatrix(i-1)(0) + univariateSquared(x(i), y(0))
+      i += 1
 
-    for j <- 1 until m if boundingMatrix(0)(j) do
-      costMatrix(0)(j) = costMatrix(0)(j-1) + univariateSquared(x(0), y(j))
+    var j = 1
+    while j < m do
+      if boundingMatrix(0)(j) then
+        costMatrix(0)(j) = costMatrix(0)(j-1) + univariateSquared(x(0), y(j))
+      j += 1
 
-    for i <- 1 until n do
-      for j <- 1 until m do
+    i = 1
+    while i < n do
+      j = 1
+      while j < m do
         if boundingMatrix(i)(j) then
           val prevMin = Math.min(
             costMatrix(i-1)(j), Math.min(
@@ -156,6 +168,8 @@ class DTW(
           val current = univariateSquared(x(i), y(j))
 
           costMatrix(i)(j) = prevMin + current
+        j += 1
+      i += 1
     costMatrix
   }
 

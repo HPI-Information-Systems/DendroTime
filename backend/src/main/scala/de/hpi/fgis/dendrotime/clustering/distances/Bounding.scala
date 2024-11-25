@@ -20,14 +20,16 @@ object Bounding {
       require(0 < itakuraMaxSlope && itakuraMaxSlope < 1, "itakuraMaxSlope must be between 0 and 1")
       require(n == m, "itakuraMaxSlope can only be used for equal length time series")
       itakuraParallelogram(n, m, itakuraMaxSlope)
+
     else if window.isFinite then
       require(0 < window && window < 1, "window must be between 0 and 1")
       if n <= m then
         sakoeChibaBounding(n, m, window)
       else
         sakoeChibaBounding(m, n, window).transpose
+
     else
-      Array.tabulate(n, m)((_, _) => true)
+      Array.fill(n, m)(true)
   }
 
   @inline
@@ -38,12 +40,16 @@ object Bounding {
     val shortestDim = Math.min(n, m)
     val thickness = (window * shortestDim).floor.toInt
 
-    for j <- 0 until maxSize do
+    var j = 0
+    while j < maxSize do
       val lower = Math.max(0, (j.toDouble/maxSize*n).floor.toInt - thickness)
       val upper = Math.min(n, (j.toDouble/maxSize*n).floor.toInt + thickness + 1)
       val yIndex = (j.toDouble/maxSize*m).floor.toInt
-      for i <- lower until upper do
+      var i = lower
+      while i < upper do
         boundingMatrix(i)(yIndex) = true
+        i += 1
+      j += 1
     boundingMatrix
   }
 
@@ -69,11 +75,15 @@ object Bounding {
         ).ceil.toInt
 
     val boundingMatrix = Array.ofDim[Boolean](n, m)
-    for i <- 0 until m do
+    var i = 0
+    while i < m do
       val lowerBound = computeBound(i, upper = false)
       val upperBound = computeBound(i, upper = true)
-      for x <- boundingMatrix.slice(lowerBound, upperBound) do
-        x(i) = true
+      var k = lowerBound
+      while k < upperBound do
+        boundingMatrix(k)(i) = true
+        k += 1
+      i += 1
     boundingMatrix
   }
 }
