@@ -57,7 +57,11 @@ class Settings private(config: Config) extends Extension {
     FiniteDuration(duration.toMillis, "milliseconds")
   }
 
-  val batchingMaxBatchSize: Int = config.getInt(s"$namespace.batching.max-batch-size")
+  val batchingMaxBatchSize: Option[Int] =
+    if config.hasPath(s"$namespace.batching.max-batch-size") then
+      Some(config.getInt(s"$namespace.batching.max-batch-size"))
+    else
+      None
 
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"

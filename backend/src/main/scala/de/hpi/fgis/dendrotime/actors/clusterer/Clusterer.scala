@@ -144,10 +144,6 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         )
         Behaviors.same
 
-      case m =>
-        ctx.log.warn("Received unexpected message: {}", m)
-        Behaviors.same
-
     } receiveSignal {
       case (_, Terminated(ref)) =>
         ctx.unwatch(ref)

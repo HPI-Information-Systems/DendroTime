@@ -6,7 +6,7 @@ import de.hpi.fgis.dendrotime.Settings
 trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
   private val targetDuration: Long = Settings(system).batchingTargetTime.toNanos
   private val decay: Double = 0.9
-  private var maxBatchSize: Int = Settings(system).batchingMaxBatchSize
+  private val maxBatchSize: Int = Settings(system).batchingMaxBatchSize.getOrElse(Int.MaxValue)
 
   private var meanItemTime: Long = 0
   private var totalNoItems: Long = 0
@@ -15,10 +15,6 @@ trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
   private var duration: Long = 0
   private var meanBatchSize: Int = 0
   private var batchUpdates: Int = 0
-
-  def limitBatchSize(maxBatchSize: Int): Unit = {
-    this.maxBatchSize = Math.min(maxBatchSize, this.maxBatchSize)
-  }
 
   def nextBatchSize(lastDuration: Long, lastBatchSize: Int): Int = {
     val batchMean = lastDuration / lastBatchSize
@@ -34,7 +30,7 @@ trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
         1,
         Math.min(
           maxBatchSize,
-          Math.min(2*currentBatchSize, (targetDuration / meanItemTime).toInt)
+          Math.min(2 * currentBatchSize, (targetDuration / meanItemTime).toInt)
         )
       )
       // update stats
@@ -42,16 +38,13 @@ trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
       meanBatchSize = meanBatchSize + (currentBatchSize - meanBatchSize) / batchUpdates
       duration = lastDuration
 
-//    println(s"Batch size: $currentBatchSize (meanItemTime: ${meanItemTime/1000}µs (last:${batchMean/1_000}µs), " +
-//      s"targetDuration: ${targetDuration/1_000}µs (lastDuration: ${lastDuration/1000}µs), " +
-//      s"totalNoItems: $totalNoItems, lastBatchSize: $lastBatchSize)")
     currentBatchSize
   }
 
   def getBatchStats: String = {
     val stats = s"meanBatchSize: $meanBatchSize (over $batchUpdates batches), " +
-      s"meanItemTime: ${meanItemTime/1000}µs, " +
-      s"lastDuration: ${duration/1_000}µs (target: ${targetDuration/1_000}µs)"
+      s"meanItemTime: ${meanItemTime / 1000}µs, " +
+      s"lastDuration: ${duration / 1_000}µs (target: ${targetDuration / 1_000}µs)"
     meanBatchSize = 0
     batchUpdates = 0
     stats
