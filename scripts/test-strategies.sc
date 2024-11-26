@@ -4,9 +4,9 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+126-a0ac6db9+20241121-1454
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+147-b5bbd4d6+20241126-1012
 import de.hpi.fgis.dendrotime.clustering.PDist
-import de.hpi.fgis.dendrotime.clustering.distances.{MSM, SBD}
+import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
@@ -40,6 +40,18 @@ extension (hierarchy: Hierarchy) {
   def quality(classes: Array[Int], nClasses: Int): Double = {
     val clusters = CutTree(hierarchy, nClasses)
     AdjustedRandScore(classes, clusters)
+  }
+}
+
+extension (d: PDist) {
+  def mean: Double = {
+    val x = d.distances
+    x.sum / (d.length - 1)
+  }
+  def std: Double = {
+    val mean = d.mean
+    val sumOfSquares = d.distances.map(x => Math.pow(x - mean, 2)).sum
+    sumOfSquares / (d.length - 1)
   }
 }
 
@@ -137,6 +149,27 @@ def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int,
   }
 }
 
+def computeApproxDistances(distance: Distance, ts: Array[LabeledTimeSeries], n: Int, snippetSize: Int = 20): PDist = {
+  val approxDists = PDist.empty(n).mutable
+  var i = 0
+  var j = 1
+  while i < n - 1 && j < n do
+    val ts1 = ts(i)
+    val ts2 = ts(j)
+    val scale = Math.max(ts1.data.length, ts2.data.length) / snippetSize
+    val ts1Center = ts1.data.length / 2
+    val ts2Center = ts2.data.length / 2
+    approxDists(i, j) = distance(
+      ts1.data.slice(ts1Center - snippetSize / 2, ts1Center + snippetSize / 2),
+      ts2.data.slice(ts2Center - snippetSize / 2, ts2Center + snippetSize / 2)
+    ) * scale
+    j += 1
+    if j == n then
+      i += 1
+      j = i + 1
+  approxDists
+}
+
 // parse options
 @tailrec
 def parseOptions(args: List[String], required: List[String], optional: List[String], parsed: Map[String, String] = Map.empty): Map[String, String] = args match {
@@ -160,22 +193,28 @@ val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getPare
 val options: Map[String, String] = parseOptions(
   args = args.toList,
   required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure"),
+  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage"),
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
     "dataFolder" -> s"$folder/data/datasets/",
+    "metric" -> "msm",
+    "linkage" -> "ward",
     "qualityMeasure" -> "ari"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari>"
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari> " +
+  "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted>"
 
 ///////////////////////////////////////////////////////////
-val distance = MSM(window = 0.05)
-val linkage = Linkage.WardLinkage
-//val dataset = "PickupGestureWiimoteZ"
-//val dataset = "Coffee"
-//val dataset = "BeetleFly"
-//val dataset = "HouseTwenty"
+val distanceName = options("metric").toLowerCase.strip
+val linkageName = options("linkage").toLowerCase.strip()
+val distance = distanceName match {
+  case "msm" => MSM(c = 0.5, window = 0.05, itakuraMaxSlope = Double.NaN)
+  case "dtw" => DTW(window = 0.05, itakuraMaxSlope = Double.NaN)
+  case "sbd" => SBD(standardize = false)
+  case s => throw new IllegalArgumentException(s"Unknown distance metric: $s")
+}
+val linkage = Linkage(linkageName)
 val dataset = options("dataset")
 val qualityMeasure = options("qualityMeasure").toLowerCase.strip
 //val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
@@ -186,7 +225,8 @@ val inputDataFolder = {
 }
 val resultFolder = {
   val f = options("resultFolder")
-  if !f.endsWith("/") then f + "/" else f
+  if !f.endsWith("/") then f + "-" + qualityMeasure + "/"
+  else f.stripSuffix("/") + "-" + qualityMeasure + "/"
 }
 val seed = 42
 val orderingSamples = 1000
@@ -223,8 +263,14 @@ val nClasses = classes.distinct.length
 val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
 
 println("Computing pairwise distances ...")
-val approxDists = PDist(distance.pairwise(timeseries.map(_.data.slice(0, 10))), n)
+val t0 = System.nanoTime()
+val approxDists = computeApproxDistances(distance, timeseries, n)
 val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
+println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
+
+println(f"Mean distance approx: ${approxDists.mean}%.4f, std=${approxDists.std}%.4f")
+println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
+
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)

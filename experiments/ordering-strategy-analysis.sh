@@ -11,13 +11,13 @@ variable_datasets=(
   "ShakeGestureWiimoteZ"
   "GesturePebbleZ1"
   "GesturePebbleZ2"
-  "GestureMidAirD1"
-  "GestureMidAirD2"
-  "GestureMidAirD3"
-  "AllGestureWiimoteX"
-  "AllGestureWiimoteY"
-  "AllGestureWiimoteZ"
-  "PLAID"
+#  "GestureMidAirD1"
+#  "GestureMidAirD2"
+#  "GestureMidAirD3"
+#  "AllGestureWiimoteX"
+#  "AllGestureWiimoteY"
+#  "AllGestureWiimoteZ"
+#  "PLAID"
 )
 
 equal_datasets=(
@@ -31,10 +31,8 @@ equal_datasets=(
   "Lightning7"
   "Worms"
   "HouseTwenty"
-  "ItalyPowerDemand"
+#  "ItalyPowerDemand"
 )
-
-mkdir -p ordering-strategy-analysis
 
 echo "Downloading datasets ..."
 for dataset in "${equal_datasets[@]}"; do

@@ -48,10 +48,13 @@ def main(sys_args):
 
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = results_file.parent
-    plot_results(result_dir, dataset, n, seed)
+    quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
+    if quality_measure not in ["ari", "hierarchy"]:
+        raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
+    plot_results(result_dir, dataset, n, seed, quality_measure)
 
 
-def plot_results(result_dir, dataset, n, seed = None):
+def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari"):
     print(f"Processing dataset '{dataset}' with {n} time series and seed {seed}")
     if seed is None:
         tracesPath = result_dir / f"traces-{n}-{dataset}.csv"
@@ -66,6 +69,7 @@ def plot_results(result_dir, dataset, n, seed = None):
         raise FileNotFoundError(f"Traces file {tracesPath} not found!")
 
     figures_dir = result_dir / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(tracesPath, header=None)
     df_strategies = pd.read_csv(strategiesPath)
@@ -104,9 +108,9 @@ def plot_results(result_dir, dataset, n, seed = None):
     plt.figure()
     plt.title("Distribution of ordering quality")
     aucs.plot(kind="hist", density=1, bins=30, stacked=False, alpha=0.5, label="AUC histogram")
-    x = np.linspace(0.0, 1.0, 1000)
+    x = np.linspace(-0.5, 1.0, 1500)
     plt.plot(x, dist.pdf(x), "k-", lw=2,
-        label=f"Skewed Normal Distribution (a={a:.2f}, loc={loc:.2f}, scale={scale:.2f})"
+        label=f"Skewed Normal Distribution\n(a={a:.2f}, loc={loc:.2f}, scale={scale:.2f})"
     )
     for _, row in df_strategies.iterrows():
         strategy = row["strategy"]
@@ -115,8 +119,11 @@ def plot_results(result_dir, dataset, n, seed = None):
         plt.axvline(x=auc, linestyle="--", color=color, label=strategy)
     plt.xlabel("Solution quality")
     plt.ylabel("Frequency")
-    plt.xlim(-0.1, 1.1)
-    plt.legend()
+    if quality_measure == "ari":
+        plt.xlim(-0.55, 1.05)
+    else:
+        plt.xlim(-0.05, 1.05)
+    plt.legend(ncol=2)
     plt.savefig(figures_dir / f"hist-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
 
     plt.figure()
@@ -133,9 +140,13 @@ def plot_results(result_dir, dataset, n, seed = None):
         color = colors[strategy]
         plt.plot(index, df.iloc[i, :], color=color, label=strategy)
     plt.xlabel(f"Available distances (of {n*(n-1)/2})")
-    plt.ylabel("Hierarchy Quality")
-    plt.ylim(0, 1.1)
-    plt.legend()
+    if quality_measure == "ari":
+        plt.ylabel("Adjusted Rand Index")
+        plt.ylim(-0.5, 1.0)
+    else:
+        plt.ylabel("Hierarchy Quality")
+        plt.ylim(0, 1.1)
+    plt.legend(ncol=2)
     plt.savefig(figures_dir / f"solutions-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
     plt.show()
 
