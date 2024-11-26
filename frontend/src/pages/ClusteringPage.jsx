@@ -133,6 +133,8 @@ function ClusteringPage() {
           <SelectItem key="msm" value="msm">MSM</SelectItem>
           <SelectItem key="sbd" value="sbd">SBD</SelectItem>
           <SelectItem key="dtw" value="dtw">DTW</SelectItem>
+          <SelectItem key="euclidean" value="euclidean">Euclidean</SelectItem>
+          <SelectItem key="manhatten" value="manhatten">Manhatten</SelectItem>
         </Select>
         <label htmlFor="linkage-picker" className="ml-2 mr-2">Linkage:</label>
         <Select id="linkage-picker" value={linkage} onValueChange={setLinkage}>

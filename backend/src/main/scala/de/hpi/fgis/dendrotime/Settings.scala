@@ -6,7 +6,7 @@ import com.typesafe.config.{Config, ConfigException}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
-import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, SBDOptions}
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, MinkowskyOptions, SBDOptions}
 
 import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
@@ -101,7 +101,15 @@ class Settings private(config: Config) extends Extension {
       )
     }
 
-    given options: DistanceOptions = DistanceOptions(Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts)
+    object Minkowsky {
+      private val internalNamespace = s"$namespace.distances.minkowsky"
+
+      given minkowskyOpts: MinkowskyOptions = MinkowskyOptions(config.getInt(s"$internalNamespace.p"))
+    }
+
+    given options: DistanceOptions = DistanceOptions(
+      Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts, Distances.Minkowsky.minkowskyOpts
+    )
   }
 
   given bloomFilterOptions: BloomFilterOptions = {
