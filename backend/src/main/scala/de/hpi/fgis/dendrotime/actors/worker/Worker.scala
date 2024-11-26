@@ -89,12 +89,14 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   @inline
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
+    val snippetSize = params.approxLength
+    val scale = Math.max(ts1.data.length, ts2.data.length) / snippetSize
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2
     val dist = distanceMetric(
-      ts1.data.slice(ts1Center - params.approxLength/2, ts1Center + params.approxLength/2),
-      ts2.data.slice(ts2Center - params.approxLength/2, ts2Center + params.approxLength/2),
-    )
+      ts1.data.slice(ts1Center - snippetSize / 2, ts1Center + snippetSize / 2),
+      ts2.data.slice(ts2Center - snippetSize / 2, ts2Center + snippetSize / 2)
+    ) * scale
     (ts1.idx, ts2.idx, dist)
   }
 

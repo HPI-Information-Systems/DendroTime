@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+126-a0ac6db9+20241121-1454
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+147-b5bbd4d6+20241126-1012
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Linkage, computeHierarchy}
@@ -20,6 +20,18 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Random, Using}
 
+extension (d: PDist) {
+  def mean: Double = {
+    val x = d.distances
+    x.sum / (d.length - 1)
+  }
+  def std: Double = {
+    val mean = d.mean
+    val sumOfSquares = d.distances.map(x => Math.pow(x - mean, 2)).sum
+    sumOfSquares / (d.length - 1)
+  }
+}
+
 object Result {
   val csvHeader: String = "approx-strategy,dataset,metric,linkage,snippetSize,quality,time_ms"
 }
@@ -33,6 +45,8 @@ case class Result(
                    time: Long) {
   def toCsv: String = s"$strategy,$dataset,$metric,$linkage,$snippetSize,$quality,$time"
 }
+
+type Strategy = (LabeledTimeSeries, LabeledTimeSeries) => Double
 
 // parse options
 @tailrec
@@ -86,7 +100,8 @@ val inputDataFolder = {
 }
 val resultFolder = {
   val f = options("resultFolder")
-  if !f.endsWith("/") then f + "/" else f
+  if !f.endsWith("/") then f + "-" + qualityMeasure + "/"
+  else f.stripSuffix("/") + "-" + qualityMeasure + "/"
 }
 val snippetSize = 20
 ///////////////////////////////////////////////////////////
@@ -124,6 +139,7 @@ if !targetFilename.exists() then
   Using.resource(new PrintWriter(targetFilename, "UTF-8")) { writer =>
     writer.println(Result.csvHeader)
   }
+
 for linkageName <- linkageNames do
   val linkage = Linkage(linkageName)
   for distanceName <- distanceNames do
@@ -144,28 +160,31 @@ for linkageName <- linkageNames do
     println(s"... done in ${t1 - t0} ms")
     println()
 
-    type Strategy = (LabeledTimeSeries, LabeledTimeSeries) => Double
-
     def beginStrategy(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
-      distance(ts1.data.slice(0, snippetSize), ts2.data.slice(0, snippetSize))
+      val scale = Math.max(ts1.data.length, ts2.data.length)/snippetSize
+      distance(ts1.data.slice(0, snippetSize), ts2.data.slice(0, snippetSize)) * scale
     }
     def endStrategy(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
       val n1 = ts1.data.length
       val n2 = ts2.data.length
-      distance(ts1.data.slice(n1 - snippetSize, n1), ts2.data.slice(n2 - snippetSize, n2))
+      val scale = Math.max(n1, n2)/snippetSize
+      distance(ts1.data.slice(n1 - snippetSize, n1), ts2.data.slice(n2 - snippetSize, n2)) * scale
     }
     def centerStrategy(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
+      val scale = Math.max(ts1.data.length, ts2.data.length)/snippetSize
       val ts1Center = ts1.data.length / 2
       val ts2Center = ts2.data.length / 2
       distance(
         ts1.data.slice(ts1Center - snippetSize / 2, ts1Center + snippetSize / 2),
-        ts2.data.slice(ts2Center - snippetSize / 2, ts2Center + snippetSize / 2))
+        ts2.data.slice(ts2Center - snippetSize / 2, ts2Center + snippetSize / 2)
+      ) * scale
     }
     def offsetBeginStrategy(relOffset: Double, size: Int = snippetSize)
                            (ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
+      val scale = Math.max(ts1.data.length, ts2.data.length)/snippetSize
       val o1 = (ts1.data.length * relOffset).toInt
       val o2 = (ts2.data.length * relOffset).toInt
-      distance(ts1.data.slice(o1, o1 + size), ts2.data.slice(o2, o2 + size))
+      distance(ts1.data.slice(o1, o1 + size), ts2.data.slice(o2, o2 + size)) * scale
     }
     def offsetEndStrategy(relOffset: Double, size: Int = snippetSize)
                          (ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
@@ -173,12 +192,14 @@ for linkageName <- linkageNames do
       val n2 = ts2.data.length
       val o1 = (n * relOffset).toInt
       val o2 = (n * relOffset).toInt
-      distance(ts1.data.slice(n1 - o1 - size, n1 - o1), ts2.data.slice(n2 - o2 - size, n2 - o2))
+      val scale = Math.max(n1, n2)/snippetSize
+      distance(ts1.data.slice(n1 - o1 - size, n1 - o1), ts2.data.slice(n2 - o2 - size, n2 - o2)) * scale
     }
     def twoMeanStrategy(relOffset: Double)(ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
+      val scale = Math.max(ts1.data.length, ts2.data.length)/snippetSize
       val ob = offsetBeginStrategy(relOffset, snippetSize / 2)(ts1, ts2)
       val oe = offsetEndStrategy(relOffset, snippetSize / 2)(ts1, ts2)
-      (ob + oe) / 2
+      (ob + oe) / 2 * scale
     }
     val strategies = Map(
       "begin" -> beginStrategy,
@@ -203,6 +224,7 @@ for linkageName <- linkageNames do
           i += 1
           j = i + 1
 
+//      println(f"  mean-comparison: ${pdistB.mean}%.4f vs. target: ${dists.mean}%.4f")
       val approxHierarchy = computeHierarchy(pdistB, linkage)
       if qualityMeasure == "hierarchy" then
         approxHierarchy.similarity(targetHierarchy)

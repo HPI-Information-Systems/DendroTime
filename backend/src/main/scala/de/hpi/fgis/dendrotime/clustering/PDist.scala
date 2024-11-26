@@ -19,6 +19,9 @@ trait PDist extends Iterable[Double] {
   /** Number of original observations that were compared in pairs. */
   def n: Int
 
+  /** Internal flat vector of distances. Use on your own risk! */
+  def distances: Array[Double]
+
   /** Convert to mutable object that supports update(). */
   def mutable: MutablePDist
 
@@ -95,7 +98,8 @@ object PDist {
     PDistImpl(distances.toArray, n)
   }
 
-  private case class PDistImpl private[PDist] (distances: Array[Double], n: Int) extends PDist with MutablePDist {
+  private case class PDistImpl private[PDist](override val distances: Array[Double],
+                                              n: Int) extends PDist with MutablePDist {
 
     def apply(i: Int, j: Int): Double = {
       if (i == j) 0.0
