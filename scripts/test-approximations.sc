@@ -190,8 +190,8 @@ for linkageName <- linkageNames do
                          (ts1: LabeledTimeSeries, ts2: LabeledTimeSeries): Double = {
       val n1 = ts1.data.length
       val n2 = ts2.data.length
-      val o1 = (n * relOffset).toInt
-      val o2 = (n * relOffset).toInt
+      val o1 = (n1 * relOffset).toInt
+      val o2 = (n2 * relOffset).toInt
       val scale = Math.max(n1, n2)/snippetSize
       distance(ts1.data.slice(n1 - o1 - size, n1 - o1), ts2.data.slice(n2 - o2 - size, n2 - o2)) * scale
     }

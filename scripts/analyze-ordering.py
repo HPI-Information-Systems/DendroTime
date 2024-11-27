@@ -18,6 +18,7 @@ colors["approxDescending"] = "orange"
 colors["highestVar"] = "purple"
 colors["gtLargestPairError"] = "brown"
 colors["gtLargestTsError"] = "darkgray"
+colors["approxDiffTsError"] = "olive"
 # those names changed in the new version:
 colors["dynamicError"] = "pink"
 colors["approxFullError"] = "pink"

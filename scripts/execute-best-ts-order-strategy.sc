@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+147-b5bbd4d6+20241126-1012
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
@@ -32,7 +32,10 @@ extension (hierarchy: Hierarchy) {
   }
 }
 
-class GtBestTsOrderStrategy(tsOrder: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
+class GtBestTsFCFSOrderStrategy(tsOrder: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
+  override protected val tsIds: IndexedSeq[Int] = tsOrder
+}
+class GtBestTsFIFOOrderStrategy(tsOrder: Array[Int]) extends WorkGenerator[Int] with FIFOMixin[Int] {
   override protected val tsIds: IndexedSeq[Int] = tsOrder
 }
 
@@ -128,7 +131,7 @@ val datasetTrainFile = {
   if f.exists() then Some(f) else None
 }
 val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
-val bestOrderFile = new File(resultFolder + s"best-ts-order-$dataset.csv")
+val bestOrderFile = new File(resultFolder + s"best-ts-orderFcfs-$dataset.csv")
 
 println(s"Processing dataset: $dataset")
 println("Configuration:")
@@ -169,7 +172,7 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else approxHierarchy.quality(classes, nClasses)
-    )
+  )
 
   var k = 0
   while strategy.hasNext do
@@ -186,31 +189,39 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
 
   order -> similarities.result()
 }
+
 // load TS order
 println("Loading best TS order ...")
 val bestTsOrder = CSVReader.parse[Double](bestOrderFile)
   .map(a => (a(0).toInt, a(1)))
   .sortBy(_._2)
   .map(_._1)
-println(s"  best TS order: ${bestTsOrder.mkString(", ")}")
+println(s"  best TS orderFcfs: ${bestTsOrder.mkString(", ")}")
 println("... done.")
 
 // compute ordering
-println(s"Executing best TS order strategy for dataset $dataset with $n time series")
+println(s"Executing best TS orderFcfs strategy for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
-// execute all defined strategies
-val (order, qualities) = executeStaticStrategy(GtBestTsOrderStrategy(bestTsOrder))
-println(s"  order = ${order.toCsvRecord}")
-val auc = qualities.sum / qualities.length
-println(f"  AUC = $auc%.4f")
+// execute strategies
+val (orderFcfs, qualitiesFcFs) = executeStaticStrategy(GtBestTsFCFSOrderStrategy(bestTsOrder))
+println(s"  GtBestTsFCFS order = ${orderFcfs.toCsvRecord}")
+val aucFcfs = qualitiesFcFs.sum / qualitiesFcFs.length
+println(f"  AUC = $aucFcfs%.4f")
 println()
 
-println(s"Computed qualities for all orderings, storing to CSVs ...")
+val (orderFifo, qualitiesFifo) = executeStaticStrategy(GtBestTsFIFOOrderStrategy(bestTsOrder))
+println(s"  GtBestTsFIFO order = ${orderFifo.toCsvRecord}")
+val aucFifo = qualitiesFifo.sum / qualitiesFifo.length
+println(f"  AUC = $aucFifo%.4f")
+println()
+
+println(s"Computed qualitiesFcFs for all orderings, storing to CSVs ...")
 val results = Map(
-  "gtBestTsOrder" -> (0, auc, 0L, order)
+  "gtBestTsOrderFCFS" -> (0, aucFcfs, 0L, orderFcfs),
+  "gtBestTsOrderFIFO" -> (0, aucFifo, 0L, orderFifo)
 )
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualities))
+CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualitiesFcFs))
 println("Done!")

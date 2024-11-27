@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+147-b5bbd4d6+20241126-1012
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
@@ -56,29 +56,35 @@ extension (hc: HierarchyWithClusters) {
     val dists = Array.ofDim[Double](n, n)
     val thisClusters = hc.clusters.toArray
     val thatClusters = other.clusters.toArray
-    for i <- thisClusters.indices do
-      for j <- thatClusters.indices do
-        dists(i)(j) = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
+    var i = 0
+    while i < n do
+      var j = i
+      while j < n do
+        val d = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
+        dists(i)(j) = d
+        if i != j then
+          dists(j)(i) = d
+        j += 1
+      i += 1
 
     // find matches greedily (because Jaccard similarity is symmetric)
-    val matches = Array.ofDim[Int](n)
     var similaritySum = 0.0
-    val matched = mutable.Set.empty[Int]
-    val ids = thatClusters.indices.toArray
-    for i <- thisClusters.indices do
-      val sortedIds = ids.sortBy(id => -dists(i)(id))
+    val matched = mutable.BitSet.empty
+    matched.sizeHint(n-1)
+    i = 0
+    while i < n do
+      var maxId = 0
+      var maxValue = 0.0
       var j = 0
-      while matched.contains(sortedIds(j)) do
+      while j < n do
+        if !matched.contains(j) && dists(i)(j) > maxValue then
+          maxId = j
+          maxValue = dists(i)(j)
         j += 1
-      val matchId = sortedIds(j)
-      matches(i) = matchId
-      similaritySum += dists(i)(matchId)
-      matched += matchId
+      similaritySum += maxValue
+      matched += maxId
+      i += 1
 
-//    println(s"0 sim: ${dists(0).map("%.2f".format(_)).mkString(", ")}")
-//    println(s"0 matched with ${matches(0)}")
-//    println(s"1 sim: ${dists(0).map("%.2f".format(_)).mkString(", ")}")
-//    println(s"1 matched with ${matches(1)}")
     similaritySum / n
   }
 }
@@ -189,7 +195,7 @@ def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int,
   }
 }
 
-def computeApproxDistances(distance: Distance, ts: Array[LabeledTimeSeries], n: Int, snippetSize: Int = 20): PDist = {
+def computeApproxDistances(distance: Distance, ts: Array[LabeledTimeSeries], n: Int, snippetSize: Int = 20): (PDist, Option[Array[Double]]) = {
   val approxDists = PDist.empty(n).mutable
   var i = 0
   var j = 1
@@ -207,7 +213,45 @@ def computeApproxDistances(distance: Distance, ts: Array[LabeledTimeSeries], n: 
     if j == n then
       i += 1
       j = i + 1
-  approxDists
+  approxDists -> None
+}
+
+def computeApproxDistancesTwoMean(
+                                   distance: Distance,
+                                   ts: Array[LabeledTimeSeries],
+                                   n: Int,
+                                   snippetSize: Int = 20,
+                                   relOffset: Double = 0.1): (PDist, Option[Array[Double]]) = {
+  val approxDists = PDist.empty(n).mutable
+  val approxDiffTsError = Array.ofDim[Double](n)
+  var i = 0
+  var j = 1
+  while i < n - 1 && j < n do
+    val ts1 = ts(i)
+    val ts2 = ts(j)
+    val n1 = ts1.data.length
+    val n2 = ts2.data.length
+    val scale = Math.max(n1, n2) / snippetSize
+    val o1 = (n1 * relOffset).toInt
+    val o2 = (n2 * relOffset).toInt
+    val begin = distance(ts1.data.slice(o1, o1 + snippetSize / 2), ts2.data.slice(o2, o2 + snippetSize / 2))
+    val oe1 = (n1 * relOffset).toInt
+    val oe2 = (n2 * relOffset).toInt
+    val end = distance(ts1.data.slice(n1 - oe1 - snippetSize / 2, n1 - oe1), ts2.data.slice(n2 - oe2 - snippetSize / 2, n2 - oe2))
+    approxDists(i, j) = (begin + end) / 2 * scale
+    val error = Math.abs(begin - end)
+    approxDiffTsError(i) += error
+    approxDiffTsError(j) += error
+    j += 1
+    if j == n then
+      i += 1
+      j = i + 1
+
+  i = 0
+  while i < n do
+    approxDiffTsError(i) /= n
+    i += 1
+  approxDists -> Some(approxDiffTsError)
 }
 
 // parse options
@@ -233,13 +277,14 @@ val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getPare
 val options: Map[String, String] = parseOptions(
   args = args.toList,
   required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage"),
+  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage", "--includeApproxDiff"),
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
     "dataFolder" -> s"$folder/data/datasets/",
     "metric" -> "msm",
     "linkage" -> "ward",
-    "qualityMeasure" -> "ari"
+    "qualityMeasure" -> "ari",
+    "includeApproxDiff" -> "false"
   )
 )
 val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted> " +
@@ -268,6 +313,7 @@ val resultFolder = {
   if !f.endsWith("/") then f + "-" + qualityMeasure + "/"
   else f.stripSuffix("/") + "-" + qualityMeasure + "/"
 }
+val includeApproxDiff = options("includeApproxDiff").toBoolean
 val seed = 42
 val orderingSamples = 1000
 val maxHierarchySimilarities = 1000
@@ -286,6 +332,7 @@ println(s"  inputDataFolder = $inputDataFolder")
 println(s"  resultFolder = $resultFolder")
 println(s"  distance = $distance")
 println(s"  linkage = $linkage")
+println(s"  includeApproxDiff = $includeApproxDiff")
 println(s"  seed = $seed")
 println(s"  orderingSamples = $orderingSamples")
 println(s"  maxHierarchySimilarities = $maxHierarchySimilarities")
@@ -304,7 +351,9 @@ val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m)
 
 println("Computing pairwise distances ...")
 val t0 = System.nanoTime()
-val approxDists = computeApproxDistances(distance, timeseries, n)
+val (approxDists, approxDiffTsErrorOpt) =
+  if includeApproxDiff then computeApproxDistancesTwoMean(distance, timeseries, n)
+  else computeApproxDistances(distance, timeseries, n)
 val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
 println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
 
@@ -314,8 +363,8 @@ println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
-val sim = targetHierarchy.weightedSimilarity(targetHierarchy)
-println(s"Target 2 Target weighted similarity = $sim")
+//val sim = targetHierarchy.weightedSimilarity(targetHierarchy)
+//println(s"Target 2 Target weighted similarity = $sim")
 //System.exit(0)
 
 def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
@@ -385,7 +434,7 @@ def timed[T](f: => T): (T, Long) = {
 }
 
 // compute all orderings
-val strategies: Map[String, WorkGenerator[Int]] = Map(
+val strategies: mutable.Map[String, WorkGenerator[Int]] = mutable.Map(
   "fcfs" -> FCFSWorkGenerator(0 until n),
   "shortestTs" -> ShortestTsWorkGenerator(
     timeseries.zipWithIndex.map((ts, i) => i -> ts.data.length).toMap
@@ -400,6 +449,11 @@ val strategies: Map[String, WorkGenerator[Int]] = Map(
   "gtLargestTsError" -> GtLargestTsErrorStrategy(approxDists, dists, timeseries.indices.toArray),
   "approxFullError" -> ApproxFullErrorWorkGenerator(timeseries.indices.zipWithIndex.toMap),
 )
+approxDiffTsErrorOpt.foreach{ approxDiffTsError =>
+  strategies += "approxDiffTsError" -> ApproxDiffTsErrorWorkGenerator(
+    approxDiffTsError, timeseries.indices.zipWithIndex.toMap
+  )
+}
 println(s"Executing all strategies for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")

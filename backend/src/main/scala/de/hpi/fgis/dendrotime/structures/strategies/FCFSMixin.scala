@@ -3,16 +3,14 @@ package de.hpi.fgis.dendrotime.structures.strategies
 import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 
-trait FCFSMixin[T: Numeric] {
-  this: WorkGenerator[T] =>
+trait FCFSMixin[T: Numeric] { this: WorkGenerator[T] =>
   protected val tsIds: IndexedSeq[T]
 
-  private var i = 0
-  private var j = 1
-  private var count = 0
+  protected var i = 0
+  protected var j = 1
+  protected var count = 0
 
-  @inline
-  private def inc(): Unit = {
+  protected def inc(): Unit = {
     count += 1
     i += 1
     if i == j then

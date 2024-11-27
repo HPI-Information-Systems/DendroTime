@@ -1,7 +1,6 @@
 package de.hpi.fgis.dendrotime.structures
 
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.jaccardSimilarity
 
 import scala.collection.{BitSet, mutable}
 
@@ -25,5 +24,5 @@ object HierarchyWithClusters {
 
 case class HierarchyWithClusters(hierarchy: Hierarchy, clusters: Set[BitSet]) {
   def similarity(other: HierarchyWithClusters): Double =
-    jaccardSimilarity(clusters, other.clusters)
+    HierarchyWithClusters.jaccardSimilarity(clusters, other.clusters)
 }
