@@ -43,6 +43,46 @@ extension (hierarchy: Hierarchy) {
   }
 }
 
+private def jaccardSimilarity[T](s1: scala.collection.Set[T], s2: scala.collection.Set[T]): Double = {
+  val intersection = s1 & s2
+  val union = s1 | s2
+  intersection.size.toDouble / union.size
+}
+
+extension (hc: HierarchyWithClusters) {
+  def weightedSimilarity(other: HierarchyWithClusters): Double = {
+    val n = hc.hierarchy.size
+    // compute pairwise similarities between clusters
+    val dists = Array.ofDim[Double](n, n)
+    val thisClusters = hc.clusters.toArray
+    val thatClusters = other.clusters.toArray
+    for i <- thisClusters.indices do
+      for j <- thatClusters.indices do
+        dists(i)(j) = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
+
+    // find matches greedily (because Jaccard similarity is symmetric)
+    val matches = Array.ofDim[Int](n)
+    var similaritySum = 0.0
+    val matched = mutable.Set.empty[Int]
+    val ids = thatClusters.indices.toArray
+    for i <- thisClusters.indices do
+      val sortedIds = ids.sortBy(id => -dists(i)(id))
+      var j = 0
+      while matched.contains(sortedIds(j)) do
+        j += 1
+      val matchId = sortedIds(j)
+      matches(i) = matchId
+      similaritySum += dists(i)(matchId)
+      matched += matchId
+
+//    println(s"0 sim: ${dists(0).map("%.2f".format(_)).mkString(", ")}")
+//    println(s"0 matched with ${matches(0)}")
+//    println(s"1 sim: ${dists(0).map("%.2f".format(_)).mkString(", ")}")
+//    println(s"1 matched with ${matches(1)}")
+    similaritySum / n
+  }
+}
+
 extension (d: PDist) {
   def mean: Double = {
     val x = d.distances
@@ -202,7 +242,7 @@ val options: Map[String, String] = parseOptions(
     "qualityMeasure" -> "ari"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari> " +
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted> " +
   "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted>"
 
 ///////////////////////////////////////////////////////////
@@ -274,6 +314,9 @@ println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
+val sim = targetHierarchy.weightedSimilarity(targetHierarchy)
+println(s"Target 2 Target weighted similarity = $sim")
+//System.exit(0)
 
 def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
   val order = Array.ofDim[(Int, Int)](m)
@@ -282,6 +325,7 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
   val wDists = approxDists.mutableCopy
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
     else approxHierarchy.quality(classes, nClasses)
   )
 
@@ -294,6 +338,7 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     if k % hierarchyCalcFactor == 0 || k == m-1 then
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
         else hierarchy.quality(classes, nClasses)
       )
     k += 1
@@ -308,6 +353,7 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
   val wDists = approxDists.mutableCopy
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
     else approxHierarchy.quality(classes, nClasses)
   )
 
@@ -323,6 +369,7 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
     if k % hierarchyCalcFactor == 0 || k == m-1 then
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
         else approxHierarchy.quality(classes, nClasses)
       )
     k += 1

@@ -9,8 +9,8 @@ set -eu
 variable_datasets=(
   "PickupGestureWiimoteZ"
   "ShakeGestureWiimoteZ"
-  "GesturePebbleZ1"
-  "GesturePebbleZ2"
+#  "GesturePebbleZ1"  # from here on > 42h
+#  "GesturePebbleZ2"
 #  "GestureMidAirD1"
 #  "GestureMidAirD2"
 #  "GestureMidAirD3"
@@ -29,8 +29,8 @@ equal_datasets=(
   "Meat"
   "Lightning2"
   "Lightning7"
-  "Worms"
-  "HouseTwenty"
+#  "Worms"  # from here on > 22h
+#  "HouseTwenty"
 #  "ItalyPowerDemand"
 )
 

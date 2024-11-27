@@ -16,7 +16,7 @@ import scala.util.Using
 object CSVReader {
 
   extension [T](result: IterableResult[T, ParsingContext])
-    def foreach(f: T => Unit): Unit =
+    private def foreach(f: T => Unit): Unit =
       result.forEach(f(_))
 
   given Using.Releasable[CsvParser] with
