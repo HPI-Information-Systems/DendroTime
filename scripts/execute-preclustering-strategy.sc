@@ -23,7 +23,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Random, Using}
 
-import Strategies.{GtBestTsFCFSOrderStrategy, GtBestTsFIFOOrderStrategy}
+import Strategies.PreClusteringStrategy
 
 extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
@@ -138,7 +138,7 @@ val options: Map[String, String] = parseOptions(
   required = List("dataset"),
   optional = List("--resultFolder", "--dataFolder", "--qualityMeasure"),
   parsed = Map(
-    "resultFolder" -> s"$folder/experiments/best-ts-order/",
+    "resultFolder" -> s"$folder/experiments/preclustering/",
     "dataFolder" -> s"$folder/data/datasets/",
     "qualityMeasure" -> "ari"
   )
@@ -168,18 +168,19 @@ val resultFolder = {
 }
 val maxHierarchySimilarities = 1000
 ///////////////////////////////////////////////////////////
+new File(resultFolder).mkdirs()
 val datasetTrainFile = {
   val f = new File(inputDataFolder + s"$dataset/${dataset}_TRAIN.ts")
   if f.exists() then Some(f) else None
 }
 val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
-val bestOrderFile = new File(resultFolder + s"best-ts-order-$dataset.csv")
+val prelabelsFile = new File(resultFolder.stripSuffix(s"-$qualityMeasure/") + s"/$dataset-prelabels.csv")
 
 println(s"Processing dataset: $dataset")
 println("Configuration:")
 println(s"  inputDataFolder = $inputDataFolder")
 println(s"  resultFolder = $resultFolder")
-println(s"  bestOrderFile = $bestOrderFile")
+println(s"  bestOrderFile = $prelabelsFile")
 println(s"  distance = $distance")
 println(s"  linkage = $linkage")
 println(s"  maxHierarchySimilarities = $maxHierarchySimilarities")
@@ -215,7 +216,7 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
     else approxHierarchy.quality(classes, nClasses)
-  )
+    )
 
   var k = 0
   while strategy.hasNext do
@@ -226,46 +227,37 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     if k % hierarchyCalcFactor == 0 || k == m-1 then
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
+        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
         else hierarchy.quality(classes, nClasses)
-        )
+      )
     k += 1
+  require(k == m, s"Expected to process $m pairs, but only processed $k")
 
   order -> similarities.result()
 }
 
 // load TS order
-println("Loading best TS order ...")
-val bestTsOrder = CSVReader.parse[Double](bestOrderFile)
-  .map(a => (a(0).toInt, a(1)))
-  .sortBy(_._2)
-  .map(_._1)
-println(s"  best TS orderFcfs: ${bestTsOrder.mkString(", ")}")
+println("Loading prelabels ...")
+val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
+println(s"  prelabels: ${preLabels.mkString(", ")}")
 println("... done.")
 
 // compute ordering
-println(s"Executing best TS orderFcfs strategy for dataset $dataset with $n time series")
+println(s"Executing strategy for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
 // execute strategies
-val (orderFcfs, qualitiesFcFs) = executeStaticStrategy(GtBestTsFCFSOrderStrategy(bestTsOrder))
-println(s"  GtBestTsFCFS order = ${orderFcfs.toCsvRecord}")
-val aucFcfs = qualitiesFcFs.sum / qualitiesFcFs.length
-println(f"  AUC = $aucFcfs%.4f")
-println()
-
-val (orderFifo, qualitiesFifo) = executeStaticStrategy(GtBestTsFIFOOrderStrategy(bestTsOrder))
-println(s"  GtBestTsFIFO order = ${orderFifo.toCsvRecord}")
-val aucFifo = qualitiesFifo.sum / qualitiesFifo.length
-println(f"  AUC = $aucFifo%.4f")
+val (order, qualities) = executeStaticStrategy(PreClusteringStrategy(timeseries.indices.toArray, preLabels))
+println(s"   order = ${order.toCsvRecord.substring(0, 100)} ...")
+val auc = qualities.sum / qualities.length
+println(f"  AUC = $auc%.4f")
 println()
 
 println(s"Computed qualitiesFcFs for all orderings, storing to CSVs ...")
 val results = Map(
-  "gtBestTsOrderFCFS" -> (0, aucFcfs, 0L, orderFcfs),
-  "gtBestTsOrderFIFO" -> (1, aucFifo, 0L, orderFifo)
+  "gtBestTsOrderFCFS" -> (0, auc, 0L, order)
 )
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualitiesFcFs, qualitiesFifo))
+CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualities))
 println("Done!")

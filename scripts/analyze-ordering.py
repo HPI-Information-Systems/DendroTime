@@ -106,6 +106,7 @@ def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", sav
 
     if save_best:
         best_order_folder = result_dir.parent / f"best-ts-order-{quality_measure}"
+        best_order_folder.mkdir(parents=True, exist_ok=True)
         print()
         print(f"Extracting best ordering and saving to CSV file in {best_order_folder}")
         mean_pos = defaultdict(lambda: 0)

@@ -5,6 +5,7 @@
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
 //> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
+//> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
@@ -21,6 +22,8 @@ import java.io.{File, PrintWriter}
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Random, Using}
+
+import Strategies.{GtLargestPairErrorStrategy, GtLargestTsErrorStrategy}
 
 extension (order: Array[(Int, Int)]) {
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
@@ -98,89 +101,6 @@ extension (d: PDist) {
     val mean = d.mean
     val sumOfSquares = d.distances.map(x => Math.pow(x - mean, 2)).sum
     sumOfSquares / (d.length - 1)
-  }
-}
-
-class GtLargestPairErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int]) extends WorkGenerator[Int] {
-  val data = (
-    for {
-      i <- 0 until ids.length - 1
-      j <- i + 1 until ids.length
-      idLeft = ids(i)
-      idRight = ids(j)
-      approx = aDists(idLeft, idRight)
-      full = fDists(idLeft, idRight)
-      error = Math.abs(approx - full)
-    } yield (error, idLeft, idRight)
-    ).sortBy(_._1)
-    .map(t => (t._2, t._3))
-    .reverse
-    .toArray
-  var i = 0
-
-  override def sizeIds: Int = aDists.n
-  override def sizeTuples: Int = aDists.size
-  override def index: Int = i
-  override def hasNext: Boolean = i < data.length
-  override def next(): (Int, Int) = {
-    if !hasNext then
-      throw new NoSuchElementException(
-        s"GtLargestPairErrorStrategy has no (more) work {i=$i, data.length=${data.length}}"
-      )
-    else
-      val result = data(i)
-      i += 1
-      result
-  }
-}
-
-class GtLargestTsErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int])
-  extends WorkGenerator[Int] with TsErrorMixin(aDists.n, aDists.length) {
-
-  override protected val errors: scala.collection.IndexedSeq[Double] = createErrorArray()
-  private val tsIds = ids.sortBy(id => -errors(id))
-  private var i = 0
-
-  override def sizeIds: Int = aDists.n
-  override def sizeTuples: Int = aDists.size
-  override def index: Int = i
-  override def hasNext: Boolean = i < aDists.length
-  override def next(): (Int, Int) = {
-    if !hasNext then
-      throw new NoSuchElementException(
-        s"GtLargestTsErrorStrategy has no (more) work {i=$i/$sizeTuples}"
-      )
-
-    val result = nextLargestErrorPair(tsIds)
-    i += 1
-    if result._2 < result._1 then
-      result.swap
-    else
-      result
-  }
-
-  private def createErrorArray(): Array[Double] = {
-    val n = ids.length
-    val errors = Array.ofDim[Double](n)
-    var i = 0
-    var j = 1
-    while i < n - 1 && j < n do
-      val idLeft = ids(i)
-      val idRight = ids(j)
-      val approx = aDists(idLeft, idRight)
-      val full = fDists(idLeft, idRight)
-      errors(i) += Math.abs(approx - full)
-      errors(j) += Math.abs(approx - full)
-      j += 1
-      if j == n then
-        i += 1
-        j = i + 1
-
-    i = 0
-    while i < n do
-      errors(i) /= n
-      i += 1
-    errors
   }
 }
 

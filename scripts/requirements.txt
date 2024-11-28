@@ -3,3 +3,4 @@ numpy>=1.23.5
 scipy>=1.12.0
 matplotlib>=3.8.2
 aeon>=0.11.1
+git+https://github.com/hpi-information-systems/jet.git@0.1.0#egg=jet
