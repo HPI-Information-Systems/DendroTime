@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+153-d99bfd7a+20241129-1539
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -207,35 +207,6 @@ println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
 
-def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
-  val order = Array.ofDim[(Int, Int)](m)
-  val similarities = mutable.ArrayBuilder.make[Double]
-  similarities.sizeHint(maxHierarchySimilarities + 2)
-  val wDists = approxDists.mutableCopy
-  similarities += (
-    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else approxHierarchy.quality(classes, nClasses)
-    )
-
-  var k = 0
-  while strategy.hasNext do
-    val (i, j) = strategy.next()
-    wDists(i, j) = dists(i, j)
-    val hierarchy = computeHierarchy(wDists, linkage)
-    order(k) = (i, j)
-    if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += (
-        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else hierarchy.quality(classes, nClasses)
-      )
-    k += 1
-  require(k == m, s"Expected to process $m pairs, but only processed $k")
-
-  order -> similarities.result()
-}
-
 // load TS order
 println("Loading prelabels ...")
 val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
@@ -247,16 +218,66 @@ println(s"Executing strategy for dataset $dataset with $n time series")
 println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
-// execute strategies
-val (order, qualities) = executeStaticStrategy(PreClusteringStrategy(timeseries.indices.toArray, preLabels))
+// execute strategy
+val order = Array.ofDim[(Int, Int)](m)
+val similarities = mutable.ArrayBuilder.make[Double]
+similarities.sizeHint(maxHierarchySimilarities + 2)
+val wDists = approxDists.mutableCopy
+similarities += (
+  if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+  else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
+  else approxHierarchy.quality(classes, nClasses)
+  )
+
+def preClusterMedoid(ids: Array[Int]): Int = {
+  var currentMedoid = ids.head
+  var currentMinDist = Double.MaxValue
+  var i = 0
+  while i < ids.length do
+    val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
+    if dist < currentMinDist then
+      currentMedoid = ids(i)
+      currentMinDist = dist
+    i += 1
+  currentMedoid
+}
+val strategy = PreClusteringStrategy(timeseries.indices.toArray, preLabels, preClusterMedoid)
+var k = 0
+while strategy.hasNext do
+  val (i, j) = strategy.next()
+  wDists(i, j) = dists(i, j)
+  strategy.getPreClustersForMedoids(i, j).foreach { case (ids1, ids2) =>
+    val d = dists(i, j)
+    for id1 <- ids1 do
+      for id2 <- ids2 do
+        if id1 != i || id2 != j then
+          wDists(id1, id2) = d
+  }
+  if order.exists(_ == (i, j)) then
+    println(s"  Pair ($i, $j) already processed!")
+    throw new IllegalStateException(s"Pair ($i, $j) already processed!")
+
+  order(k) = (i, j)
+  println(s"  ($i, $j) ")
+  val hierarchy = computeHierarchy(wDists, linkage)
+  if k % hierarchyCalcFactor == 0 || k == m - 1 then
+    similarities += (
+      if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+      else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
+      else hierarchy.quality(classes, nClasses)
+    )
+  k += 1
+require(k == m, s"Expected to process $m pairs, but only processed $k")
+val qualities = similarities.result()
+
 println(s"   order = ${order.toCsvRecord.substring(0, 100)} ...")
 val auc = qualities.sum / qualities.length
 println(f"  AUC = $auc%.4f")
 println()
 
-println(s"Computed qualitiesFcFs for all orderings, storing to CSVs ...")
+println(s"Computed qualities for all orderings, storing to CSVs ...")
 val results = Map(
-  "gtBestTsOrderFCFS" -> (0, auc, 0L, order)
+  "preClustering" -> (0, auc, 0L, order)
 )
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
 CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualities))

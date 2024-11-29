@@ -28,7 +28,7 @@ trait FCFSMixin[T: Numeric] { this: WorkGenerator[T] =>
 
   override def next(): (T, T) = {
     if !hasNext then
-      throw new NoSuchElementException(s"GrowableFCFSWorkGenerator has no (more) work {i=$i, j=$j, ids=${tsIds.size}}")
+      throw new NoSuchElementException(s"WorkGenerator has no (more) work {i=$i, j=$j, ids=${tsIds.size}}")
     else
       var result = (tsIds(i), tsIds(j))
       if result._2 < result._1 then
