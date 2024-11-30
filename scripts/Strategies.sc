@@ -1,7 +1,10 @@
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.structures.strategies.{FCFSMixin, FIFOMixin, TsErrorMixin, WorkGenerator}
 
+import java.io.File
 import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.util.Using
 
 class GtBestTsFCFSOrderStrategy(tsOrder: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
   override protected val tsIds: IndexedSeq[Int] = tsOrder
@@ -198,6 +201,7 @@ class PreClusteringStrategy(ids: Array[Int],
       EmptyGen
   }
   private var currentInterClusterGen: WorkGenerator[Int] = EmptyGen
+  private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
 
   override def sizeIds: Int = n
   override def sizeTuples: Int = n * (n-1) / 2
@@ -228,6 +232,15 @@ class PreClusteringStrategy(ids: Array[Int],
       val cluster1 = preClusters.find{ case (_, ids) => ids.contains(medoid1)}
       val cluster2 = preClusters.find{ case (_, ids) => ids.contains(medoid2)}
       cluster1.flatMap(x => cluster2.map(y => x._2 -> y._2))
+  }
+
+  def storeDebugMessages(debugFile: File): Unit = {
+    Using.resource(new java.io.PrintWriter(debugFile)) { writer =>
+      writer.println("index,type,message")
+      debugMessages.foreach { case (i, t, msg) =>
+        writer.println(f"$i,$t,$msg")
+      }
+    }
   }
 
   private def nextPreCluster: Option[Array[Int]] = {
@@ -274,6 +287,7 @@ class PreClusteringStrategy(ids: Array[Int],
 
       case State.Medoids =>
 //        println("SWITCHING to medoids state")
+        debugMessages.addOne((count, "STATE", "Finished intra-cluster / start medoids"))
         iCluster = 0
         jCluster = 1
         currentIntraClusterGen = EmptyGen
@@ -281,6 +295,7 @@ class PreClusteringStrategy(ids: Array[Int],
 
       case State.InterCluster =>
 //        println("SWITCHING to inter cluster state")
+        debugMessages.addOne((count, "STATE", "Finished medoids / start inter-cluster"))
         iCluster = 0
         jCluster = 1
         currentIntraClusterGen = EmptyGen
@@ -291,6 +306,7 @@ class PreClusteringStrategy(ids: Array[Int],
 
   private def nextIntraClusterPair(): (Int, Int) = {
     if !currentIntraClusterGen.hasNext then
+      debugMessages.addOne((count, "INTRA", f"Finished intra-cluster ${iCluster - 1}"))
       preClusterMedoids(iCluster - 1) = medoidCallback(preClusters(iCluster - 1))
 //      println(s" ${iCluster - 1}: depleted, computed medoid for (${preClusters(iCluster - 1).mkString(", ")}): ${preClusterMedoids(iCluster - 1)}")
       nextPreCluster match {
@@ -327,6 +343,7 @@ class PreClusteringStrategy(ids: Array[Int],
 
   private def nextInterClusterPair(): (Int, Int) = {
     if !currentInterClusterGen.hasNext then
+      debugMessages.addOne((count, "INTER", f"Finished inter-cluster $iCluster -> $jCluster"))
       currentInterClusterGen = nextInterClusterGen
 
     val p = currentInterClusterGen.next()

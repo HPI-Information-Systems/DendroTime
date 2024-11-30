@@ -30,6 +30,8 @@ def parse_args(args):
                         help="The strategy CSV file to analyze.")
     parser.add_argument("-b", "--save-best-ts-ordering", action="store_true",
                         help="Take best ordering, sort TS IDs based on their position in the ordering, and save to a CSV file.")
+    parser.add_argument("-i", "--ignore-debug", action="store_true",
+                        help="Ignore debug information even if present.")
 
     return parser.parse_args(args)
 
@@ -44,6 +46,7 @@ def main(sys_args):
     args = parse_args(sys_args)
     results_file = Path(args.resultfile)
     save_best = args.save_best_ts_ordering
+    ignore_debug = args.ignore_debug
     # parse result file name for dataset, n, and seed
     filename = results_file.stem
     if not filename.startswith("strategies"):
@@ -61,10 +64,10 @@ def main(sys_args):
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
     if quality_measure not in ["ari", "hierarchy", "weighted"]:
         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
-    plot_results(result_dir, dataset, n, seed, quality_measure, save_best)
+    plot_results(result_dir, dataset, n, seed, quality_measure, save_best, ignore_debug)
 
 
-def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", save_best=False):
+def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", save_best=False, ignore_debug=False):
     print(f"Processing dataset '{dataset}' with {n} time series and seed {seed}")
     if seed is None:
         tracesPath = result_dir / f"traces-{n}-{dataset}.csv"
@@ -74,6 +77,7 @@ def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", sav
         tracesPath = result_dir / f"traces-{n}-{dataset}-{seed}.csv"
         orderingsPath = result_dir / f"orderings-{n}.csv"
         strategiesPath = result_dir / f"strategies-{n}-{dataset}-{seed}.csv"
+    preClusterDebugPath = result_dir / f"preCluster-debug-{n}-{dataset}.csv"
 
     if not tracesPath.exists():
         raise FileNotFoundError(f"Traces file {tracesPath} not found!")
@@ -167,6 +171,16 @@ def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", sav
 
     plt.figure()
     plt.title("Solutions")
+
+    # add debug information if present
+    if preClusterDebugPath.exists() and not ignore_debug:
+        df_debug = pd.read_csv(preClusterDebugPath)
+        for _, row in df_debug.iterrows():
+            if row["type"] == "STATE":
+                plt.axvline(x=row["index"], linestyle="--", color="black", lw=1)
+            elif row["type"] == "INTER":
+                plt.axvline(x=row["index"], linestyle="-.", color="gray", lw=0.5)
+
     best_id = aucs.index[-1]
     worst_id = aucs.index[0]
     factor = int(np.floor(m / min(1000, m)))
@@ -185,6 +199,7 @@ def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", sav
     else:
         plt.ylabel("Hierarchy Quality")
         plt.ylim(0, 1.1)
+
     plt.legend(ncol=2)
     plt.savefig(figures_dir / f"solutions-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
     plt.show()

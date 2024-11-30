@@ -207,11 +207,14 @@ println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
 
+val preClasses = Math.sqrt(n).toInt * 3
+val preLabels = CutTree(approxHierarchy, preClasses)
+
 // load TS order
-println("Loading prelabels ...")
-val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
-println(s"  prelabels: ${preLabels.mkString(", ")}")
-println("... done.")
+//println("Loading prelabels ...")
+//val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
+//println(s"  prelabels: ${preLabels.mkString(", ")}")
+//println("... done.")
 
 // compute ordering
 println(s"Executing strategy for dataset $dataset with $n time series")
@@ -267,15 +270,15 @@ while strategy.hasNext do
 require(k == m, s"Expected to process $m pairs, but only processed $k")
 val qualities = similarities.result()
 
+
 println(s"   order = ${order.toCsvRecord.substring(0, 100)} ...")
 val auc = qualities.sum / qualities.length
 println(f"  AUC = $auc%.4f")
 println()
 
 println(s"Computed qualities for all orderings, storing to CSVs ...")
-val results = Map(
-  "preClustering" -> (0, auc, 0L, order)
-)
+strategy.storeDebugMessages(new File(resultFolder + s"preCluster-debug-$n-$dataset.csv"))
+val results = Map("preClustering" -> (0, auc, 0L, order))
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
 CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualities))
 println("Done!")
