@@ -170,26 +170,25 @@ class PreClusteringStrategy(ids: Array[Int],
                            ) extends WorkGenerator[Int] {
   import PreClusteringStrategy.*
 
-  println("INITIALIZAING PreClusteringStrategy")
+//  println("INITIALIZAING PreClusteringStrategy")
   private val preClusters = ids.groupBy(preLabels.apply)
-  println(s" Time series: ${ids.length}")
-  println(s" PreClusters (${preClusters.size}):\n" +
-    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
-  )
+//  println(s" Time series: ${ids.length}")
+//  println(s" PreClusters (${preClusters.size}):\n" +
+//    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+//  )
   private val preClusterMedoids = Array.ofDim[Int](preClusters.size)
   { // initialize the singleton cluster medoids
     var i = 0
     while i < preClusters.size do
       if preClusters(i).length < 2 then
-        println(s" Initialized singleton cluster medoid for $i: ${preClusters(i).head}")
         preClusterMedoids(i) = preClusters(i).head
       i += 1
   }
-  println("SWITCHING to intra cluster state")
+//  println("SWITCHING to intra cluster state")
   private val n = ids.length
   private var count = 0
   private var state = State.IntraCluster
-  private var iCluster = -1  // we first inc the counter before using it
+  private var iCluster = 0
   private var jCluster = iCluster
   private var currentIntraClusterGen: WorkGenerator[Int] = nextPreCluster match {
     case Some(clusterIds) =>
@@ -232,25 +231,25 @@ class PreClusteringStrategy(ids: Array[Int],
   }
 
   private def nextPreCluster: Option[Array[Int]] = {
-    iCluster += 1
-    if iCluster == preClusters.size then
+    if iCluster >= preClusters.size then
       None
     else
       var preCluster = preClusters(iCluster)
-      while preCluster.length < 2 && iCluster < preClusters.size do
+      while preCluster.length < 2 && iCluster < preClusters.size - 1 do
         iCluster += 1
         preCluster = preClusters(iCluster)
-      if iCluster >= preClusters.size then
+      if preCluster.length < 2 || iCluster >= preClusters.size then
         None
       else
-        Some(preClusters(iCluster))
+        iCluster += 1
+        Some(preCluster)
   }
 
   private def nextInterClusterGen: InterClusterGen = {
     var c1 = preClusters(iCluster)
     var c2 = preClusters(jCluster)
     while c1.length == 1 && c2.length == 1 do
-      println(s" skipping singleton clusters $iCluster and $jCluster")
+//      println(s" skipping singleton clusters $iCluster and $jCluster")
       jCluster += 1
       if jCluster == preClusters.size then
         iCluster += 1
@@ -260,7 +259,7 @@ class PreClusteringStrategy(ids: Array[Int],
     val m1 = preClusterMedoids(iCluster)
     val m2 = preClusterMedoids(jCluster)
 
-    println(s" NEXT inter: $iCluster -> $jCluster (${c1.length} x ${c2.length}) (${c1.mkString(", ")}) (${c2.mkString(", ")})")
+//    println(s" NEXT inter: $iCluster -> $jCluster (${c1.length} x ${c2.length}) (${c1.mkString(", ")}) (${c2.mkString(", ")})")
     jCluster += 1
     if jCluster == preClusters.size then
       iCluster += 1
@@ -274,15 +273,14 @@ class PreClusteringStrategy(ids: Array[Int],
         throw new IllegalArgumentException("Cannot switch to IntraCluster state because it is the initial state")
 
       case State.Medoids =>
-        println("SWITCHING to medoids state")
-        println(s"  medoids: ${preClusterMedoids.mkString(", ")}")
+//        println("SWITCHING to medoids state")
         iCluster = 0
         jCluster = 1
         currentIntraClusterGen = EmptyGen
         currentInterClusterGen = EmptyGen
 
       case State.InterCluster =>
-        println("SWITCHING to inter cluster state")
+//        println("SWITCHING to inter cluster state")
         iCluster = 0
         jCluster = 1
         currentIntraClusterGen = EmptyGen
@@ -293,11 +291,10 @@ class PreClusteringStrategy(ids: Array[Int],
 
   private def nextIntraClusterPair(): (Int, Int) = {
     if !currentIntraClusterGen.hasNext then
-      preClusterMedoids(iCluster) = medoidCallback(preClusters(iCluster))
-      println(s" $iCluster: depleted, computed medoid for (${preClusters(iCluster).mkString(", ")}): ${preClusterMedoids(iCluster)}")
+      preClusterMedoids(iCluster - 1) = medoidCallback(preClusters(iCluster - 1))
+//      println(s" ${iCluster - 1}: depleted, computed medoid for (${preClusters(iCluster - 1).mkString(", ")}): ${preClusterMedoids(iCluster - 1)}")
       nextPreCluster match {
         case Some(clusterIds) =>
-          println(s" ${clusterIds.mkString(", ")}")
           currentIntraClusterGen = new IntraClusterGen(clusterIds)
           currentIntraClusterGen.next()
         case None =>

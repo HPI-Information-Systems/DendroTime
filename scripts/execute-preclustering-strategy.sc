@@ -253,12 +253,9 @@ while strategy.hasNext do
         if id1 != i || id2 != j then
           wDists(id1, id2) = d
   }
-  if order.exists(_ == (i, j)) then
-    println(s"  Pair ($i, $j) already processed!")
-    throw new IllegalStateException(s"Pair ($i, $j) already processed!")
+  require(!order.exists(_ == (i, j)), s"Pair ($i, $j) already processed!")
 
   order(k) = (i, j)
-  println(s"  ($i, $j) ")
   val hierarchy = computeHierarchy(wDists, linkage)
   if k % hierarchyCalcFactor == 0 || k == m - 1 then
     similarities += (
