@@ -169,7 +169,7 @@ object PreClusteringStrategy {
  */
 class PreClusteringStrategy(ids: Array[Int],
                             preLabels: Array[Int],
-                            medoidCallback: PreClusteringStrategy.PreClusterMedoidFunc
+                            wDists: PDist
                            ) extends WorkGenerator[Int] {
   import PreClusteringStrategy.*
 
@@ -201,6 +201,7 @@ class PreClusteringStrategy(ids: Array[Int],
       EmptyGen
   }
   private var currentInterClusterGen: WorkGenerator[Int] = EmptyGen
+  private var interClusterQueue: Option[Array[(Int, Int)]] = None
   private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
 
   override def sizeIds: Int = n
@@ -259,24 +260,21 @@ class PreClusteringStrategy(ids: Array[Int],
   }
 
   private def nextInterClusterGen: InterClusterGen = {
-    var c1 = preClusters(iCluster)
-    var c2 = preClusters(jCluster)
-    while c1.length == 1 && c2.length == 1 do
+    val queue = interClusterQueue.get
+    var ij = queue(iCluster)
+    var c1 = preClusters(ij._1)
+    var c2 = preClusters(ij._2)
+    while c1.length == 1 && c2.length == 1 && iCluster < queue.length do
 //      println(s" skipping singleton clusters $iCluster and $jCluster")
-      jCluster += 1
-      if jCluster == preClusters.size then
-        iCluster += 1
-        jCluster = iCluster + 1
-      c1 = preClusters(iCluster)
-      c2 = preClusters(jCluster)
-    val m1 = preClusterMedoids(iCluster)
-    val m2 = preClusterMedoids(jCluster)
+      iCluster += 1
+      ij = queue(iCluster)
+      c1 = preClusters(ij._1)
+      c2 = preClusters(ij._2)
+    val m1 = preClusterMedoids(ij._1)
+    val m2 = preClusterMedoids(ij._2)
 
 //    println(s" NEXT inter: $iCluster -> $jCluster (${c1.length} x ${c2.length}) (${c1.mkString(", ")}) (${c2.mkString(", ")})")
-    jCluster += 1
-    if jCluster == preClusters.size then
-      iCluster += 1
-      jCluster = iCluster + 1
+    iCluster += 1
     new InterClusterGen(c1, c2, m1, m2)
   }
 
@@ -295,9 +293,13 @@ class PreClusteringStrategy(ids: Array[Int],
 
       case State.InterCluster =>
 //        println("SWITCHING to inter cluster state")
+        val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
+        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+        interClusterQueue = Some(queue)
+
         debugMessages.addOne((count, "STATE", "Finished medoids / start inter-cluster"))
         iCluster = 0
-        jCluster = 1
+        jCluster = 0
         currentIntraClusterGen = EmptyGen
         currentInterClusterGen = nextInterClusterGen
     }
@@ -307,7 +309,7 @@ class PreClusteringStrategy(ids: Array[Int],
   private def nextIntraClusterPair(): (Int, Int) = {
     if !currentIntraClusterGen.hasNext then
       debugMessages.addOne((count, "INTRA", f"Finished intra-cluster ${iCluster - 1}"))
-      preClusterMedoids(iCluster - 1) = medoidCallback(preClusters(iCluster - 1))
+      computeClusterMedoid(iCluster - 1)
 //      println(s" ${iCluster - 1}: depleted, computed medoid for (${preClusters(iCluster - 1).mkString(", ")}): ${preClusterMedoids(iCluster - 1)}")
       nextPreCluster match {
         case Some(clusterIds) =>
@@ -346,7 +348,20 @@ class PreClusteringStrategy(ids: Array[Int],
       debugMessages.addOne((count, "INTER", f"Finished inter-cluster $iCluster -> $jCluster"))
       currentInterClusterGen = nextInterClusterGen
 
-    val p = currentInterClusterGen.next()
-    p
+    currentInterClusterGen.next()
+  }
+
+  private def computeClusterMedoid(clusterId: Int): Unit = {
+    val ids = preClusters(clusterId)
+    var currentMedoid = ids.head
+    var currentMinDist = Double.MaxValue
+    var i = 0
+    while i < ids.length do
+      val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
+      if dist < currentMinDist then
+        currentMedoid = ids(i)
+        currentMinDist = dist
+      i += 1
+    preClusterMedoids(clusterId) = currentMedoid
   }
 }

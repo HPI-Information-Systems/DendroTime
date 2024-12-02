@@ -212,7 +212,7 @@ val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder 
 
 ///////////////////////////////////////////////////////////
 val distanceName = options("metric").toLowerCase.strip
-val linkageName = options("linkage").toLowerCase.strip()
+val linkageName = options("linkage").toLowerCase.strip
 val distance = distanceName match {
   case "msm" => MSM(c = 0.5, window = 0.05, itakuraMaxSlope = Double.NaN)
   case "dtw" => DTW(window = 0.05, itakuraMaxSlope = Double.NaN)

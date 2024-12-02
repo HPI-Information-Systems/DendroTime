@@ -52,32 +52,35 @@ def main(sys_args):
     if not filename.startswith("strategies"):
         raise ValueError("The filename must start with 'strategies'")
 
-    dataset = filename.split("-")[2]
-    n = int(filename.split("-")[1])
-    if len(filename.split("-")) == 4:
-        seed = int(filename.split("-")[3])
-    else:
-        seed = None
-
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = results_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
     if quality_measure not in ["ari", "hierarchy", "weighted"]:
         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
-    plot_results(result_dir, dataset, n, seed, quality_measure, save_best, ignore_debug)
+    plot_results(result_dir, filename, quality_measure, save_best, ignore_debug)
 
 
-def plot_results(result_dir, dataset, n, seed = None, quality_measure="ari", save_best=False, ignore_debug=False):
+def plot_results(result_dir, filename, quality_measure="ari", save_best=False, ignore_debug=False):
+    suffix = "-".join(filename.split("-")[1:])
+    if len(filename.split("-")) == 4:
+        n = int(filename.split("-")[1])
+        dataset = filename.split("-")[2]
+        seed = int(filename.split("-")[3])
+    else:
+        dataset = filename.split("-")[-1]
+        n = int(filename.split("-")[-2])
+        seed = None
+
     print(f"Processing dataset '{dataset}' with {n} time series and seed {seed}")
     if seed is None:
-        tracesPath = result_dir / f"traces-{n}-{dataset}.csv"
+        tracesPath = result_dir / f"traces-{suffix}.csv"
         orderingsPath = None
-        strategiesPath = result_dir / f"strategies-{n}-{dataset}.csv"
+        strategiesPath = result_dir / f"strategies-{suffix}.csv"
     else:
-        tracesPath = result_dir / f"traces-{n}-{dataset}-{seed}.csv"
+        tracesPath = result_dir / f"traces-{suffix}.csv"
         orderingsPath = result_dir / f"orderings-{n}.csv"
-        strategiesPath = result_dir / f"strategies-{n}-{dataset}-{seed}.csv"
-    preClusterDebugPath = result_dir / f"preCluster-debug-{n}-{dataset}.csv"
+        strategiesPath = result_dir / f"strategies-{suffix}.csv"
+    preClusterDebugPath = result_dir / f"preCluster-debug-{suffix}.csv"
 
     if not tracesPath.exists():
         raise FileNotFoundError(f"Traces file {tracesPath} not found!")

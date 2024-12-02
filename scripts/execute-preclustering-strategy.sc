@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+153-d99bfd7a+20241129-1539
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+157-4b4ba478+20241202-0905
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -136,18 +136,22 @@ val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getPare
 val options: Map[String, String] = parseOptions(
   args = args.toList,
   required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure"),
+  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage", "--jet"),
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/preclustering/",
     "dataFolder" -> s"$folder/data/datasets/",
-    "qualityMeasure" -> "ari"
+    "qualityMeasure" -> "ari",
+    "metric" -> "msm",
+    "linkage" -> "ward",
+    "jet" -> "false"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari>"
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure {hierarchy|ari|weighted}" +
+            "--metric {sbd|msm|dtw} --linkage {ward|single|complete|average|weighted} --jet {true|false}"
 
 ///////////////////////////////////////////////////////////
-val distanceName = "msm"
-val linkageName = "ward"
+val distanceName = options("metric").toLowerCase.strip
+val linkageName = options("linkage").toLowerCase.strip
 val distance = distanceName match {
   case "msm" => MSM(c = 0.5, window = 0.05, itakuraMaxSlope = Double.NaN)
   case "dtw" => DTW(window = 0.05, itakuraMaxSlope = Double.NaN)
@@ -157,14 +161,16 @@ val distance = distanceName match {
 val linkage = Linkage(linkageName)
 val dataset = options("dataset")
 val qualityMeasure = options("qualityMeasure").toLowerCase.strip
+val useJetPreClusters = options("jet").toBoolean
 val inputDataFolder = {
   val f = options("dataFolder")
   if !f.endsWith("/") then f + "/" else f
 }
+val _suffix = s"${if useJetPreClusters then "-jet" else ""}-$qualityMeasure/"
 val resultFolder = {
   val f = options("resultFolder")
-  if !f.endsWith("/") then f + "-" + qualityMeasure + "/"
-  else f.stripSuffix("/") + "-" + qualityMeasure + "/"
+  if !f.endsWith("/") then f + _suffix
+  else f.stripSuffix("/") + _suffix
 }
 val maxHierarchySimilarities = 1000
 ///////////////////////////////////////////////////////////
@@ -174,7 +180,7 @@ val datasetTrainFile = {
   if f.exists() then Some(f) else None
 }
 val datasetTestFile = new File(inputDataFolder + s"$dataset/${dataset}_TEST.ts")
-val prelabelsFile = new File(resultFolder.stripSuffix(s"-$qualityMeasure/") + s"/$dataset-prelabels.csv")
+val prelabelsFile = new File(resultFolder.stripSuffix(_suffix) + s"/$dataset-prelabels.csv")
 
 println(s"Processing dataset: $dataset")
 println("Configuration:")
@@ -185,6 +191,7 @@ println(s"  distance = $distance")
 println(s"  linkage = $linkage")
 println(s"  maxHierarchySimilarities = $maxHierarchySimilarities")
 println(s"  qualityMeasure = $qualityMeasure")
+println(s"  useJetPreClusters = $useJetPreClusters")
 println()
 
 // load time series
@@ -207,14 +214,21 @@ println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
 
-val preClasses = Math.sqrt(n).toInt * 3
-val preLabels = CutTree(approxHierarchy, preClasses)
-
-// load TS order
-//println("Loading prelabels ...")
-//val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
-//println(s"  prelabels: ${preLabels.mkString(", ")}")
-//println("... done.")
+val preLabels: Array[Int] =
+  if useJetPreClusters then
+    // load TS order
+    println("Loading prelabels ...")
+    val preLabels = CSVReader.parse[Double](prelabelsFile).map(a => a(0).toInt)
+    println(s"  prelabels: ${preLabels.mkString(", ")}")
+    val requiredN = Math.sqrt(n).toInt * 3
+    val gotN = preLabels.distinct.length
+    require(requiredN == gotN, s"Expected 3 * sqrt(n)=$requiredN, but got $gotN prelabels")
+    println("... done.")
+    preLabels
+  else
+    println("Using prelabels from approx distance hierarchy")
+    val preClasses = Math.sqrt(n).toInt * 3
+    CutTree(approxHierarchy, preClasses)
 
 // compute ordering
 println(s"Executing strategy for dataset $dataset with $n time series")
@@ -232,19 +246,7 @@ similarities += (
   else approxHierarchy.quality(classes, nClasses)
   )
 
-def preClusterMedoid(ids: Array[Int]): Int = {
-  var currentMedoid = ids.head
-  var currentMinDist = Double.MaxValue
-  var i = 0
-  while i < ids.length do
-    val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
-    if dist < currentMinDist then
-      currentMedoid = ids(i)
-      currentMinDist = dist
-    i += 1
-  currentMedoid
-}
-val strategy = PreClusteringStrategy(timeseries.indices.toArray, preLabels, preClusterMedoid)
+val strategy = PreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
 var k = 0
 while strategy.hasNext do
   val (i, j) = strategy.next()
@@ -277,8 +279,8 @@ println(f"  AUC = $auc%.4f")
 println()
 
 println(s"Computed qualities for all orderings, storing to CSVs ...")
-strategy.storeDebugMessages(new File(resultFolder + s"preCluster-debug-$n-$dataset.csv"))
+strategy.storeDebugMessages(new File(resultFolder + s"preCluster-debug-$distanceName-$linkageName-$n-$dataset.csv"))
 val results = Map("preClustering" -> (0, auc, 0L, order))
-writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", Array(qualities))
+writeStrategiesToCsv(results, resultFolder + s"strategies-$distanceName-$linkageName-$n-$dataset.csv")
+CSVWriter.write(resultFolder + s"traces-$distanceName-$linkageName-$n-$dataset.csv", Array(qualities))
 println("Done!")
