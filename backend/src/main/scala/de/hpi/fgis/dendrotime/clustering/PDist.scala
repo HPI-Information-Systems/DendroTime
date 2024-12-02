@@ -31,6 +31,9 @@ trait PDist extends Iterable[Double] {
   /** Convert to immutable object. */
   def immutable: PDist = this
 
+  /** Extract pairwise distance vector of a subset of objects. */
+  def subPDistOf(indices: scala.collection.Seq[Int]): PDist = PDist.subPDistOf(this, indices)
+
   override def knownSize: Int = length
 }
 
@@ -85,6 +88,22 @@ object PDist {
   def apply(dists: Array[Array[Double]]): PDist =
     apply(dists, dists.length)
 
+  /** Extract a pairwise distance vector for a subset of the objects in `pdist`.
+   * 
+   * @param pdist source pairwise distance vector
+   * @param indices indices of the objects to extract (must be between 0 and pdist.n-1)
+   * @return pairwise distance vector for the subset of objects in order of `indices`
+   * */
+  def subPDistOf(pdist: PDist, indices: scala.collection.Seq[Int]): PDist = {
+    if indices.min < 0 || indices.max >= pdist.n then
+      throw new IllegalArgumentException(s"Indices must be included in PDist range: 0 ... ${pdist.n-1}.")
+    val n = indices.length
+    val subDistances = Array.fill(n * (n - 1) / 2)(Double.PositiveInfinity)
+    for i <- 0 until n; j <- i + 1 until n do
+      subDistances(PDist.index(i, j, n)) = pdist(indices(i), indices(j))
+    PDistImpl(subDistances, n)
+  }
+
   /**
    * Create a compact pairwise distance vector from a sequence of distances.
    * 
@@ -98,9 +117,7 @@ object PDist {
     PDistImpl(distances.toArray, n)
   }
 
-  private case class PDistImpl private[PDist](override val distances: Array[Double],
-                                              n: Int) extends PDist with MutablePDist {
-
+  private case class PDistImpl private[PDist](distances: Array[Double], n: Int) extends PDist with MutablePDist {
     def apply(i: Int, j: Int): Double = {
       if (i == j) 0.0
       else if (i < j) distances(PDist.index(i, j, n))
