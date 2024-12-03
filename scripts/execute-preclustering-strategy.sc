@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+157-4b4ba478+20241202-0905
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+159-ac68f136+20241203-0857
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -18,12 +18,13 @@ import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
 
-import java.io.{File, PrintWriter}
+import java.io.{File, FileOutputStream, PrintWriter}
+import java.nio.charset.Charset
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Random, Using}
 
-import Strategies.PreClusteringStrategy
+import Strategies.RecursivePreClusteringStrategy
 
 extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
@@ -81,13 +82,15 @@ extension (hc: HierarchyWithClusters) {
   }
 }
 
-def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])], filename: String): Unit = {
+def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])],
+                         filename: String,
+                         append: Boolean = false): Unit = {
   val data = strategies.map { case (name, (index, auc, duration, order)) =>
     s"$name,$index,$auc,$duration,${order.toCsvRecord}"
   }
   val header = "strategy,index,quality,time_ms,order"
   val content = Seq(header) ++ data
-  Using.resource(new PrintWriter(new File(filename), "UTF-8")){ writer =>
+  Using.resource(new PrintWriter(new FileOutputStream(new File(filename), append), true, Charset.forName("UTF-8"))){ writer =>
     content.foreach(writer.println)
   }
 }
@@ -136,18 +139,19 @@ val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getPare
 val options: Map[String, String] = parseOptions(
   args = args.toList,
   required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage", "--jet"),
+  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage", "--jet", "--strategy"),
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/preclustering/",
     "dataFolder" -> s"$folder/data/datasets/",
     "qualityMeasure" -> "ari",
     "metric" -> "msm",
     "linkage" -> "ward",
-    "jet" -> "false"
+    "jet" -> "false",
+    "strategy" -> "simple"
   )
 )
 val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure {hierarchy|ari|weighted}" +
-            "--metric {sbd|msm|dtw} --linkage {ward|single|complete|average|weighted} --jet {true|false}"
+            "--metric {sbd|msm|dtw} --linkage {ward|single|complete|average|weighted} --jet {true|false} --strategy {simple|recursive}"
 
 ///////////////////////////////////////////////////////////
 val distanceName = options("metric").toLowerCase.strip
@@ -162,6 +166,7 @@ val linkage = Linkage(linkageName)
 val dataset = options("dataset")
 val qualityMeasure = options("qualityMeasure").toLowerCase.strip
 val useJetPreClusters = options("jet").toBoolean
+val strategyName = options("strategy").toLowerCase.strip
 val inputDataFolder = {
   val f = options("dataFolder")
   if !f.endsWith("/") then f + "/" else f
@@ -236,6 +241,7 @@ println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
 // execute strategy
+val t1 = System.nanoTime()
 val order = Array.ofDim[(Int, Int)](m)
 val similarities = mutable.ArrayBuilder.make[Double]
 similarities.sizeHint(maxHierarchySimilarities + 2)
@@ -244,21 +250,32 @@ similarities += (
   if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
   else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
   else approxHierarchy.quality(classes, nClasses)
-  )
+)
 
-val strategy = PreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
+val debugExactDists = mutable.BitSet.empty
+debugExactDists.sizeHint(m)
+val strategy: PreClusteringWorkGenerator[Int] =
+  if strategyName == "simple" then PreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
+  else RecursivePreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists, linkage)
 var k = 0
 while strategy.hasNext do
   val (i, j) = strategy.next()
-  wDists(i, j) = dists(i, j)
-  strategy.getPreClustersForMedoids(i, j).foreach { case (ids1, ids2) =>
-    val d = dists(i, j)
-    for id1 <- ids1 do
-      for id2 <- ids2 do
-        if id1 != i || id2 != j then
-          wDists(id1, id2) = d
+  val d = dists(i, j)
+  wDists(i, j) = d
+  debugExactDists += PDist.index(i, j, n)
+  strategy.getPreClustersForMedoids(i, j).foreach { case (ids1, ids2, skip) =>
+    for
+      id1 <- ids1
+      id2 <- ids2
+      if (id1 != i || id2 != j) && id1 != skip && id2 != skip
+    do
+      val pair = if id1 < id2 then id1 -> id2 else id2 -> id1
+      if debugExactDists.contains(PDist.index(pair._1, pair._2, n)) then
+        println(s"Pair $pair already set exactly!")
+      else
+        wDists(pair._1, pair._2) = d
   }
-  require(!order.exists(_ == (i, j)), s"Pair ($i, $j) already processed!")
+  require(!order.contains((i, j)), s"Pair ($i, $j) already processed!")
 
   order(k) = (i, j)
   val hierarchy = computeHierarchy(wDists, linkage)
@@ -270,17 +287,21 @@ while strategy.hasNext do
     )
   k += 1
 require(k == m, s"Expected to process $m pairs, but only processed $k")
+require((0 until n).forall(x => (x until n).forall(y => wDists(x, y) == dists(x, y))), "Not all distances set exactly!")
 val qualities = similarities.result()
-
+val duration = System.nanoTime() - t1
 
 println(s"   order = ${order.toCsvRecord.substring(0, 100)} ...")
 val auc = qualities.sum / qualities.length
 println(f"  AUC = $auc%.4f")
+println(s"  duration = ${duration / 1_000_000} ms")
 println()
 
 println(s"Computed qualities for all orderings, storing to CSVs ...")
 strategy.storeDebugMessages(new File(resultFolder + s"preCluster-debug-$distanceName-$linkageName-$n-$dataset.csv"))
-val results = Map("preClustering" -> (0, auc, 0L, order))
-writeStrategiesToCsv(results, resultFolder + s"strategies-$distanceName-$linkageName-$n-$dataset.csv")
+val results = Map(
+  (if strategyName == "simple" then "preClustering" else "recursivePreClustering") -> (0, auc, duration, order)
+)
 CSVWriter.write(resultFolder + s"traces-$distanceName-$linkageName-$n-$dataset.csv", Array(qualities))
+writeStrategiesToCsv(results, resultFolder + s"strategies-$distanceName-$linkageName-$n-$dataset.csv")
 println("Done!")

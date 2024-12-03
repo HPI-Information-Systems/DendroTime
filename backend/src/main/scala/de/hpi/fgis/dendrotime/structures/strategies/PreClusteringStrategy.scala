@@ -77,16 +77,16 @@ object PreClusteringStrategy {
 class PreClusteringStrategy(ids: Array[Int],
                             preLabels: Array[Int],
                             wDists: PDist
-                           ) extends WorkGenerator[Int] {
+                           ) extends PreClusteringWorkGenerator[Int] {
 
   import PreClusteringStrategy.*
 
-  //  println("INITIALIZAING PreClusteringStrategy")
+//  println("INITIALIZAING PreClusteringStrategy")
   private val preClusters = ids.groupBy(preLabels.apply)
-  //  println(s" Time series: ${ids.length}")
-  //  println(s" PreClusters (${preClusters.size}):\n" +
-  //    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
-  //  )
+//  println(s" Time series: ${ids.length}")
+//  println(s" PreClusters (${preClusters.size}):\n" +
+//    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+//  )
   private val preClusterMedoids = Array.ofDim[Int](preClusters.size)
   { // initialize the singleton cluster medoids
     var i = 0
@@ -138,16 +138,16 @@ class PreClusteringStrategy(ids: Array[Int],
     nextPair
   }
 
-  def getPreClustersForMedoids(medoid1: Int, medoid2: Int): Option[(Array[Int], Array[Int])] = {
+  override def getPreClustersForMedoids(medoid1: Int, medoid2: Int): Option[(Array[Int], Array[Int], Int)] = {
     if state != State.Medoids then
       None
     else
       val cluster1 = preClusters.find { case (_, ids) => ids.contains(medoid1) }
       val cluster2 = preClusters.find { case (_, ids) => ids.contains(medoid2) }
-      cluster1.flatMap(x => cluster2.map(y => x._2 -> y._2))
+      cluster1.flatMap(x => cluster2.map(y => (x._2, y._2, -1)))
   }
 
-  def storeDebugMessages(debugFile: File): Unit = {
+  override def storeDebugMessages(debugFile: File): Unit = {
     Using.resource(new java.io.PrintWriter(debugFile)) { writer =>
       writer.println("index,type,message")
       debugMessages.foreach { case (i, t, msg) =>
@@ -196,7 +196,7 @@ class PreClusteringStrategy(ids: Array[Int],
         throw new IllegalArgumentException("Cannot switch to IntraCluster state because it is the initial state")
 
       case State.Medoids =>
-        //        println("SWITCHING to medoids state")
+//        println(s"SWITCHING to medoids state ($count/$sizeTuples)")
         debugMessages.addOne((count, "STATE", "Finished intra-cluster / start medoids"))
         iCluster = 0
         jCluster = 1
@@ -204,7 +204,7 @@ class PreClusteringStrategy(ids: Array[Int],
         currentInterClusterGen = EmptyGen
 
       case State.InterCluster =>
-        //        println("SWITCHING to inter cluster state")
+//        println(s"SWITCHING to inter cluster state  ($count/$sizeTuples)")
         val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
         queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
         interClusterQueue = Some(queue)
@@ -266,14 +266,15 @@ class PreClusteringStrategy(ids: Array[Int],
   private def computeClusterMedoid(clusterId: Int): Unit = {
     val ids = preClusters(clusterId)
     var currentMedoid = ids.head
-    var currentMinDist = Double.MaxValue
-    var i = 0
+    var currentMinDist = ids.tail.map(id => wDists(currentMedoid, id)).sum
+    var i = 1
     while i < ids.length do
       val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
       if dist < currentMinDist then
         currentMedoid = ids(i)
         currentMinDist = dist
       i += 1
+//    println(s"MEDOID: $clusterId -> $currentMedoid")
     preClusterMedoids(clusterId) = currentMedoid
   }
 }
