@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+159-ac68f136+20241203-0857
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}

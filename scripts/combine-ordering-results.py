@@ -50,9 +50,6 @@ def main(sys_args):
     if not filename.startswith("strategies"):
         raise ValueError("The filename must start with 'strategies'")
 
-    dataset = filename.split("-")[2]
-    n = int(filename.split("-")[1])
-
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = target_experiment_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
@@ -63,24 +60,34 @@ def main(sys_args):
     if source_quality_measure != quality_measure:
         raise ValueError(f"Quality measure '{source_quality_measure}' in target experiment does not match quality measure in source experiment '{quality_measure}'")
 
-    combine_results(result_dir, dataset, n, quality_measure, source_experiment_folder)
+    combine_results(result_dir, filename, source_experiment_folder)
 
 
-def combine_results(result_dir, dataset, n, quality_measure, source_experiment_folder):
+def combine_results(result_dir, filename, source_experiment_folder):
+    suffix = "-".join(filename.split("-")[1:])
+    dataset = filename.split("-")[-1]
+    n = int(filename.split("-")[-2])
+
     print(f"Combining results for dataset '{dataset}' with {n} time series: from {source_experiment_folder.stem} in {result_dir.stem}")
-    targetTracesPath = result_dir / f"traces-{n}-{dataset}.csv"
-    sourceTracesPath = source_experiment_folder / f"traces-{n}-{dataset}.csv"
-    targetStrategiesPath = result_dir / f"strategies-{n}-{dataset}.csv"
-    sourceStrategiesPath = source_experiment_folder / f"strategies-{n}-{dataset}.csv"
+    targetTracesPath = result_dir / f"traces-{suffix}.csv"
+    sourceTracesPath = source_experiment_folder / f"traces-{suffix}.csv"
+    targetStrategiesPath = result_dir / f"strategies-{suffix}.csv"
+    sourceStrategiesPath = source_experiment_folder / f"strategies-{suffix}.csv"
 
     if not targetTracesPath.exists():
         raise FileNotFoundError(f"Target traces file {targetTracesPath} not found!")
 
     if not sourceStrategiesPath.exists():
-        raise FileNotFoundError(f"No corresponding source strategies file {sourceStrategiesPath} found!")
+        sourceStrategiesPath = source_experiment_folder / f"strategies-{n}-{dataset}.csv"
+        print(f"Source strategies file 'strategies-{n}-{dataset}.csv' not found, trying {sourceStrategiesPath.stem} instead.")
+        if not sourceStrategiesPath.exists():
+            raise FileNotFoundError(f"No corresponding source strategies file {sourceStrategiesPath} found!")
 
     if not sourceTracesPath.exists():
-        raise FileNotFoundError(f"Source traces file {sourceTracesPath} not found!")
+        sourceTracesPath = source_experiment_folder / f"traces-{n}-{dataset}.csv"
+        print(f"Source traces file 'traces-{n}-{dataset}.csv' not found, trying {sourceTracesPath.stem} instead.")
+        if not sourceTracesPath.exists():
+            raise FileNotFoundError(f"Source traces file {sourceTracesPath} not found!")
 
     df_target_traces = pd.read_csv(targetTracesPath, header=None)
     df_source_traces = pd.read_csv(sourceTracesPath, header=None)
