@@ -11,17 +11,21 @@ from pathlib import Path
 
 
 colors = defaultdict(lambda: "blue")
-colors["fcfs"] = "green"
-colors["shortestTs"] = "cyan"
-colors["approxAscending"] = "red"
-colors["approxDescending"] = "orange"
-colors["highestVar"] = "purple"
+colors["fcfs"] = "dimgray"
+colors["shortestTs"] = "gray"
+colors["approxAscending"] = "chocolate"
+colors["approxDescending"] = "saddlebrown"
+colors["highestVar"] = "darkgray"
 colors["gtLargestPairError"] = "brown"
 colors["gtLargestTsError"] = "darkgray"
-colors["approxDiffTsError"] = "olive"
-# those names changed in the new version:
-colors["dynamicError"] = "pink"
-colors["approxFullError"] = "pink"
+colors["approxDiffTsError"] = "orange"
+# these are the same strategies:
+colors["dynamicError"] = "lightgray"
+colors["approxFullError"] = "lightgray"
+# strategies of interest
+colors["preClustering"] = "red"
+colors["recursivePreClustering"] = "green"
+colors["advancedPreClustering"] = "purple"
 
 
 def parse_args(args):
@@ -55,7 +59,7 @@ def main(sys_args):
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = results_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
-    if quality_measure not in ["ari", "hierarchy", "weighted"]:
+    if quality_measure not in ["ari", "target_ari", "averageari", "hierarchy", "weighted"]:
         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
     plot_results(result_dir, filename, quality_measure, save_best, ignore_debug)
 
@@ -165,7 +169,7 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         plt.axvline(x=auc, linestyle="--", color=color, label=strategy)
     plt.xlabel("Solution quality")
     plt.ylabel("Frequency")
-    if quality_measure == "ari":
+    if "ari" in quality_measure:
         plt.xlim(-0.55, 1.05)
     else:
         plt.xlim(-0.05, 1.05)
@@ -196,12 +200,12 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         color = colors[strategy]
         plt.plot(index, df.iloc[i, :], color=color, label=strategy)
     plt.xlabel(f"Available distances (of {n*(n-1)/2})")
-    if quality_measure == "ari":
+    if "ari" in quality_measure:
         plt.ylabel("Adjusted Rand Index")
-        plt.ylim(-0.5, 1.0)
+        plt.ylim(-0.55, 1.05)
     else:
         plt.ylabel("Hierarchy Quality")
-        plt.ylim(0, 1.1)
+        plt.ylim(-0.05, 1.05)
 
     plt.legend(ncol=2)
     plt.savefig(figures_dir / f"solutions-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')

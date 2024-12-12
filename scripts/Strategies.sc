@@ -5,7 +5,7 @@ import de.hpi.fgis.dendrotime.structures.strategies.*
 import java.io.File
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.util.Using
+import scala.util.{Failure, Success, Try, Using}
 
 class GtBestTsFCFSOrderStrategy(tsOrder: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
   override protected val tsIds: IndexedSeq[Int] = tsOrder
@@ -98,60 +98,12 @@ class GtLargestTsErrorStrategy(aDists: PDist, fDists: PDist, ids: Array[Int])
   }
 }
 
-object RecursivePreClusteringStrategy {
-  private class IntraPreClustersGen(preClusters: scala.collection.Map[Int, PreCluster]) extends WorkGenerator[Int] {
-    private var count = 0
-    private var iCluster = 0
-    private var currentIntraClusterGen: WorkGenerator[Int] = nextPreCluster match {
-      case Some(cluster) => cluster.gen
-      case None => EmptyGen
-    }
-
-    override def sizeIds: Int = preClusters.values.map(_.size).sum
-
-    override def sizeTuples: Int = preClusters.values.map(_.size).map(s => s * (s - 1) / 2).sum
-
-    override def index: Int = count
-
-    override def hasNext: Boolean = count < sizeTuples
-
-    override def next(): (Int, Int) = {
-      if !hasNext then
-        throw new NoSuchElementException(
-          s"IntraPreClustersGen has no (more) work {i=$iCluster/${preClusters.size}}"
-        )
-      if !currentIntraClusterGen.hasNext then
-        nextPreCluster match {
-          case Some(cluster) =>
-            currentIntraClusterGen = cluster.gen
-            count += 1
-            currentIntraClusterGen.next()
-          case None =>
-            next()
-        }
-      else
-        count += 1
-        currentIntraClusterGen.next()
-    }
-
-    private def nextPreCluster: Option[PreCluster] = {
-      var preCluster = preClusters(iCluster)
-      while preCluster.size < 2 && iCluster < preClusters.size - 1 do
-        iCluster += 1
-        preCluster = preClusters(iCluster)
-      if preCluster.size < 2 || iCluster >= preClusters.size then
-        None
-      else
-        iCluster += 1
-        Some(preCluster)
-    }
-  }
-
-  private class IntraClusterGen(clusterIds: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
+object AdvancedPreClusteringStrategy {
+  class IntraClusterGen(clusterIds: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
     override protected val tsIds: IndexedSeq[Int] = clusterIds
   }
 
-  private class InterClusterGen(cluster1Ids: Array[Int], cluster2Ids: Array[Int], medoid1: Int, medoid2: Int) extends WorkGenerator[Int] {
+  class InterClusterGen(cluster1Ids: Array[Int], cluster2Ids: Array[Int], medoid1: Int, medoid2: Int) extends WorkGenerator[Int] {
     private var i = 0
     private var j = 0
     private var count = 0
@@ -164,8 +116,7 @@ object RecursivePreClusteringStrategy {
 
     override def hasNext: Boolean = index < sizeTuples
 
-    @tailrec
-    override final def next(): (Int, Int) = {
+    override def next(): (Int, Int) = {
       if !hasNext then
         throw new NoSuchElementException(s"InterClusterGen has no (more) work {i=$index/$sizeTuples}")
 
@@ -190,7 +141,99 @@ object RecursivePreClusteringStrategy {
     }
   }
 
-  private object EmptyGen extends WorkGenerator[Int] {
+  class InterestingInterClusterGen(cluster1Ids: Array[Int], cluster2Ids: Array[Int],
+                                   medoid1: Int, medoid2: Int,
+                                   wDists: PDist) extends WorkGenerator[Int] {
+    private var i = cluster1Ids.length
+    private var j = cluster2Ids.length
+    private var interClusterGen: Option[InterClusterGen] = None
+    private var count = 0
+
+    override def sizeIds: Int = cluster1Ids.length + cluster2Ids.length
+
+    override def sizeTuples: Int = cluster1Ids.length - 1 + cluster2Ids.length - 1 + cluster1Ids.length * cluster2Ids.length - 1
+
+    override def index: Int = count
+
+    override def hasNext: Boolean = index < sizeTuples && (interClusterGen.isEmpty || interClusterGen.get.hasNext)
+
+    override def next(): (Int, Int) = {
+      if !hasNext then
+        throw new NoSuchElementException(s"InterestingInterClusterGen has no (more) work {i=$index/$sizeTuples}")
+
+      if i < cluster1Ids.length then
+        val nextId1 = cluster1Ids(i)
+        if nextId1 == medoid1 then
+          i += 1
+          next()
+        else
+          val result =
+            if nextId1 > medoid2 then (medoid2, nextId1)
+            else (nextId1, medoid2)
+          i += 1
+          count += 1
+          result
+
+      else if j < cluster2Ids.length then
+        val nextId2 = cluster2Ids(j)
+        if nextId2 == medoid2 then
+          j += 1
+          next()
+        else
+          val result =
+            if nextId2 > medoid1 then (medoid1, nextId2)
+            else (nextId2, medoid1)
+          j += 1
+          count += 1
+          result
+
+      else if interClusterGen.isEmpty then
+//        val dists1 = wDists.subPDistOf(cluster1Ids)
+//        val mean1Dist = dists1.sum / cluster1Ids.length
+//        val std1Dist = Math.sqrt(dists1.map(d => Math.pow(d - mean1Dist, 2)).sum / cluster1Ids.length)
+        val interesting1 = cluster1Ids.filter{ id =>
+          val localMedoidDist = wDists(medoid1, id)
+          val otherMedoidDist = wDists(medoid2, id)
+          otherMedoidDist < localMedoidDist * 2
+//          localMedoidDist > mean1Dist
+        }
+//        val dists2 = wDists.subPDistOf(cluster2Ids)
+//        val mean2Dist = dists2.sum / cluster2Ids.length
+//        val std2Dist = Math.sqrt(dists2.map(d => Math.pow(d - mean2Dist, 2)).sum / cluster2Ids.length)
+        val interesting2 = cluster2Ids.filter{ id =>
+          val localMedoidDist = wDists(medoid2, id)
+          val otherMedoidDist = wDists(medoid1, id)
+          otherMedoidDist < localMedoidDist * 2
+//          localMedoidDist > mean2Dist
+        }
+        // just compare the TSs in the shell of the clusters (max distance to medoid within their cluster)
+        // does not work at all!
+//        val percentile1 = cluster1Ids.map(id => wDists(medoid1, id)).sorted.apply(Math.floorDiv(cluster1Ids.length*6, 10))
+//        val percentile2 = cluster2Ids.map(id => wDists(medoid2, id)).sorted.apply(Math.floorDiv(cluster2Ids.length*6, 10))
+//        val interesting1 = cluster1Ids.filter{ id =>
+//          id == medoid1 || wDists(medoid1, id) > percentile1
+//        }
+//        val interesting2 = cluster2Ids.filter{ id =>
+//          id == medoid2 || wDists(medoid2, id) > percentile2
+//        }
+
+        // special case that converges to the simple strategy:
+//        val interesting1 = cluster1Ids
+//        val interesting2 = cluster2Ids
+        println(s" interesting pairs: ${interesting1.length} x ${interesting2.length}")
+        val gen = new InterClusterGen(interesting1, interesting2, medoid1, medoid2)
+        interClusterGen = Some(gen)
+        count += 1
+        gen.next()
+
+      else
+        val result = interClusterGen.get.next()
+        count += 1
+        result
+    }
+  }
+
+  object EmptyGen extends WorkGenerator[Int] {
 
     override def sizeIds: Int = 0
 
@@ -204,107 +247,12 @@ object RecursivePreClusteringStrategy {
   }
 
   private enum State {
-    case IntraCluster, Medoids, SplitMedoids
+    case IntraCluster, Medoids, InterestingInterCluster, InterCluster
   }
 
   extension (internal: mutable.BitSet) {
     private def contains(pair: (Int, Int), n: Int): Boolean = internal.contains(PDist.index(pair._1, pair._2, n))
     private def +=(pair: (Int, Int), n: Int): Unit = internal += PDist.index(pair._1, pair._2, n)
-  }
-
-  private sealed trait PreCluster {
-    def id: Int
-
-    def tsIds: Array[Int]
-
-    def size: Int = tsIds.length
-
-    def contains(elem: Int): Boolean = tsIds.contains(elem)
-
-    def gen: IntraClusterGen = new IntraClusterGen(tsIds)
-
-    def withMedoid(dists: PDist): PreClusterWithMedoid = {
-      var currentMedoid = tsIds.head
-      var currentMinDist = tsIds.tail.map(id => dists(currentMedoid, id)).sum
-      var i = 1
-      while i < tsIds.length do
-        val dist = tsIds.withFilter(_ != tsIds(i)).map(id => dists(tsIds(i), id)).sum
-        if dist < currentMinDist then
-          currentMedoid = tsIds(i)
-          currentMinDist = dist
-        i += 1
-
-      PreClusterWithMedoid(id, tsIds, currentMedoid)
-    }
-  }
-  private case class InitialPreCluster(id: Int, tsIds: Array[Int]) extends PreCluster
-
-  private case class PreClusterWithMedoid(id: Int, tsIds: Array[Int], medoid: Int) extends PreCluster {
-    @transient
-    private var _hierarchy: Option[Hierarchy] = None
-    private def hierarchy(dists: PDist, linkage: Linkage) = _hierarchy match {
-      case Some(value) => value
-      case None =>
-        val subDists = dists.subPDistOf(tsIds)
-        val subHierarchy = computeHierarchy(subDists, linkage)
-        _hierarchy = Some(subHierarchy)
-        subHierarchy
-    }
-
-    override def withMedoid(dists: PDist): PreClusterWithMedoid = this
-
-    def maxMergeDistance(dists: PDist, linkage: Linkage): Double = {
-      if size < 2 then
-        0.0
-      else
-        val h = hierarchy(dists: PDist, linkage: Linkage)
-        h.distance(h.size - 1)
-    }
-
-    def split(dists: PDist, linkage: Linkage, maxId: Int): Seq[PreClusterWithMedoid] = {
-      val splitN = 2
-      if this.size < 2 then
-        throw new IllegalArgumentException("Cannot split a cluster with less than 2 elements")
-      else if this.size == 2 then
-        val otherId = tsIds.find(_ != medoid).get
-        Seq(copy(tsIds = Array(medoid)), copy(id = maxId, tsIds = Array(otherId), medoid = otherId))
-      else
-        val subHierarchy = hierarchy(dists, linkage)
-        val labels = CutTree(subHierarchy, splitN)
-        val uniqueLabels = labels.distinct
-        val clusters = Array.fill(splitN)(mutable.ArrayBuilder.make[Int])
-        val sumDists = Array.fill(splitN)(mutable.ArrayBuilder.make[Double])
-        var i = 0
-        while i < tsIds.length do
-          for (j <- 0 until splitN) do
-            if labels(i) == uniqueLabels(j) then
-              sumDists(j) += tsIds.map(id => dists(tsIds(i), id)).sum
-              clusters(j) += tsIds(i)
-          i += 1
-
-        val cluster1 = clusters(0).result()
-        val cluster2 = clusters(1).result()
-        val medoid1 = cluster1(sumDists(0).result().zipWithIndex.minBy(_._1)._2)
-        val medoid2 = cluster2(sumDists(1).result().zipWithIndex.minBy(_._1)._2)
-        if cluster1.contains(medoid) then
-          if medoid1 != medoid then
-            Seq(
-              copy(tsIds = cluster1, medoid = medoid1),
-              copy(id = maxId, tsIds = Array(medoid)),
-              copy(id = maxId + 1, tsIds = cluster2, medoid = medoid2)
-            )
-          else
-            Seq(copy(tsIds = cluster1, medoid = medoid1), copy(id = maxId, tsIds = cluster2, medoid = medoid2))
-        else
-          if medoid2 != medoid then
-            Seq(
-              copy(tsIds = cluster2, medoid = medoid2),
-              copy(id = maxId, tsIds = Array(medoid)),
-              copy(id = maxId + 1, tsIds = cluster1, medoid = medoid1)
-            )
-          else
-            Seq(copy(tsIds = cluster2, medoid = medoid2), copy(id = maxId, tsIds = cluster1, medoid = medoid1))
-    }
   }
 }
 
@@ -312,77 +260,93 @@ object RecursivePreClusteringStrategy {
  * Takes a pre-clustering as input, then generates the following TS pairs:
  * 1. All pairs of TSs within the same cluster (one pre-cluster after the other).
  * 2. Then computes the precluster medoids and generates all pairs of precluster medoids.
- * 3. All pairs of TSs between two different clusters (one pre-cluster after the other). The order of the clusters is
- *    determined by the medoid distance between the clusters (from close to far away).
+ * 3. Sort precluster medoids ascending
+ * 4. Generate interesting subsets for each pair of preclusters:
+ *    a. generate all pairs between TSs from one precluster to the other medoid
+ *    b. compute TSs that have a shorter distance to the other medoid (they are pot. in the wrong precluster)
+ *    c. generate all pairs of wrongly preclustered TSs
+ * 3. All remaining pairs of TSs between two different clusters (one pre-cluster after the other).
  */
-class RecursivePreClusteringStrategy(ids: Array[Int],
-                                     preLabels: Array[Int],
-                                     wDists: PDist,
-                                     linkage: Linkage
-                                    ) extends PreClusteringWorkGenerator[Int] {
-  import RecursivePreClusteringStrategy.*
+class AdvancedPreClusteringStrategy(ids: Array[Int],
+                            preLabels: Array[Int],
+                            wDists: PDist
+                           ) extends PreClusteringWorkGenerator[Int] {
 
-  println("INITIALIZAING RecursivePreClusteringStrategy")
-  private val initialPreClusters: Map[Int, PreCluster] =
-    ids.groupBy(preLabels.apply).map{ case (id, tsIds) => id -> InitialPreCluster(id, tsIds) }
-  private val preClusters: mutable.Map[Int, PreClusterWithMedoid] = mutable.Map.empty
-  println(s" Time series: ${ids.length}")
-  println(s" PreClusters (${initialPreClusters.size}):\n" +
-    initialPreClusters.toSeq.sortBy(_._1).map{ case (label, c) => s"  $label: ${c.tsIds.mkString(", ")}"}.mkString("\n")
-  )
-  println("SWITCHING to intra cluster state")
+  import AdvancedPreClusteringStrategy.*
+
+  //  println("INITIALIZAING AdvancedPreClusteringStrategy")
+  private val preClusters = ids.groupBy(preLabels.apply)
+  //  println(s" Time series: ${ids.length}")
+  //  println(s" PreClusters (${preClusters.size}):\n" +
+  //    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+  //  )
+  private val preClusterMedoids = Array.ofDim[Int](preClusters.size)
+  { // initialize the singleton cluster medoids
+    var i = 0
+    while i < preClusters.size do
+      if preClusters(i).length < 2 then
+        preClusterMedoids(i) = preClusters(i).head
+      i += 1
+  }
+  //  println("SWITCHING to intra cluster state")
   private val n = ids.length
   private var count = 0
   private var state = State.IntraCluster
   private var iCluster = 0
   private var jCluster = iCluster
-  private var skipMedoid = -1
-  private var activeClusterPair = (iCluster, jCluster)
-  private val intraPreClustersGen = new IntraPreClustersGen(initialPreClusters)
-  private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
+  private var currentIntraClusterGen: WorkGenerator[Int] = nextPreCluster match {
+    case Some(clusterIds) =>
+      new IntraClusterGen(clusterIds)
+    case None =>
+      switchState(State.Medoids)
+      EmptyGen
+  }
+  private var currentInterClusterGen: WorkGenerator[Int] = EmptyGen
+  private var interClusterQueue: Option[Array[(Int, Int)]] = None
   private val processed = mutable.BitSet.empty
   processed.sizeHint(sizeTuples)
+  private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
 
   override def sizeIds: Int = n
-  override def sizeTuples: Int = n * (n-1) / 2
+
+  override def sizeTuples: Int = n * (n - 1) / 2
+
   override def index: Int = count
+
   override def hasNext: Boolean = count < sizeTuples
+
   override def next(): (Int, Int) = {
     if !hasNext then
       throw new NoSuchElementException(
-        s"RecursivePreClusteringStrategy has no (more) work {i=$iCluster/$sizeTuples}"
+        s"AdvancedPreClusteringStrategy has no (more) work {i=$iCluster/$sizeTuples}"
       )
 
-    val nextPair = state match {
-      case State.IntraCluster =>
-        nextIntraClusterPair()
-      case State.Medoids =>
-        nextMedoidPair()
-      case State.SplitMedoids =>
-        nextSplitMedoidPair()
-    }
+    var nextPair: (Int, Int) = null
+    while
+     nextPair = state match {
+        case State.IntraCluster =>
+          nextIntraClusterPair()
+        case State.Medoids =>
+          nextMedoidPair()
+        case State.InterestingInterCluster =>
+          nextInterestingInterClusterPair()
+        case State.InterCluster =>
+          nextInterClusterPair()
+      }
+      processed.contains(nextPair, n)
+    do ()
     count += 1
     processed += (nextPair, n)
     nextPair
   }
 
   override def getPreClustersForMedoids(medoid1: Int, medoid2: Int): Option[(Array[Int], Array[Int], Int)] = {
-    if state == State.Medoids || state == State.SplitMedoids then
-      val (i, j) = activeClusterPair
-      val cluster1 = preClusters(i)
-      val cluster2 = preClusters(j)
-      if cluster1.size < 2 && cluster2.size < 2 then
-        None
-      else if cluster1.medoid < cluster2.medoid then
-        require(cluster1.medoid == medoid1, s"Cluster $i does not contain medoid $medoid1")
-        require(cluster2.medoid == medoid2, s"Cluster $j does not contain medoid $medoid2")
-        Some((cluster1.tsIds, cluster2.tsIds, skipMedoid))
-      else
-        require(cluster2.medoid == medoid1, s"Cluster $j does not contain medoid $medoid1")
-        require(cluster1.medoid == medoid2, s"Cluster $i does not contain medoid $medoid1")
-        Some((cluster2.tsIds, cluster1.tsIds, skipMedoid))
-    else
+    if state != State.Medoids then
       None
+    else
+      val cluster1 = preClusters.find { case (_, ids) => ids.contains(medoid1) }
+      val cluster2 = preClusters.find { case (_, ids) => ids.contains(medoid2) }
+      cluster1.flatMap(x => cluster2.map(y => (x._2, y._2, -1)))
   }
 
   override def storeDebugMessages(debugFile: File): Unit = {
@@ -394,70 +358,107 @@ class RecursivePreClusteringStrategy(ids: Array[Int],
     }
   }
 
+  private def nextPreCluster: Option[Array[Int]] = {
+    if iCluster >= preClusters.size then
+      None
+    else
+      var preCluster = preClusters(iCluster)
+      while preCluster.length < 2 && iCluster < preClusters.size - 1 do
+        iCluster += 1
+        preCluster = preClusters(iCluster)
+      if preCluster.length < 2 || iCluster >= preClusters.size then
+        None
+      else
+        iCluster += 1
+        Some(preCluster)
+  }
+
+  private def nextInterClusterGen(f: (Array[Int], Array[Int], Int, Int) => WorkGenerator[Int]): WorkGenerator[Int] = {
+    val queue = interClusterQueue.get
+    var ij = queue(iCluster)
+    var c1 = preClusters(ij._1)
+    var c2 = preClusters(ij._2)
+    while c1.length == 1 && c2.length == 1 && iCluster < queue.length do
+      //      println(s" skipping singleton clusters $iCluster and $jCluster")
+      iCluster += 1
+      ij = queue(iCluster)
+      c1 = preClusters(ij._1)
+      c2 = preClusters(ij._2)
+    val m1 = preClusterMedoids(ij._1)
+    val m2 = preClusterMedoids(ij._2)
+
+    //    println(s" NEXT inter: $iCluster -> $jCluster (${c1.length} x ${c2.length}) (${c1.mkString(", ")}) (${c2.mkString(", ")})")
+    iCluster += 1
+    f(c1, c2, m1, m2)
+  }
+
   private def switchState(newState: State): Unit = {
     newState match {
       case State.IntraCluster =>
         throw new IllegalArgumentException("Cannot switch to IntraCluster state because it is the initial state")
 
       case State.Medoids =>
-        println(s"SWITCHING to medoids state ($count / $sizeTuples)")
-        // compute medoids
-        var i = 0
-        while i < initialPreClusters.size do
-          preClusters(i) = initialPreClusters(i).withMedoid(wDists)
-          i += 1
+        println(s"SWITCHING to medoids state ($count/$sizeTuples)")
         debugMessages.addOne((count, "STATE", "Finished intra-cluster / start medoids"))
         iCluster = 0
         jCluster = 1
+        currentIntraClusterGen = EmptyGen
+        currentInterClusterGen = EmptyGen
 
-      case State.SplitMedoids =>
-        println(s"SWITCHING to split-medoids state ($count / $sizeTuples)")
-        debugMessages.addOne((count, "STATE", "Finished (split-)medoids / start split-medoids"))
-        val (splitId, splitCluster) = preClusters.maxBy {
-          case (_, cluster) => cluster.maxMergeDistance(wDists, linkage)
-        }
-//        println(s" splitting cluster $splitId with ${splitCluster.size} elements and medoid ${splitCluster.medoid}")
-        val newClusters = splitCluster.split(wDists, linkage, preClusters.size)
-        newClusters.foreach { cluster =>
-          preClusters(cluster.id) = cluster
-        }
-//        val tmp = newClusters.map(c => s"${c.id} (n=${c.size}, medoid=${c.medoid})")
-//        println(s" new clusters: ${tmp.mkString(", ")}")
-        val newCluster1 = newClusters.head
-        val newCluster2 = newClusters.last
-        if newClusters.size == 3 then
-          skipMedoid = newClusters(1).medoid
-        else
-          skipMedoid = -1
-        iCluster = if splitCluster.medoid != newCluster1.medoid then newCluster1.id else newCluster2.id
+      case State.InterestingInterCluster =>
+        println(s"SWITCHING to interesting inter cluster state ($count/$sizeTuples)")
+        debugMessages.addOne((count, "STATE", "Finished medoids / start interesting inter-cluster"))
+        val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
+        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+        interClusterQueue = Some(queue)
+        iCluster = 0
         jCluster = 0
+        currentIntraClusterGen = EmptyGen
+        currentInterClusterGen = nextInterClusterGen(new InterestingInterClusterGen(_, _, _, _, wDists))
+
+      case State.InterCluster =>
+        println(s"SWITCHING to inter cluster state  ($count/$sizeTuples)")
+        debugMessages.addOne((count, "STATE", "Finished interesting inter-cluster / start inter-cluster"))
+        val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
+        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+        interClusterQueue = Some(queue)
+        iCluster = 0
+        jCluster = 0
+        currentIntraClusterGen = EmptyGen
+        currentInterClusterGen = nextInterClusterGen(new InterClusterGen(_, _, _, _))
     }
     state = newState
   }
 
   private def nextIntraClusterPair(): (Int, Int) = {
-    if !intraPreClustersGen.hasNext then
-      switchState(State.Medoids)
-      count -= 1
-      next()
+    if !currentIntraClusterGen.hasNext then
+      debugMessages.addOne((count, "INTRA", f"Finished intra-cluster ${iCluster - 1}"))
+      computeClusterMedoid(iCluster - 1)
+      //      println(s" ${iCluster - 1}: depleted, computed medoid for (${preClusters(iCluster - 1).mkString(", ")}): ${preClusterMedoids(iCluster - 1)}")
+      nextPreCluster match {
+        case Some(clusterIds) =>
+          currentIntraClusterGen = new IntraClusterGen(clusterIds)
+          currentIntraClusterGen.next()
+        case None =>
+          switchState(State.Medoids)
+          nextMedoidPair()
+      }
     else
-      intraPreClustersGen.next()
+      currentIntraClusterGen.next()
   }
 
   private def nextMedoidPair(): (Int, Int) = {
-    if iCluster >= preClusters.size - 1 && jCluster >= preClusters.size then
-      switchState(State.SplitMedoids)
-      count -= 1
-      next()
+    if iCluster >= preClusterMedoids.length - 1 && jCluster >= preClusterMedoids.length then
+      switchState(State.InterestingInterCluster)
+      nextInterestingInterClusterPair()
 
     else
-      var result = (preClusters(iCluster).medoid, preClusters(jCluster).medoid)
+      var result = (preClusterMedoids(iCluster), preClusterMedoids(jCluster))
       if result._2 < result._1 then
         result = result.swap
-      activeClusterPair = (iCluster, jCluster)
 
       jCluster += 1
-      if jCluster == preClusters.size then
+      if jCluster == preClusterMedoids.length then
         iCluster += 1
         jCluster = iCluster + 1
 
@@ -465,24 +466,46 @@ class RecursivePreClusteringStrategy(ids: Array[Int],
   }
 
   @tailrec
-  private def nextSplitMedoidPair(): (Int, Int) = {
-    if jCluster >= preClusters.size then
-      switchState(State.SplitMedoids)
-      count -= 1
-      next()
-    else
-      var result = (preClusters(iCluster).medoid, preClusters(jCluster).medoid)
-      if result._2 < result._1 then
-        result = result.swap
-      activeClusterPair = (iCluster, jCluster)
-      jCluster += 1
-      if jCluster == preClusters.size && iCluster != preClusters.size - 1 then
-        iCluster = preClusters.size - 1
-        jCluster = 0
-
-      if result._1 != result._2 && !processed.contains(result, n) then
-        result
+  private def nextInterestingInterClusterPair(): (Int, Int) = {
+    if !currentInterClusterGen.hasNext then
+      println(s"Finished interesting inter-cluster ${iCluster - 1} -> ${interClusterQueue.get.apply(iCluster-1)}")
+      debugMessages.addOne((count, "INTER", f"Finished interesting inter-cluster ${iCluster - 1}"))
+      if iCluster >= interClusterQueue.get.length then
+        switchState(State.InterCluster)
       else
-        nextSplitMedoidPair()
+        currentInterClusterGen = nextInterClusterGen(new InterestingInterClusterGen(_, _, _, _, wDists))
+
+    Try {
+      currentInterClusterGen.next()
+    } match {
+      case Success(pair) =>
+        pair
+      case Failure(_) =>
+        nextInterestingInterClusterPair()
+    }
+  }
+
+  private def nextInterClusterPair(): (Int, Int) = {
+    if !currentInterClusterGen.hasNext then
+      println(s"Finished inter-cluster ${iCluster - 1} -> ${interClusterQueue.get.apply(iCluster-1)} ($count/$sizeTuples)")
+      debugMessages.addOne((count, "INTER", f"Finished inter-cluster ${iCluster - 1}"))
+      currentInterClusterGen = nextInterClusterGen(new InterClusterGen(_, _, _, _))
+
+    currentInterClusterGen.next()
+  }
+
+  private def computeClusterMedoid(clusterId: Int): Unit = {
+    val ids = preClusters(clusterId)
+    var currentMedoid = ids.head
+    var currentMinDist = ids.tail.map(id => wDists(currentMedoid, id)).sum
+    var i = 1
+    while i < ids.length do
+      val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
+      if dist < currentMinDist then
+        currentMedoid = ids(i)
+        currentMinDist = dist
+      i += 1
+    //    println(s"MEDOID: $clusterId -> $currentMedoid")
+    preClusterMedoids(clusterId) = currentMedoid
   }
 }

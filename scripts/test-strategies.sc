@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+159-ac68f136+20241203-0857
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+161-422470cf+20241209-1306
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -207,8 +207,8 @@ val options: Map[String, String] = parseOptions(
     "includeApproxDiff" -> "false"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted> " +
-  "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted>"
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted|target_ari> " +
+  "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted> --includeApproxDiff <true|false>"
 
 ///////////////////////////////////////////////////////////
 val distanceName = options("metric").toLowerCase.strip
@@ -265,8 +265,6 @@ val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f =>
 val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(datasetTestFile, idOffset = trainTimeseries.length)
 val n = timeseries.length
 val m = n * (n - 1) / 2
-val classes = timeseries.map(_.label.toInt)
-val nClasses = classes.distinct.length
 val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
 
 println("Computing pairwise distances ...")
@@ -283,6 +281,15 @@ println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
+val classes =
+  if qualityMeasure == "target_ari" then CutTree(targetHierarchy, 20)
+  else trainTimeseries.map(_.label.toInt)
+val nClasses = classes.distinct.length
+
+println("Using prelabels from approx distance hierarchy")
+val nPreClasses = Math.sqrt(n).toInt * 3
+val preLabels = CutTree(approxHierarchy, nPreClasses)
+
 //val sim = targetHierarchy.weightedSimilarity(targetHierarchy)
 //println(s"Target 2 Target weighted similarity = $sim")
 //System.exit(0)
@@ -346,6 +353,45 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
   order -> similarities.result()
 }
 
+def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerator[Int]): (Array[(Int, Int)], Array[Double]) = {
+  val order = Array.ofDim[(Int, Int)](m)
+  val similarities = mutable.ArrayBuilder.make[Double]
+  similarities.sizeHint(maxHierarchySimilarities + 2)
+  val wDists = approxDists.mutableCopy
+  similarities += (
+    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
+    else approxHierarchy.quality(classes, nClasses)
+  )
+  val strategy = strategyFactory(wDists)
+
+  var k = 0
+  while strategy.hasNext do
+    val (i, j) = strategy.next()
+    val dist = dists(i, j)
+    wDists(i, j) = dist
+    strategy.getPreClustersForMedoids(i, j).foreach { case (ids1, ids2, skip) =>
+      for
+        id1 <- ids1
+        id2 <- ids2
+        if (id1 != i || id2 != j) && id1 != skip && id2 != skip
+      do
+        val pair = if id1 < id2 then id1 -> id2 else id2 -> id1
+        wDists(pair._1, pair._2) = dist
+    }
+    order(k) = (i, j)
+    val hierarchy = computeHierarchy(wDists, linkage)
+    if k % hierarchyCalcFactor == 0 || k == m-1 then
+      similarities += (
+        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
+        else approxHierarchy.quality(classes, nClasses)
+      )
+    k += 1
+
+  order -> similarities.result()
+}
+
 def timed[T](f: => T): (T, Long) = {
   val t0 = System.nanoTime()
   val result = f
@@ -379,7 +425,7 @@ println(s"  n time series = $n")
 println(s"  n pairs = ${n*(n-1)/2}")
 
 // execute 1000 random orderings
-val pb = ProgressBar.forTotal(orderingSamples + strategies.size, format = ProgressBarFormat.FiraFont)
+val pb = ProgressBar.forTotal(orderingSamples + strategies.size + 2, format = ProgressBarFormat.FiraFont)
 val fcfsOrder = FCFSWorkGenerator(0 until n).toArray
 val randomQualities = Array.ofDim[Array[Double]](orderingSamples)
 var i = 0
@@ -400,7 +446,26 @@ val (namesIt, resultsIt) = strategies.map {
     val res = timed { executeStaticStrategy(s) }
     pb.step()
     name -> (res._1._1, res._1._2, res._2)
-}.unzip
+}.concat(Seq(
+// execute preclustering strategies
+  {
+    val res = timed {
+      executePreClusterStrategy(
+        wdist => PreClusteringStrategy(timeseries.indices.toArray, preLabels, wdist)
+      )
+    }
+    pb.step()
+    "preClustering" -> (res._1._1, res._1._2, res._2)
+  }, {
+    val res = timed {
+      executePreClusterStrategy(
+        wdist => RecursivePreClusteringStrategy(timeseries.indices.toArray, preLabels, wdist, linkage)
+      )
+    }
+    pb.step()
+    "recursivePreClustering" -> (res._1._1, res._1._2, res._2)
+  }
+)).unzip
 pb.finish()
 
 val names = namesIt.toArray

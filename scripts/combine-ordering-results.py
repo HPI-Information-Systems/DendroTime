@@ -53,7 +53,7 @@ def main(sys_args):
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = target_experiment_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
-    if quality_measure not in ["ari", "hierarchy", "weighted"]:
+    if quality_measure not in ["ari", "target_ari", "hierarchy", "weighted"]:
         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
 
     source_quality_measure = source_experiment_folder.stem.split("-")[-1].split(".")[0]
