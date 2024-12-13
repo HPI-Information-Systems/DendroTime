@@ -10,6 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from scipy.stats import skewnorm
+from scipy.spatial.distance import squareform
+from scipy.cluster import hierarchy
 from scipy.cluster.hierarchy import dendrogram, cut_tree
 from sklearn.metrics import adjusted_rand_score, jaccard_score
 from aeon.datasets import load_classification
@@ -61,10 +63,11 @@ def main(sys_args):
 
     result_dir = target_experiment_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
-    if quality_measure not in ["ari", "target_ari", "hierarchy", "weighted"]:
+    if quality_measure not in ["ari", "target_ari", "hierarchy", "weighted", "averageari"]:
         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
 
-    plot_hierarchies(result_dir, data_folder, filename, dataset, distance, linkage)
+#     plot_hierarchies(result_dir, data_folder, filename, dataset, distance, linkage)
+    plot_distances(result_dir, data_folder, filename, dataset, distance, linkage)
 
 
 def _hierarchy_similarity(h1, h2):
@@ -180,6 +183,41 @@ def plot_hierarchies(result_dir, data_dir, filename, dataset, distance, linkage)
             for j in range(len(leaves[i])):
                 if leaves[i][j] != leaves[i - 1][j]:
                     print(f"position {j}: {leaves[i][j]} != {leaves[i - 1][j]}")
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_distances(result_dir, data_dir, filename, dataset, distance, linkage):
+    print(f"Loading distance matrix for dataset {dataset} and distance {distance}")
+    dists = pd.read_csv(result_dir / f"distances-{distance}-{dataset}.csv", header=None).values
+    print(dists)
+
+    print(f"Computing target hierarchy for dataset {dataset}, distance {distance}, linkage {linkage}...")
+    X = squareform(dists, force="tovector", checks=False)
+    h = hierarchy.linkage(X, method=linkage)
+    n_clusters = 5
+    target_hierarchy_labels = cut_tree(h, n_clusters=n_clusters).flatten()
+    # map labels to colors
+    colors = np.array([f"C{i+1}" for i in range(n_clusters)])
+    target_hierarchy_colors = colors[target_hierarchy_labels]
+
+    import networkx as nx
+    G = nx.Graph()
+    G.add_nodes_from(range(len(dists)))
+    for i in range(len(dists)):
+        for j in range(i + 1, len(dists)):
+            G.add_edge(i, j, weight=-dists[i, j])
+
+    pos = nx.spring_layout(G, iterations=5000)
+    plt.figure()
+    nx.draw(G, pos, with_labels=True, node_color=target_hierarchy_colors, edge_color=(0.0, 0.0, 0.0, 0.2))
+#     labels = nx.get_edge_attributes(G, 'weight')
+#     nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
+
+    fig = plt.figure()
+    ax = plt.gca()
+    ax.set_title("Target Dendrogram")
+    dendrogram(h, ax=ax, orientation="right", count_sort="ascending")
     fig.tight_layout()
     plt.show()
 

@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+161-422470cf+20241210-1803
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+162-a25e1434+20241213-1154
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -241,7 +241,6 @@ val classes =
   else trainTimeseries.map(_.label.toInt)
 val nClasses = classes.distinct.length
 
-
 val preLabels: Array[Int] =
   if useJetPreClusters then
     // load TS order
@@ -257,6 +256,17 @@ val preLabels: Array[Int] =
     println("Using prelabels from approx distance hierarchy")
     val preClasses = Math.sqrt(n).toInt * 3
     CutTree(approxHierarchy, preClasses)
+
+// save target distance matrix
+val matrix = Array.ofDim[Double](n, n)
+var i = 0
+while i < n do
+  var j = 0
+  while j < n do
+    matrix(i)(j) = dists(i, j)
+    j += 1
+  i += 1
+CSVWriter.write(resultFolder + s"distances-$distanceName-$dataset.csv", matrix)
 
 // compute ordering
 println(s"Executing strategy for dataset $dataset with $n time series")

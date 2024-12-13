@@ -144,8 +144,8 @@ object AdvancedPreClusteringStrategy {
   class InterestingInterClusterGen(cluster1Ids: Array[Int], cluster2Ids: Array[Int],
                                    medoid1: Int, medoid2: Int,
                                    wDists: PDist) extends WorkGenerator[Int] {
-    private var i = cluster1Ids.length
-    private var j = cluster2Ids.length
+    private var i = 0 //cluster1Ids.length
+    private var j = 0 //cluster2Ids.length
     private var interClusterGen: Option[InterClusterGen] = None
     private var count = 0
 
@@ -409,7 +409,19 @@ class AdvancedPreClusteringStrategy(ids: Array[Int],
         println(s"SWITCHING to interesting inter cluster state ($count/$sizeTuples)")
         debugMessages.addOne((count, "STATE", "Finished medoids / start interesting inter-cluster"))
         val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
-        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+        val stds = preClusters.values.map{ ids =>
+          val dists = wDists.subPDistOf(ids)
+          val mean = dists.sum / ids.length
+          Math.sqrt(dists.map(d => Math.pow(d - mean, 2)).sum / ids.length)
+        }.toArray
+        queue.sortInPlaceBy((i, j) => - stds(i) - stds(j))
+//        queue.sortInPlaceBy((i, j) => -preClusters(i).length - preClusters(j).length)
+//        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+//        queue.sortInPlaceBy{(i, j) =>
+//          val d = wDists.apply(preClusterMedoids(i), preClusterMedoids(j))
+//          val std = (stds(i) + stds(j))/2
+//          d + 2 * std
+//        }
         interClusterQueue = Some(queue)
         iCluster = 0
         jCluster = 0
