@@ -1,12 +1,12 @@
 <configuration>
-    <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>INFO</level>
-        </filter>
-        <encoder>
-            <pattern>[%d{HH:mm:ss.SSS} %-5level] %50.50X{akkaSource:-local}| %msg%n</pattern>
-        </encoder>
-    </appender>
+<!--    <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">-->
+<!--        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">-->
+<!--            <level>INFO</level>-->
+<!--        </filter>-->
+<!--        <encoder>-->
+<!--            <pattern>[%d{HH:mm:ss.SSS} %-5level] %50.50X{akkaSource:-local}| %msg%n</pattern>-->
+<!--        </encoder>-->
+<!--    </appender>-->
 
     <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>dendrotime.log</file>
@@ -26,7 +26,7 @@
     </appender>
 
     <root level="DEBUG">
-        <appender-ref ref="STDOUT"/>
+<!--        <appender-ref ref="STDOUT"/>-->
         <appender-ref ref="ASYNC"/>
     </root>
 

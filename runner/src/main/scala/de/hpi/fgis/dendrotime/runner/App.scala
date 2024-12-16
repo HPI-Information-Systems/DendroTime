@@ -4,7 +4,7 @@ import akka.actor.CoordinatedShutdown
 import akka.actor.typed.ActorSystem
 import caseapp.{CaseApp, RemainingArgs}
 import com.typesafe.config.{Config, ConfigFactory}
-import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.{SerialHAC, Settings}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
@@ -17,6 +17,7 @@ object App extends CaseApp[Arguments] {
 
     // load configuration
     val config = loadConfig()
+    given Config = config
     val settings = Settings.fromConfig(config)
     println(settings)
 
@@ -31,6 +32,18 @@ object App extends CaseApp[Arguments] {
     println(s"Dataset: $dataset")
     println(s"Parameters: $params")
 
+    if options.serial then
+      runSerial(settings, dataset, params)
+    else
+      runProgressive(settings, dataset, params)
+  }
+
+  private def runSerial(settings: Settings, dataset: Dataset, params: DendroTimeParams): Unit = {
+    val serialHAC = new SerialHAC(settings)
+    serialHAC.run(dataset, params)
+  }
+
+  private def runProgressive(settings: Settings, dataset: Dataset, params: DendroTimeParams)(using config: Config): Unit = {
     // create actor system
     val system = ActorSystem(Runner.create(), "dendro-time-runner", config)
     // CoordinatedShutdown(system).addActorTerminationTask(CoordinatedShutdown.PhaseServiceUnbind, "stop-http-server", system, Server.Stop)

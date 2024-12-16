@@ -6,6 +6,7 @@ import caseapp.*
 @ProgName("runner")
 case class Arguments(
                       dataset: String,
+                      serial: Boolean = false,
                       metric: String = "msm",
                       linkage: String = "ward",
                       strategy: String = "fcfs",
