@@ -22,6 +22,7 @@ object StrategyFactory {
     case "shortest-ts" => ShortestTsStrategy
     case "approx-distance-ascending" => ApproxDistanceStrategy.Ascending
     case "approx-distance-descending" => ApproxDistanceStrategy.Descending
+    case "pre-clustering" => PreClusteringStrategy
     case _ => throw new IllegalArgumentException(
       s"Unknown strategy: $strategy, use one of: fcfs, shortest-ts, approx-distance-ascending, approx-distance-descending"
     )
