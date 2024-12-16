@@ -15,7 +15,8 @@ object WorkerProtocol {
 
   sealed trait CheckCommand extends AbstractIterator[(Long, Long)] with Command {
     val isApproximate: Boolean
-    val isFull: Boolean = !isApproximate
+    def isFull: Boolean = !isApproximate
+    def medoidsFor: Option[(Array[Long], Array[Long])] = None
 
     def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries
   }
@@ -207,5 +208,33 @@ object WorkerProtocol {
         new Check4(pairs(0)._1, pairs(0)._2, pairs(1)._1, pairs(1)._2, pairs(2)._1, pairs(2)._2, pairs(3)._1, pairs(3)._2, isApproximate = false)
       else
         new CheckN(pairs, isApproximate = false)
+  }
+
+  final case class CheckMedoids(m1: Long, m2: Long, ids1: Array[Long], ids2: Array[Long]) extends CheckCommand {
+    private var done = false
+    override val size: Int = 1
+    override val knownSize: Int = 1
+    override val isApproximate: Boolean = false
+
+    override def hasNext: Boolean = !done
+
+    override def next(): (Long, Long) = {
+      done = true
+      (m1, m2)
+    }
+
+    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries = {
+      val distinctIds = ids1.concat(ids2).distinct
+      if distinctIds.length == 2 then
+        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), replyTo)
+      else if distinctIds.length == 3 then
+        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), replyTo)
+      else if distinctIds.length == 4 then
+        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), distinctIds(3), replyTo)
+      else
+        TsmProtocol.GetTimeSeries(distinctIds, replyTo)
+    }
+
+    override def medoidsFor: Option[(Array[Long], Array[Long])] = Some((ids1, ids2))
   }
 }

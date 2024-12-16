@@ -13,6 +13,10 @@ import de.hpi.fgis.dendrotime.model.StateModel.Status
 
 
 object Clusterer {
+  
+  private[clusterer] case object GetDistances extends ClustererProtocol.Command
+
+  private case object ReportStatus extends ClustererProtocol.Command
 
   def apply(coordinator: ActorRef[Coordinator.Command],
             tsManager: ActorRef[TsmProtocol.Command],
@@ -31,7 +35,7 @@ object Clusterer {
           Behaviors.same
       }
     Behaviors.withTimers { timers =>
-      timers.startTimerWithFixedDelay(ClustererProtocol.ReportStatus, Settings(ctx.system).reportingInterval)
+      timers.startTimerWithFixedDelay(ReportStatus, Settings(ctx.system).reportingInterval)
       Behaviors.withStash(100)(uninitialized)
     }
   }
@@ -48,6 +52,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
                                 params: DendroTimeParams,
                                ) {
 
+  import Clusterer.*
   import ClustererProtocol.*
 
   private val settings = Settings(ctx.system)
@@ -67,7 +72,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
 
   private def start(): Behavior[Command] = running(Set.empty, false, false)
 
-  private def running(reg: Set[ActorRef[ApproxDistanceMatrix]], hasWork: Boolean, waiting: Boolean): Behavior[Command] =
+  private def running(reg: Set[ActorRef[DistanceMatrix]], hasWork: Boolean, waiting: Boolean): Behavior[Command] =
     Behaviors.receiveMessage[Command] {
       case Initialize(newN) if newN == n =>
         ctx.log.warn("Received duplicated initialization message!")
@@ -98,7 +103,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         if approxCount == distances.size then
           coordinator ! Coordinator.ApproxFinished
           reg.foreach {
-            _ ! ApproxDistanceMatrix(distances)
+            _ ! DistanceMatrix(distances)
           }
         if waiting then
           calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
@@ -120,6 +125,10 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
           running(reg, hasWork = false, waiting = false)
         else
           running(reg, hasWork = true, waiting = false)
+
+      case GetCurrentDistanceMatrix(replyTo) =>
+        replyTo ! DistanceMatrix(distances)
+        Behaviors.same
 
       case GetDistances if hasWork =>
         calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
@@ -147,7 +156,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
     } receiveSignal {
       case (_, Terminated(ref)) =>
         ctx.unwatch(ref)
-        running(reg - ref.unsafeUpcast[ApproxDistanceMatrix], hasWork, waiting)
+        running(reg - ref.unsafeUpcast[DistanceMatrix], hasWork, waiting)
         Behaviors.same
     }
 

@@ -45,6 +45,7 @@ lazy val `runner` = project.in(file("runner"))
     assembly / mainClass := Some("de.hpi.fgis.dendrotime.runner.App"),
 //    assembly / assemblyJarName := "DendroTime-runner.jar",
     assembly / assemblyOutputPath := file("experiments/DendroTime-runner.jar"),
+    run / baseDirectory := file(".")
   )
 
 lazy val `benchmarking` = project.in(file("benchmarking"))

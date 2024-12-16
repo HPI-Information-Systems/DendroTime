@@ -7,17 +7,15 @@ import scala.annotation.switch
 import scala.collection.AbstractIterator
 
 object ClustererProtocol {
-  sealed trait Command
+  trait Command
 
   case class Initialize(n: Int) extends Command
 
-  case class RegisterApproxDistMatrixReceiver(receiver: ActorRef[ApproxDistanceMatrix]) extends Command
+  case class RegisterApproxDistMatrixReceiver(receiver: ActorRef[DistanceMatrix]) extends Command
 
-  case class ApproxDistanceMatrix(distances: PDist)
+  case class GetCurrentDistanceMatrix(receiver: ActorRef[DistanceMatrix]) extends Command
 
-  private[clusterer] case object GetDistances extends Command
-
-  private[clusterer] case object ReportStatus extends Command
+  case class DistanceMatrix(distances: PDist)
 
   sealed trait DistanceResult extends AbstractIterator[(Int, Int, Double)] with Command {
     val isApproximate: Boolean

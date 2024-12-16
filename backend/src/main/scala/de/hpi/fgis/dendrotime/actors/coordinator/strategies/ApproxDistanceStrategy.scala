@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{ApproxDistanceMatrix, RegisterApproxDistMatrixReceiver}
+import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
@@ -55,7 +55,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
 
   private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
   private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
-  private val approxDistancesAdapter = ctx.messageAdapter[ApproxDistanceMatrix](m => ApproxDistances(m.distances))
+  private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 

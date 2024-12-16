@@ -74,10 +74,22 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
         workSupplier ! DispatchWork(ctx.context.self)
 
       // send distances to clusterer
-      if job.isApproximate then
-        ctx.clusterer ! ClustererProtocol.ApproximateDistance(tas, tbs, dists)
-      else
-        ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
+      job match {
+        case CheckMedoids(m1, m2, ids1, ids2) =>
+          ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
+          // medoid distance estimates the distance between all other inter-cluster pairs:
+          val estimated = for {
+            idx1 <- ids1.map(ts(_).idx)
+            idx2 <- ids2.map(ts(_).idx)
+            if idx1 != m1 && idx2 != m2 
+          } yield (idx1, idx2, dists.head)
+          val (a, b, c) = estimated.unzip3
+          ctx.clusterer ! ClustererProtocol.ApproximateDistance(a, b, c)
+        case j if j.isApproximate =>
+          ctx.clusterer ! ClustererProtocol.ApproximateDistance(tas, tbs, dists)
+        case _ =>
+          ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
+      }
       idle(workSupplier)
 
     // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)

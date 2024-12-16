@@ -4,14 +4,16 @@ import de.hpi.fgis.dendrotime.clustering.PDist
 
 import java.io.File
 import scala.collection.mutable
+import scala.math.Ordered.orderingToOrdered
+import scala.reflect.ClassTag
 import scala.util.Using
 
-object PreClusteringStrategy {
-  class IntraClusterGen(clusterIds: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
-    override protected val tsIds: IndexedSeq[Int] = clusterIds
+object OrderedPreClusteringWorkGenerator {
+  class IntraClusterGen[T : Numeric](clusterIds: Array[T]) extends WorkGenerator[T] with FCFSMixin[T] {
+    override protected val tsIds: IndexedSeq[T] = clusterIds
   }
 
-  class InterClusterGen(cluster1Ids: Array[Int], cluster2Ids: Array[Int], medoid1: Int, medoid2: Int) extends WorkGenerator[Int] {
+  class InterClusterGen[T : Numeric](cluster1Ids: Array[T], cluster2Ids: Array[T], medoid1: T, medoid2: T) extends WorkGenerator[T] {
     private var i = 0
     private var j = 0
     private var count = 0
@@ -24,7 +26,7 @@ object PreClusteringStrategy {
 
     override def hasNext: Boolean = index < sizeTuples
 
-    override def next(): (Int, Int) = {
+    override def next(): (T, T) = {
       if !hasNext then
         throw new NoSuchElementException(s"InterClusterGen has no (more) work {i=$index/$sizeTuples}")
 
@@ -74,19 +76,15 @@ object PreClusteringStrategy {
  * 3. All pairs of TSs between two different clusters (one pre-cluster after the other). The order of the clusters is
  * determined by the medoid distance between the clusters (from close to far away).
  */
-class PreClusteringStrategy(ids: Array[Int],
-                            preLabels: Array[Int],
-                            wDists: PDist
-                           ) extends PreClusteringWorkGenerator[Int] {
+class OrderedPreClusteringWorkGenerator[T : Numeric : ClassTag](
+                                                     mapping: Map[T, Int],
+                                                     preClusters: Map[Int, Array[Int]]
+                                                   ) extends PreClusteringWorkGenerator[T] {
 
-  import PreClusteringStrategy.*
+  import OrderedPreClusteringWorkGenerator.*
 
-//  println("INITIALIZAING PreClusteringStrategy")
-  private val preClusters = ids.groupBy(preLabels.apply)
-//  println(s" Time series: ${ids.length}")
-//  println(s" PreClusters (${preClusters.size}):\n" +
-//    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
-//  )
+  private val reverseMapping: Map[Int, T] = mapping.map(_.swap)
+  private val n = preClusters.values.map(_.length).sum
   private val preClusterMedoids = Array.ofDim[Int](preClusters.size)
   { // initialize the singleton cluster medoids
     var i = 0
@@ -95,8 +93,12 @@ class PreClusteringStrategy(ids: Array[Int],
         preClusterMedoids(i) = preClusters(i).head
       i += 1
   }
+//  println("INITIALIZAING OrderedPreClusteringWorkGenerator")
+//  println(s" Time series: $n")
+//  println(s" PreClusters (${preClusters.size}):\n" +
+//    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+//  )
   //  println("SWITCHING to intra cluster state")
-  private val n = ids.length
   private var count = 0
   private var state = State.IntraCluster
   private var iCluster = 0
@@ -120,10 +122,10 @@ class PreClusteringStrategy(ids: Array[Int],
 
   override def hasNext: Boolean = count < sizeTuples
 
-  override def next(): (Int, Int) = {
+  override def next(): (T, T) = {
     if !hasNext then
       throw new NoSuchElementException(
-        s"PreClusteringStrategy has no (more) work {i=$iCluster/$sizeTuples}"
+        s"OrderedPreClusteringWorkGenerator has no (more) work {i=$iCluster/$sizeTuples}"
       )
 
     val nextPair = state match {
@@ -135,7 +137,11 @@ class PreClusteringStrategy(ids: Array[Int],
         nextInterClusterPair()
     }
     count += 1
-    nextPair
+    val result = (reverseMapping(nextPair._1), reverseMapping(nextPair._2))
+    if result._2 < result._1 then
+      result.swap
+    else
+      result
   }
 
   override def getPreClustersForMedoids(medoid1: Int, medoid2: Int): Option[(Array[Int], Array[Int], Int)] = {
@@ -171,7 +177,7 @@ class PreClusteringStrategy(ids: Array[Int],
         Some(preCluster)
   }
 
-  private def nextInterClusterGen: InterClusterGen = {
+  private def nextInterClusterGen: InterClusterGen[Int] = {
     val queue = interClusterQueue.get
     var ij = queue(iCluster)
     var c1 = preClusters(ij._1)
@@ -229,8 +235,7 @@ class PreClusteringStrategy(ids: Array[Int],
           currentIntraClusterGen.next()
         case None =>
           switchState(State.Medoids)
-          count -= 1
-          next()
+          nextMedoidPair()
       }
     else
       currentIntraClusterGen.next()
@@ -239,8 +244,7 @@ class PreClusteringStrategy(ids: Array[Int],
   private def nextMedoidPair(): (Int, Int) = {
     if iCluster >= preClusterMedoids.length - 1 && jCluster >= preClusterMedoids.length then
       switchState(State.InterCluster)
-      count -= 1
-      next()
+      nextInterClusterPair()
 
     else
       var result = (preClusterMedoids(iCluster), preClusterMedoids(jCluster))

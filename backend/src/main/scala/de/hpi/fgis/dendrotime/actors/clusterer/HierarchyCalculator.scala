@@ -48,14 +48,14 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
   private var computations = 0
 
   private def start(): Behavior[Command] = {
-    clusterer ! ClustererProtocol.GetDistances
+    clusterer ! Clusterer.GetDistances
     running()
   }
 
   private def running(): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ComputeHierarchy(index, distances) =>
       computeHierarchy(state, index, distances)
-      clusterer ! ClustererProtocol.GetDistances
+      clusterer ! Clusterer.GetDistances
       Behaviors.same
 
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
