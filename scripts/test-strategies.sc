@@ -451,7 +451,7 @@ val (namesIt, resultsIt) = strategies.map {
   {
     val res = timed {
       executePreClusterStrategy(
-        wdist => PreClusteringStrategy(timeseries.indices.toArray, preLabels, wdist)
+        wdist => OrderedPreClusteringWorkGenerator(timeseries.indices.toArray, preLabels, wdist)
       )
     }
     pb.step()

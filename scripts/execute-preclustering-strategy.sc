@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+162-a25e1434+20241213-1154
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+164-2c7520f5+20241216-1359
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -295,8 +295,12 @@ val results =
     )
     val debugExactDists = mutable.BitSet.empty
     debugExactDists.sizeHint(m)
+    val preClusters = {
+      val clusters = timeseries.indices.toArray.groupBy(id => preLabels(id))
+      clusters.toArray.sortBy(_._1).map(_._2)
+    }
     val strategy = name match {
-      case "simple" => PreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
+      case "simple" => OrderedPreClusteringWorkGenerator[Int](timeseries.indices.zipWithIndex.toMap, preClusters, wDists)
       case "advanced" => AdvancedPreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
       case "recursive" => RecursivePreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists, linkage)
       case name => throw new IllegalArgumentException(s"Unknown strategy: $name")
