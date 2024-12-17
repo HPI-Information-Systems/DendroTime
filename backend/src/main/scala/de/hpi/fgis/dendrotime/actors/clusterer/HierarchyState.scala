@@ -70,9 +70,10 @@ object HierarchyState {
                                              )(using options: ClusterSimilarityOptions) extends HierarchyState {
 
     import HierarchyWithBF.*
+    import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 
     private var ops: Int = 0
-    private var gtHierarchy: Option[HierarchyWithBF] = None
+    private var gtHierarchy: Option[Array[Array[Int]]] = None
     private var gtClasses: Option[Array[String]] = None
     private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
 
@@ -83,10 +84,7 @@ object HierarchyState {
 
     override def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
       hierarchy.foreach(h => require(n == h.n, "N does not match!"))
-
-      given BloomFilterOptions = options.bfOptions
-
-      gtHierarchy = hierarchy.map(h => HierarchyWithBF.fromHierarchy(h, initialClusters))
+      gtHierarchy = hierarchy.map(h => h.indices.map(CutTree(h, _)).toArray)
     }
 
     override def setGtClasses(classes: Option[Array[String]]): Unit = {
@@ -104,7 +102,7 @@ object HierarchyState {
       ops += 1
 
       if gtHierarchy.isDefined then
-        val gtSimilarity = computeGtHierarchySimilarity(gtHierarchy.get)
+        val gtSimilarity = currentHierarchy.hierarchy.approxAverageARI(gtHierarchy.get)
         traceBuilder.withGtSimilarity(gtSimilarity)
 
       if gtClasses.isDefined then
@@ -115,7 +113,6 @@ object HierarchyState {
     override def dispose(): Unit = {
       initialClusters.foreach(_.dispose())
       currentHierarchy.dispose()
-      gtHierarchy.foreach(_.dispose())
     }
 
     private def computeClusterSimilarityLevelwise(hierarchy: Hierarchy): (HierarchyWithBF, Double) = {
@@ -159,13 +156,6 @@ object HierarchyState {
 
       val similarity = (previous & current).size.toDouble / (previous | current).size
       (HierarchyWithBF(hierarchy, bfs), similarity)
-    }
-
-    private def computeGtHierarchySimilarity(hierarchy: HierarchyWithBF): Double = {
-      // TODO: also filter by cardinality bounds?
-      val gt = hierarchy.bloomFilters.toSet
-      val current = currentHierarchy.bloomFilters.toSet
-      (gt & current).size.toDouble / (gt | current).size
     }
 
     private def computeClusterQuality(classes: Array[String]): Double = {

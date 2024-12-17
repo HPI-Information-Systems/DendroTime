@@ -11,7 +11,7 @@ import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Linkage, computeHie
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
-import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
+import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset.given
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
 
 import java.io.{File, FileOutputStream, FileWriter, PrintWriter}

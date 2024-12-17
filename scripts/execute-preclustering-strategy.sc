@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+164-2c7520f5+20241216-1359
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+167-9a9a890e+20241217-0808
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -14,7 +14,8 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.io.{CSVReader, CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.structures.*
-import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
+import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset.given
+import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
@@ -31,70 +32,7 @@ extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
 
 extension (hierarchy: Hierarchy) {
-  def quality(classes: Array[Int], nClasses: Int): Double = {
-    val clusters = CutTree(hierarchy, nClasses)
-    AdjustedRandScore(classes, clusters)
-  }
-
-  def averageARI(targetHierarchy: Hierarchy): Double = {
-    val b = mutable.ArrayBuilder.make[Double]
-    var i = 2
-    while i < hierarchy.size do
-      val targetLabels = CutTree(targetHierarchy, i)
-      val labels = CutTree(hierarchy, i)
-      val ari = AdjustedRandScore(targetLabels, labels)
-      b += ari //* 1.0/i
-      //i *= 2
-      i += 1
-    val aris = b.result()
-    aris.sum / aris.length
-  }
-}
-
-private def jaccardSimilarity[T](s1: scala.collection.Set[T], s2: scala.collection.Set[T]): Double = {
-  val intersection = s1 & s2
-  val union = s1 | s2
-  intersection.size.toDouble / union.size
-}
-
-extension (hc: HierarchyWithClusters) {
-  def weightedSimilarity(other: HierarchyWithClusters): Double = {
-    val n = hc.hierarchy.size
-    // compute pairwise similarities between clusters
-    val dists = Array.ofDim[Double](n, n)
-    val thisClusters = hc.clusters.toArray
-    val thatClusters = other.clusters.toArray
-    var i = 0
-    while i < n do
-      var j = i
-      while j < n do
-        val d = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
-        dists(i)(j) = d
-        if i != j then
-          dists(j)(i) = d
-        j += 1
-      i += 1
-
-    // find matches greedily (because Jaccard similarity is symmetric)
-    var similaritySum = 0.0
-    val matched = mutable.BitSet.empty
-    matched.sizeHint(n-1)
-    i = 0
-    while i < n do
-      var maxId = 0
-      var maxValue = 0.0
-      var j = 0
-      while j < n do
-        if !matched.contains(j) && dists(i)(j) > maxValue then
-          maxId = j
-          maxValue = dists(i)(j)
-        j += 1
-      similaritySum += maxValue
-      matched += maxId
-      i += 1
-
-    similaritySum / n
-  }
+  def ind(otherHierarchy: Hierarchy): Double = hierarchy.approxAverageARI(otherHierarchy)
 }
 
 def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])],
@@ -290,8 +228,11 @@ val results =
     similarities += (
       if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
       else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-      else if qualityMeasure == "averageari" then approxHierarchy.averageARI(targetHierarchy)
-      else approxHierarchy.quality(classes, nClasses)
+      else if qualityMeasure == "averageari" then
+        if name.endsWith("log") then approxHierarchy.approxAverageARI(targetHierarchy)
+        else if name.endsWith("ind") then approxHierarchy.ind(approxHierarchy)
+        else approxHierarchy.averageARI(targetHierarchy)
+      else approxHierarchy.ari(classes, nClasses)
     )
     val debugExactDists = mutable.BitSet.empty
     debugExactDists.sizeHint(m)
@@ -332,8 +273,11 @@ val results =
         similarities += (
           if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
           else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-          else if qualityMeasure == "averageari" then hierarchy.averageARI(targetHierarchy)
-          else hierarchy.quality(classes, nClasses)
+          else if qualityMeasure == "averageari" then
+            if name.endsWith("log") then hierarchy.approxAverageARI(targetHierarchy)
+            else if name.endsWith("ind") then hierarchy.ind(prevHierarchy)
+            else hierarchy.averageARI(targetHierarchy)
+          else hierarchy.ari(classes, nClasses)
         )
       if name == "recursive" && qualityMeasure == "weighted" && (dataset == "BirdChicken" || dataset == "BeetleFly") then
         println(s"  DEBUG: Pair ${k+1}: ($i, $j), writing hierarchy")

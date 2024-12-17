@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.structures
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
+import de.hpi.fgis.dendrotime.clustering.metrics.JaccardSimilarity
 
 
 object HierarchyWithBF {
@@ -26,12 +27,18 @@ object HierarchyWithBF {
   }
 }
 
-case class HierarchyWithBF(hierarchy: Hierarchy, bloomFilters: Array[BloomFilter[Int]]) extends AutoCloseable {
-  def length: Int = bloomFilters.length
+case class HierarchyWithBF(hierarchy: Hierarchy, clusters: Array[BloomFilter[Int]]) extends AutoCloseable {
 
-  def apply(i: Int): BloomFilter[Int] = bloomFilters(i)
+  def bloomFilters: Array[BloomFilter[Int]] = clusters
 
-  def dispose(): Unit = bloomFilters.foreach(_.close())
+  def apply(i: Int): BloomFilter[Int] = clusters(i)
+
+  def length: Int = clusters.length
+
+  def similarity(other: HierarchyWithBF): Double =
+    JaccardSimilarity(clusters.toSet, other.clusters.toSet)
+
+  def dispose(): Unit = clusters.foreach(_.close())
 
   override def close(): Unit = dispose()
 }
