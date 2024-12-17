@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+167-9a9a890e+20241217-0808
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+168-ce4af91a+20241217-1530
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -123,7 +123,9 @@ val dataset = options("dataset")
 val qualityMeasure = options("qualityMeasure").toLowerCase.strip
 val useJetPreClusters = options("jet").toBoolean
 val strategyName = options("strategy").toLowerCase.strip
-val strategyNames = if strategyName == "all" then Seq("simple", "advanced", "recursive") else Seq(strategyName)
+val strategyNames = if strategyName == "all" then Seq("simple", "simple-log", "advanced", "recursive")
+                    else if strategyName == "simple" then Seq("simple", "simple-log", "simple-ind")
+                    else Seq(strategyName)
 val inputDataFolder = {
   val f = options("dataFolder")
   if !f.endsWith("/") then f + "/" else f
@@ -242,11 +244,13 @@ val results =
     }
     val strategy = name match {
       case "simple" => OrderedPreClusteringWorkGenerator[Int](timeseries.indices.zipWithIndex.toMap, preClusters, wDists)
+      case s"simple-$_" => OrderedPreClusteringWorkGenerator[Int](timeseries.indices.zipWithIndex.toMap, preClusters, wDists)
       case "advanced" => AdvancedPreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists)
       case "recursive" => RecursivePreClusteringStrategy(timeseries.indices.toArray, preLabels, wDists, linkage)
       case name => throw new IllegalArgumentException(s"Unknown strategy: $name")
     }
 
+    var prevHierarchy: Hierarchy = approxHierarchy
     var k = 0
     while strategy.hasNext do
       val (i, j) = strategy.next()
@@ -279,13 +283,27 @@ val results =
             else hierarchy.averageARI(targetHierarchy)
           else hierarchy.ari(classes, nClasses)
         )
+        prevHierarchy = hierarchy
       if name == "recursive" && qualityMeasure == "weighted" && (dataset == "BirdChicken" || dataset == "BeetleFly") then
         println(s"  DEBUG: Pair ${k+1}: ($i, $j), writing hierarchy")
         HierarchyCSVWriter.write(resultFolder + s"hierarchy-$distanceName-$linkageName-$dataset-step${k+1}.csv", hierarchy)
       k += 1
     require(k == m, s"Expected to process $m pairs, but only processed $k")
     require((0 until n).forall(x => (x until n).forall(y => wDists(x, y) == dists(x, y))), "Not all distances set exactly!")
-    val trace = similarities.result()
+    val trace =
+      if name.endsWith("ind") then
+        val sim = similarities.result()
+        val cumsum = Array.ofDim[Double](sim.length)
+        var i = 0
+        var sum = 0.0
+        while i < sim.length do
+          sum += 1 - sim(i)
+          cumsum(i) = sum
+          i += 1
+        // scale to [0, 1]
+        cumsum.map(x => x / sum)
+      else
+        similarities.result()
     qualities += trace
     val duration = System.nanoTime() - t1
 
@@ -295,11 +313,13 @@ val results =
     println(s"  duration = ${duration / 1_000_000} ms")
     println()
 
-    if name == "advanced" then
+    if strategyNames.length == 1 || name == "advanced" then
       strategy.storeDebugMessages(new File(resultFolder + s"preCluster-debug-$distanceName-$linkageName-$n-$dataset.csv"))
 
     name match {
       case "simple" => "preClustering" -> (idx, auc, duration, order)
+      case "simple-log" => "preClustering-log" -> (idx, auc, duration, order)
+      case "simple-ind" => "preClustering-ind" -> (idx, auc, duration, order)
       case "advanced" => "advancedPreClustering" -> (idx, auc, duration, order)
       case "recursive" => "recursivePreClustering" -> (idx, auc, duration, order)
     }

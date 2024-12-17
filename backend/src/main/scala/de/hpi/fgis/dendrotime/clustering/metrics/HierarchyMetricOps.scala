@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 object HierarchyMetricOps {
   def apply(hierarchy: Hierarchy): HierarchyMetricOps = new HierarchyMetricOps(hierarchy)
-  
+
   given Conversion[Hierarchy, HierarchyMetricOps] = HierarchyMetricOps.apply(_)
 
 }
@@ -17,7 +17,7 @@ class HierarchyMetricOps(hierarchy: Hierarchy) extends AnyVal {
     val clusters = CutTree(hierarchy, nClasses)
     AdjustedRandScore(trueClasses, clusters)
   }
-  
+
   def averageARI(targetLabels: Array[Array[Int]]): Double = {
     val b = mutable.ArrayBuilder.make[Double]
     var i = 2
@@ -45,15 +45,19 @@ class HierarchyMetricOps(hierarchy: Hierarchy) extends AnyVal {
   def approxAverageARI(targetLabels: Array[Array[Int]]): Double = approxAverageARI(targetLabels, 1.3)
 
   def approxAverageARI(targetLabels: Array[Array[Int]], factor: Double): Double = {
-    val b = mutable.ArrayBuilder.make[Double]
-    var i = 2
-    while i < hierarchy.size do
-      val labels = CutTree(hierarchy, i)
-      val ari = AdjustedRandScore(targetLabels(i), labels)
-      b += ari
-      i = Math.ceil(i * factor).toInt
-    val aris = b.result()
-    aris.sum / aris.length
+    val n = Math.min(hierarchy.size, targetLabels.length)
+    if n >= 2 then
+      val b = mutable.ArrayBuilder.make[Double]
+      var i = 2
+      while i < n do
+        val labels = CutTree(hierarchy, i)
+        val ari = AdjustedRandScore(targetLabels(i), labels)
+        b += ari
+        i = Math.ceil(i * factor).toInt
+      val aris = b.result()
+      aris.sum / aris.length
+    else
+      0.0
   }
 
   def weightedSimilarity(otherHierarchy: Hierarchy)(using conv: Conversion[Hierarchy, HierarchyWithBitset]): Double = {

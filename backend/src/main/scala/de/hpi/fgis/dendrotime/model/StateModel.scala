@@ -120,7 +120,11 @@ object StateModel {
       def result(): QualityTrace = QualityTrace(
         indices=nComputations.toArray,
         timestamps=timestamps.toArray,
-        similarities=similarities.toArray,
+        similarities=
+          val x = similarities.toArray
+          val max = x.max
+          if max <= 1.0 then x
+          else x.map(_ / max),
         gtSimilarities=gtSimilarities.toArray,
         clusterQualities=clusterQualities.toArray
       )

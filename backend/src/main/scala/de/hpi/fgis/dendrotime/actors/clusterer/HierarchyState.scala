@@ -30,13 +30,14 @@ object HierarchyState {
   def nonTracking(n: Int): HierarchyState = new NonTrackingHierarchyState(n, Hierarchy.empty)
 
   def tracking(n: Int)(using options: ClusterSimilarityOptions): HierarchyState = {
-    given BloomFilterOptions = options.bfOptions
-
-    new QualityTrackingHierarchyState(
-      n = n,
-      initialClusters = initialBFs(n),
-      currentHierarchy = HierarchyWithBF.emptyBFs(n),
-    )
+//    given BloomFilterOptions = options.bfOptions
+//
+//    new QualityTrackingHierarchyState(
+//      n = n,
+//      initialClusters = initialBFs(n),
+//      currentHierarchy = HierarchyWithBF.emptyBFs(n),
+//    )
+    new SimpleTrackingHierarchyState(n, Hierarchy.empty)
   }
 
   private def initialBFs(n: Int)(using BloomFilterOptions): Array[BloomFilter[Int]] =
@@ -62,6 +63,59 @@ object HierarchyState {
     }
 
     override def dispose(): Unit = ()
+  }
+
+  private class SimpleTrackingHierarchyState(override val n: Int,
+                                             private var currentHierarchy: Hierarchy) extends HierarchyState {
+    import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
+
+    private var ops: Int = 0
+    private var cumsum: Double = 0.0
+    private var gtHierarchy: Option[Array[Array[Int]]] = None
+    private var gtClasses: Option[Array[String]] = None
+    private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
+
+    override def computations: Int = ops
+
+    override def toClusteringState: ClusteringState = ClusteringState(currentHierarchy, traceBuilder.result())
+
+    override def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
+      hierarchy.foreach(h => require(n == h.n, "N does not match!"))
+      gtHierarchy = hierarchy.map(h => h.indices.map(CutTree(h, _)).toArray)
+    }
+
+    override def setGtClasses(classes: Option[Array[String]]): Unit = {
+      gtClasses = classes
+    }
+
+    override def newHierarchy(index: Int, hierarchy: Hierarchy): Unit = {
+      ops += 1
+      val similarity = 1 - hierarchy.approxAverageARI(currentHierarchy)
+      cumsum += similarity
+      currentHierarchy = hierarchy
+      traceBuilder.addStep(index, cumsum)
+      ops += 1
+
+      if gtHierarchy.isDefined then
+        val gtSimilarity = currentHierarchy.approxAverageARI(gtHierarchy.get)
+        traceBuilder.withGtSimilarity(gtSimilarity)
+
+      if gtClasses.isDefined then
+        val clusterQuality = computeClusterQuality(gtClasses.get)
+        traceBuilder.withClusterQuality(clusterQuality)
+    }
+
+    override def dispose(): Unit = ()
+
+    private def computeClusterQuality(classes: Array[String]): Double = {
+      // 1. cut tree according to k = |distinct classes|
+      val nClusters = classes.distinct.length
+      val clusters = CutTree(currentHierarchy, nClusters)
+      // 2. assign arbitrary class names (strings) to the clusters
+      val clusterLabels = clusters.map(_.toString)
+      // 3. use adjusted_rand_score to compare the clustering with the ground truth
+      AdjustedRandScore(classes, clusterLabels)
+    }
   }
 
   private class QualityTrackingHierarchyState(override val n: Int,
