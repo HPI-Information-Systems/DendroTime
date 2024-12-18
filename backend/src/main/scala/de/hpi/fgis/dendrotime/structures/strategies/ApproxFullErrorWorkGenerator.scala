@@ -76,7 +76,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
     result
   }
 
-  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+  override def nextBatch(maxN: Int, ignore: ((T, T)) => Boolean): Array[(T, T)] = {
     if sortNecessary then
       tsIds.sortInPlaceBy(id => -errors(id))
       sortNecessary = false
@@ -88,7 +88,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
       var mappedPair = (idMap(pair._1), idMap(pair._2))
       if mappedPair._2 < mappedPair._1 then
         mappedPair = mappedPair.swap
-      if !ignore.contains(mappedPair) then
+      if !ignore(mappedPair) then
         buf += mappedPair
     count += n
     buf.result()

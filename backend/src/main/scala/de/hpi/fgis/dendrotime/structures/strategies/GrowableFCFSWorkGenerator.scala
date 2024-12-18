@@ -85,14 +85,14 @@ class GrowableFCFSWorkGenerator[T: Numeric : ClassTag] extends WorkGenerator[T] 
     batch
   }
 
-  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+  override def nextBatch(maxN: Int, ignore: ((T, T)) => Boolean): Array[(T, T)] = {
     val batch = mutable.ArrayBuilder.make[(T, T)]
     batch.sizeHint(maxN)
     while batch.length < maxN && hasNext do
       var pair = ids(i) -> ids(j)
       if pair._2 < pair._1 then
         pair = pair.swap
-      if !ignore.contains(pair) then
+      if !ignore(pair) then
         batch += pair
       inc()
     batch.result()

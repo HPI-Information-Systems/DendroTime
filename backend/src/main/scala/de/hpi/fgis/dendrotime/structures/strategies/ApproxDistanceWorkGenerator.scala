@@ -84,14 +84,14 @@ class ApproxDistanceWorkGenerator[T] private(queue: Array[(T, T)],
     batch
   }
 
-  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+  override def nextBatch(maxN: Int, ignore: ((T, T)) => Boolean): Array[(T, T)] = {
     val buf = mutable.ArrayBuilder.make[(T, T)]
     buf.sizeHint(maxN)
     while buf.length < maxN && hasNext do
       val item =
         if direction == ApproxDistanceWorkGenerator.Direction.Ascending then queue(i)
         else queue(queue.length - i - 1)
-      if !ignore.contains(item) then
+      if !ignore(item) then
         buf += item
       i += 1
     buf.result()

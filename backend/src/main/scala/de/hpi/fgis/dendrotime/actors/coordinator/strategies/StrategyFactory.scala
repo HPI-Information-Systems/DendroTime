@@ -14,7 +14,7 @@ object StrategyFactory {
                                  dataset: Dataset,
                                  params: DendroTimeParams,
                                  tsManager: ActorRef[TsmProtocol.Command],
-                                 clusterer: ActorRef[ClustererProtocol.Command],
+                                 clusterer: ActorRef[ClustererProtocol.Command]
                                )
 
   def get(strategy: String): StrategyFactory = strategy.toLowerCase.strip().replace(" ", "-").replace("_", "-") match {

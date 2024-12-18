@@ -37,12 +37,12 @@ trait FCFSMixin[T: Numeric] { this: WorkGenerator[T] =>
       result
   }
 
-  override def nextBatch(maxN: Int, ignore: Set[(T, T)]): Array[(T, T)] = {
+  override def nextBatch(maxN: Int, ignore: ((T, T)) => Boolean): Array[(T, T)] = {
     val batch = mutable.ArrayBuilder.make[(T, T)]
     batch.sizeHint(maxN)
     while batch.length < maxN && hasNext do
       val pair = tsIds(i) -> tsIds(j)
-      if !ignore.contains(pair) && !ignore.contains(pair.swap) then
+      if !ignore(pair) && !ignore(pair.swap) then
         batch += pair
       inc()
     batch.result()

@@ -98,7 +98,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
 
     case DispatchWork(worker, time, size) if workGen.hasNext =>
       val batchSize = nextBatchSize(time, size)
-      val work = workGen.nextBatch(batchSize, processedWork)
+      val work = workGen.nextBatch(batchSize, processedWork.contains)
       ctx.log.trace("Dispatching full job ({} items), stash={}", work.length, stash.size)
       worker ! WorkerProtocol.CheckFull(work)
       Behaviors.same

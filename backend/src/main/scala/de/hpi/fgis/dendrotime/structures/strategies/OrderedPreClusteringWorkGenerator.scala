@@ -8,9 +8,57 @@ import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
 import scala.util.Using
 
+
 object OrderedPreClusteringWorkGenerator {
   class IntraClusterGen[T : Numeric](clusterIds: Array[T]) extends WorkGenerator[T] with FCFSMixin[T] {
     override protected val tsIds: IndexedSeq[T] = clusterIds
+  }
+
+  class PreClusterIntraClusterGen(preClusters: Array[Array[Int]], n: Int) extends WorkGenerator[Int] {
+    private var iCluster = 0
+    private var count = 0
+    private var currentIntraClusterGen = new IntraClusterGen[Int](nextPreCluster)
+
+    override def sizeIds: Int = n
+
+    override def sizeTuples: Int = preClusters.map{ cluster =>
+      val n = cluster.length
+      if n == 1 then 0
+      else n * (n-1) / 2
+    }.sum
+
+    override def index: Int = count
+
+    override def hasNext: Boolean = index < sizeTuples
+
+    override def next(): (Int, Int) = {
+      if !hasNext then
+        throw new NoSuchElementException(s"PreClusterIntraClusterGen has no (more) work {i=$index/$sizeTuples}")
+
+      if !currentIntraClusterGen.hasNext then
+        val clusterIds = nextPreCluster
+        currentIntraClusterGen = new IntraClusterGen(clusterIds)
+      val result = currentIntraClusterGen.next()
+      count += 1
+      result
+    }
+
+    private def nextPreCluster: Array[Int] = {
+      var preCluster = preClusters(iCluster)
+      while preCluster.length < 2 && iCluster < preClusters.length - 1 do
+        iCluster += 1
+        preCluster = preClusters(iCluster)
+      if preCluster.length < 2 || iCluster >= preClusters.length then
+        throw new NoSuchElementException("PreClusterIntraclusterGen could not find a valid cluster")
+      else
+        //        println(s"  intra: selecting next cluster $iCluster (${preCluster.mkString(", ")})")
+        iCluster += 1
+        preCluster
+    }
+  }
+
+  class PreClusterMedoidPairGenerator(preClusterMedoids: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
+    override protected val tsIds: IndexedSeq[Int] = preClusterMedoids
   }
 
   class InterClusterGen[T : Numeric](cluster1Ids: Array[T], cluster2Ids: Array[T], medoid1: T, medoid2: T) extends WorkGenerator[T] {
@@ -51,66 +99,77 @@ object OrderedPreClusteringWorkGenerator {
     }
   }
 
-  object EmptyGen extends WorkGenerator[Int] {
+  class PreClusterInterClusterGen(interClusterQueue: Array[(Int, Int)],
+                                  preClusters: Array[Array[Int]],
+                                  preClusterMedoids: Array[Int]) extends WorkGenerator[Int] {
 
-    override def sizeIds: Int = 0
+    private val cleanedQueue = interClusterQueue.filter { case (i, j) =>
+      preClusters(i).length > 1 || preClusters(j).length > 1
+    }
+    private val totalPairs = cleanedQueue.map{ case (i, j) =>
+      preClusters(i).length * preClusters(j).length - 1
+    }.sum
+    private var iCluster = 0
+    private var count = 0
+    private var currentInterClusterGen = nextInterClusterGen
 
-    override def sizeTuples: Int = 0
+    override def sizeIds: Int = -1
 
-    override def index: Int = 0
+    override def sizeTuples: Int = totalPairs
 
-    override def next(): (Int, Int) = throw new NoSuchElementException("EmptyGen has no work")
+    override def index: Int = -1
 
-    override def hasNext: Boolean = false
-  }
+    override def hasNext: Boolean = count < totalPairs
 
-  private enum State {
-    case IntraCluster, Medoids, InterCluster
-  }
+    override def next(): (Int, Int) = {
+      if !currentInterClusterGen.hasNext then
+        currentInterClusterGen = nextInterClusterGen
 
-  object StatusUpdateListener {
-    def default(wDists: PDist): StatusUpdateListener = new StatusUpdateListener {
-      override def createInterClusterQueue(preClusters: Array[Array[Int]], preClusterMedoids: Array[Int]): Array[(Int, Int)] = {
-        val queue = preClusters.indices.combinations(2).map(pair => (pair(0), pair(1))).toArray
-        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
-        queue
-      }
+      count += 1
+      currentInterClusterGen.next()
+    }
 
-      override def computePreClusterMedoid(ids: Array[Int]): Int = {
-        var currentMedoid = ids.head
-        var currentMinDist = ids.tail.map(id => wDists(currentMedoid, id)).sum
-        var i = 1
-        while i < ids.length do
-          val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
-          if dist < currentMinDist then
-            currentMedoid = ids(i)
-            currentMinDist = dist
-          i += 1
-        //    println(s"MEDOID: $clusterId -> $currentMedoid")
-        currentMedoid
-      }
+    private def nextInterClusterGen: InterClusterGen[Int] = {
+      val (i, j) = cleanedQueue(iCluster)
+      val c1 = preClusters(i)
+      val c2 = preClusters(j)
+      val m1 = preClusterMedoids(i)
+      val m2 = preClusterMedoids(j)
+      iCluster += 1
+      new InterClusterGen(c1, c2, m1, m2)
     }
   }
 
-  trait StatusUpdateListener {
-    def intraClusterFinished(id: Int): Unit = ()
-    def createInterClusterQueue(preClusters: Array[Array[Int]], preClusterMedoids: Array[Int]): Array[(Int, Int)]
-    def computePreClusterMedoid(ids: Array[Int]): Int
+  enum State {
+    case IntraCluster, Medoids, InterCluster
   }
 
-  def apply[T : Numeric : ClassTag](
-                                     mapping: Map[T, Int],
-                                     preClusters: Array[Array[Int]],
-                                     cbs: OrderedPreClusteringWorkGenerator.StatusUpdateListener
-                                   ): OrderedPreClusteringWorkGenerator[T] =
-    new OrderedPreClusteringWorkGenerator[T](mapping, preClusters, cbs)
+  def createInterClusterQueue(preClusters: Array[Array[Int]], preClusterMedoids: Array[Int], wDists: PDist): Array[(Int, Int)] = {
+    val queue = preClusters.indices.combinations(2).map(pair => (pair(0), pair(1))).toArray
+    queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+    queue
+  }
+
+  def computePreClusterMedoid(ids: Array[Int], wDists: PDist): Int = {
+    var currentMedoid = ids.head
+    var currentMinDist = ids.tail.map(id => wDists(currentMedoid, id)).sum
+    var i = 1
+    while i < ids.length do
+      val dist = ids.withFilter(_ != ids(i)).map(id => wDists(ids(i), id)).sum
+      if dist < currentMinDist then
+        currentMedoid = ids(i)
+        currentMinDist = dist
+      i += 1
+    //    println(s"MEDOID: $clusterId -> $currentMedoid")
+    currentMedoid
+  }
 
   def apply[T : Numeric : ClassTag](
                                      mapping: Map[T, Int],
                                      preClusters: Array[Array[Int]],
                                      wDists: PDist
                                    ): OrderedPreClusteringWorkGenerator[T] =
-    new OrderedPreClusteringWorkGenerator[T](mapping, preClusters, StatusUpdateListener.default(wDists))
+    new OrderedPreClusteringWorkGenerator[T](mapping, preClusters, wDists)
 }
 
 /**
@@ -121,10 +180,10 @@ object OrderedPreClusteringWorkGenerator {
  * determined by the medoid distance between the clusters (from close to far away).
  */
 class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
-  mapping: Map[T, Int],
-  preClusters: Array[Array[Int]],
-  cbs: OrderedPreClusteringWorkGenerator.StatusUpdateListener
-) extends PreClusteringWorkGenerator[T] {
+                                                                mapping: Map[T, Int],
+                                                                preClusters: Array[Array[Int]],
+                                                                wDists: PDist
+                                                              ) extends PreClusteringWorkGenerator[T] {
 
   import OrderedPreClusteringWorkGenerator.*
 
@@ -138,25 +197,21 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
         preClusterMedoids(i) = preClusters(i).head
       i += 1
   }
-//  println("INITIALIZAING OrderedPreClusteringWorkGenerator")
-//  println(s" Time series: $n")
-//  println(s" PreClusters (${preClusters.size}):\n" +
-//    preClusters.toSeq.sortBy(_._1).map{ case (label, ids) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
-//  )
+  //  println("INITIALIZAING OrderedPreClusteringWorkGenerator")
+  //  println(s" Time series: $n")
+  //  println(s" PreClusters (${preClusters.length}):\n" +
+  //    preClusters.zipWithIndex.map{ case (ids, label) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+  //  )
   //  println("SWITCHING to intra cluster state")
   private var count = 0
   private var state = State.IntraCluster
-  private var iCluster = 0
-  private var jCluster = iCluster
-  private var currentIntraClusterGen: WorkGenerator[Int] = nextPreCluster match {
-    case Some(clusterIds) =>
-      new IntraClusterGen(clusterIds)
-    case None =>
-      switchState(State.Medoids)
-      EmptyGen
+  private var currentGen: WorkGenerator[Int] = {
+    val gen = new PreClusterIntraClusterGen(preClusters, n)
+    if gen.hasNext then
+      gen
+    else
+      nextState
   }
-  private var currentInterClusterGen: WorkGenerator[Int] = EmptyGen
-  private var interClusterQueue: Option[Array[(Int, Int)]] = None
   private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
 
   override def sizeIds: Int = n
@@ -170,17 +225,13 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
   override def next(): (T, T) = {
     if !hasNext then
       throw new NoSuchElementException(
-        s"OrderedPreClusteringWorkGenerator has no (more) work {i=$iCluster/$sizeTuples}"
+        s"OrderedPreClusteringWorkGenerator has no (more) work {i=$index/$sizeTuples}"
       )
 
-    val nextPair = state match {
-      case State.IntraCluster =>
-        nextIntraClusterPair()
-      case State.Medoids =>
-        nextMedoidPair()
-      case State.InterCluster =>
-        nextInterClusterPair()
-    }
+    while !currentGen.hasNext do
+      currentGen = nextState
+
+    val nextPair = currentGen.next()
     count += 1
     val result = (reverseMapping(nextPair._1), reverseMapping(nextPair._2))
     if result._2 < result._1 then
@@ -211,112 +262,25 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
     preClusterMedoids(id) = mapping(medoid)
   }
 
-  private def nextPreCluster: Option[Array[Int]] = {
-    if iCluster >= preClusters.length then
-      None
-    else
-      var preCluster = preClusters(iCluster)
-      while preCluster.length < 2 && iCluster < preClusters.length - 1 do
-        iCluster += 1
-        preCluster = preClusters(iCluster)
-      if preCluster.length < 2 || iCluster >= preClusters.length then
-        None
-      else
-        iCluster += 1
-        Some(preCluster)
-  }
-
-  private def nextInterClusterGen: InterClusterGen[Int] = {
-    val queue = interClusterQueue.get
-    var ij = queue(iCluster)
-    var c1 = preClusters(ij._1)
-    var c2 = preClusters(ij._2)
-    while c1.length == 1 && c2.length == 1 && iCluster < queue.length do
-      //      println(s" skipping singleton clusters $iCluster and $jCluster")
-      iCluster += 1
-      ij = queue(iCluster)
-      c1 = preClusters(ij._1)
-      c2 = preClusters(ij._2)
-    val m1 = preClusterMedoids(ij._1)
-    val m2 = preClusterMedoids(ij._2)
-
-    //    println(s" NEXT inter: $iCluster -> $jCluster (${c1.length} x ${c2.length}) (${c1.mkString(", ")}) (${c2.mkString(", ")})")
-    iCluster += 1
-    new InterClusterGen(c1, c2, m1, m2)
-  }
-
-  private def switchState(newState: State): Unit = {
-    newState match {
+  private def nextState: WorkGenerator[Int] = {
+    state match {
       case State.IntraCluster =>
-        throw new IllegalArgumentException("Cannot switch to IntraCluster state because it is the initial state")
+        state = State.Medoids
+        //        println(s"SWITCHING to medoids state ($count/$sizeTuples)")
+        for i <- preClusters.indices if preClusterMedoids(i) == -1 do
+          preClusterMedoids(i) = computePreClusterMedoid(preClusters(i), wDists)
+        debugMessages.addOne((count, "STATE", "Finished intra-cluster / start medoids"))
+        new PreClusterMedoidPairGenerator(preClusterMedoids)
 
       case State.Medoids =>
-//        println(s"SWITCHING to medoids state ($count/$sizeTuples)")
-        for i <- preClusters.indices if preClusterMedoids(i) == -1 do
-          preClusterMedoids(i) = cbs.computePreClusterMedoid(preClusters(i))
-        debugMessages.addOne((count, "STATE", "Finished intra-cluster / start medoids"))
-        iCluster = 0
-        jCluster = 1
-        currentIntraClusterGen = EmptyGen
-        currentInterClusterGen = EmptyGen
+        state = State.InterCluster
+        //        println(s"SWITCHING to inter cluster state  ($count/$sizeTuples)")
+        debugMessages.addOne((count, "STATE", "Finished medoids / start inter-cluster"))
+        val queue = createInterClusterQueue(preClusters, preClusterMedoids, wDists)
+        new PreClusterInterClusterGen(queue, preClusters, preClusterMedoids)
 
       case State.InterCluster =>
-//        println(s"SWITCHING to inter cluster state  ($count/$sizeTuples)")
-//        val queue = preClusters.keys.toSeq.combinations(2).map(pair => (pair(0), pair(1))).toArray
-//        queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
-        val queue = cbs.createInterClusterQueue(preClusters, preClusterMedoids)
-        interClusterQueue = Some(queue)
-
-        debugMessages.addOne((count, "STATE", "Finished medoids / start inter-cluster"))
-        iCluster = 0
-        jCluster = 0
-        currentIntraClusterGen = EmptyGen
-        currentInterClusterGen = nextInterClusterGen
+        throw new IllegalStateException(s"There is no other state after $state! Generator should have been finished ($count/$sizeTuples).")
     }
-    state = newState
-  }
-
-  private def nextIntraClusterPair(): (Int, Int) = {
-    if !currentIntraClusterGen.hasNext then
-      debugMessages.addOne((count, "INTRA", f"Finished intra-cluster ${iCluster - 1}"))
-      cbs.intraClusterFinished(iCluster - 1)
-//      computeClusterMedoid(iCluster - 1, wDists)
-      //      println(s" ${iCluster - 1}: depleted, computed medoid for (${preClusters(iCluster - 1).mkString(", ")}): ${preClusterMedoids(iCluster - 1)}")
-      nextPreCluster match {
-        case Some(clusterIds) =>
-          currentIntraClusterGen = new IntraClusterGen(clusterIds)
-          currentIntraClusterGen.next()
-        case None =>
-          switchState(State.Medoids)
-          nextMedoidPair()
-      }
-    else
-      currentIntraClusterGen.next()
-  }
-
-  private def nextMedoidPair(): (Int, Int) = {
-    if iCluster >= preClusterMedoids.length - 1 && jCluster >= preClusterMedoids.length then
-      switchState(State.InterCluster)
-      nextInterClusterPair()
-
-    else
-      var result = (preClusterMedoids(iCluster), preClusterMedoids(jCluster))
-      if result._2 < result._1 then
-        result = result.swap
-
-      jCluster += 1
-      if jCluster == preClusterMedoids.length then
-        iCluster += 1
-        jCluster = iCluster + 1
-
-      result
-  }
-
-  private def nextInterClusterPair(): (Int, Int) = {
-    if !currentInterClusterGen.hasNext then
-      debugMessages.addOne((count, "INTER", f"Finished inter-cluster $iCluster -> $jCluster"))
-      currentInterClusterGen = nextInterClusterGen
-
-    currentInterClusterGen.next()
   }
 }

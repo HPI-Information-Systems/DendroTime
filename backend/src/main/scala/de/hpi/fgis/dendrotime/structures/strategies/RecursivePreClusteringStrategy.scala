@@ -199,15 +199,15 @@ class RecursivePreClusteringStrategy(ids: Array[Int],
                                     ) extends PreClusteringWorkGenerator[Int] {
   import RecursivePreClusteringStrategy.*
 
-  println("INITIALIZING RecursivePreClusteringStrategy")
+//  println("INITIALIZING RecursivePreClusteringStrategy")
   private val initialPreClusters: Map[Int, PreCluster] =
     ids.groupBy(preLabels.apply).map{ case (id, tsIds) => id -> InitialPreCluster(id, tsIds) }
   private val preClusters: mutable.Map[Int, PreClusterWithMedoid] = mutable.Map.empty
-  println(s" Time series: ${ids.length}")
-  println(s" PreClusters (${initialPreClusters.size}):\n" +
-    initialPreClusters.toSeq.sortBy(_._1).map{ case (label, c) => s"  $label: ${c.tsIds.mkString(", ")}"}.mkString("\n")
-  )
-  println("SWITCHING to intra cluster state")
+//  println(s" Time series: ${ids.length}")
+//  println(s" PreClusters (${initialPreClusters.size}):\n" +
+//    initialPreClusters.toSeq.sortBy(_._1).map{ case (label, c) => s"  $label: ${c.tsIds.mkString(", ")}"}.mkString("\n")
+//  )
+//  println("SWITCHING to intra cluster state")
   private val n = ids.length
   private var count = 0
   private var state = State.IntraCluster
@@ -278,7 +278,7 @@ class RecursivePreClusteringStrategy(ids: Array[Int],
         throw new IllegalArgumentException("Cannot switch to IntraCluster state because it is the initial state")
 
       case State.Medoids =>
-        println(s"SWITCHING to medoids state ($count / $sizeTuples)")
+//        println(s"SWITCHING to medoids state ($count / $sizeTuples)")
         // compute medoids
         var i = 0
         while i < initialPreClusters.size do
@@ -289,7 +289,7 @@ class RecursivePreClusteringStrategy(ids: Array[Int],
         jCluster = 1
 
       case State.SplitMedoids =>
-        println(s"SWITCHING to split-medoids state ($count / $sizeTuples)")
+//        println(s"SWITCHING to split-medoids state ($count / $sizeTuples)")
         debugMessages.addOne((count, "STATE", "Finished (split-)medoids / start split-medoids"))
         val (splitId, splitCluster) = preClusters.maxBy {
           case (_, cluster) => cluster.maxMergeDistance(wDists, linkage)
