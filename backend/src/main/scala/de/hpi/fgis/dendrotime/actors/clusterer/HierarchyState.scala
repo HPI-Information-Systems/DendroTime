@@ -3,11 +3,9 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions.Similarity
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
-import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, QualityTrace}
 import de.hpi.fgis.dendrotime.structures.HierarchyWithBF
 
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 trait HierarchyState {
@@ -72,7 +70,7 @@ object HierarchyState {
     private var ops: Int = 0
     private var cumsum: Double = 0.0
     private var gtHierarchy: Option[Array[Array[Int]]] = None
-    private var gtClasses: Option[Array[String]] = None
+    private var gtClasses: Option[Array[Int]] = None
     private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
 
     override def computations: Int = ops
@@ -85,13 +83,15 @@ object HierarchyState {
     }
 
     override def setGtClasses(classes: Option[Array[String]]): Unit = {
-      gtClasses = classes
+      gtClasses = classes.map{ c =>
+        val mapping = c.iterator.zipWithIndex.toMap
+        c.map(mapping.apply)
     }
+  }
 
     override def newHierarchy(index: Int, hierarchy: Hierarchy): Unit = {
       ops += 1
-      val similarity = 1 - hierarchy.approxAverageARI(currentHierarchy)
-      cumsum += similarity
+      cumsum += computeClusterSimilarity(hierarchy)
       currentHierarchy = hierarchy
       traceBuilder.addStep(index, cumsum)
       ops += 1
@@ -107,15 +107,15 @@ object HierarchyState {
 
     override def dispose(): Unit = ()
 
-    private def computeClusterQuality(classes: Array[String]): Double = {
-      // 1. cut tree according to k = |distinct classes|
-      val nClusters = classes.distinct.length
-      val clusters = CutTree(currentHierarchy, nClusters)
-      // 2. assign arbitrary class names (strings) to the clusters
-      val clusterLabels = clusters.map(_.toString)
-      // 3. use adjusted_rand_score to compare the clustering with the ground truth
-      AdjustedRandScore(classes, clusterLabels)
+    private def computeClusterSimilarity(newHierarchy: Hierarchy): Double = {
+      // use multi-cut and ARI for comparison
+//      1 - newHierarchy.approxAverageARI(currentHierarchy)
+      // use a single cut and just compare the labels
+      currentHierarchy.labelChangesAt(newHierarchy)
     }
+
+    private def computeClusterQuality(classes: Array[Int]): Double =
+      currentHierarchy.ari(classes)
   }
 
   private class QualityTrackingHierarchyState(override val n: Int,
@@ -123,12 +123,12 @@ object HierarchyState {
                                               private var currentHierarchy: HierarchyWithBF,
                                              )(using options: ClusterSimilarityOptions) extends HierarchyState {
 
-    import HierarchyWithBF.*
-    import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
+    import HierarchyWithBF.fromHierarchy
+    import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyWithBFMetricOps.given
 
     private var ops: Int = 0
     private var gtHierarchy: Option[Array[Array[Int]]] = None
-    private var gtClasses: Option[Array[String]] = None
+    private var gtClasses: Option[Array[Int]] = None
     private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
 
     override def computations: Int = ops
@@ -142,7 +142,10 @@ object HierarchyState {
     }
 
     override def setGtClasses(classes: Option[Array[String]]): Unit = {
-      gtClasses = classes
+      gtClasses = classes.map{ c =>
+        val mapping = c.iterator.zipWithIndex.toMap
+        c.map(mapping.apply)
+      }
     }
 
     override def newHierarchy(index: Int, hierarchy: Hierarchy): Unit = {
@@ -156,7 +159,7 @@ object HierarchyState {
       ops += 1
 
       if gtHierarchy.isDefined then
-        val gtSimilarity = currentHierarchy.hierarchy.approxAverageARI(gtHierarchy.get)
+        val gtSimilarity = currentHierarchy.approxAverageARI(gtHierarchy.get)
         traceBuilder.withGtSimilarity(gtSimilarity)
 
       if gtClasses.isDefined then
@@ -193,33 +196,21 @@ object HierarchyState {
 
     private def computeClusterSimilaritySetJaccard(hierarchy: Hierarchy): (HierarchyWithBF, Double) = {
       require(hierarchy.n == n, "N does not match!")
-      val bfs = Array.ofDim[BloomFilter[Int]](hierarchy.length)
-      val previous = mutable.HashSet.empty[BloomFilter[Int]]
-      val current = mutable.HashSet.empty[BloomFilter[Int]]
-
-      def getBF(i: Int): BloomFilter[Int] = if i < n then initialClusters(i) else bfs(i - n)
-
-      for i <- 0 until hierarchy.length do
-        val cid1 = hierarchy.cId1(i)
-        val cid2 = hierarchy.cId2(i)
-        bfs(i) = getBF(cid1) | getBF(cid2)
-        val card = hierarchy.cardinality(i)
-        if card >= options.cardLowerBound && card <= n - options.cardUpperBound then
-          previous.add(currentHierarchy.bloomFilters(i))
-          current.add(bfs(i))
-
-      val similarity = (previous & current).size.toDouble / (previous | current).size
-      (HierarchyWithBF(hierarchy, bfs), similarity)
+      // create the bloom filters once
+      val newHierarchy = HierarchyWithBF.fromHierarchy(hierarchy, initialClusters)
+      val similarity = newHierarchy.similarity(currentHierarchy, options.cardLowerBound, options.cardUpperBound)
+      (newHierarchy, similarity)
     }
 
-    private def computeClusterQuality(classes: Array[String]): Double = {
-      // 1. cut tree according to k = |distinct classes|
-      val nClusters = classes.distinct.length
-      val clusters = CutTree(currentHierarchy.hierarchy, nClusters)
-      // 2. assign arbitrary class names (strings) to the clusters
-      val clusterLabels = clusters.map(_.toString)
-      // 3. use adjusted_rand_score to compare the clustering with the ground truth
-      AdjustedRandScore(classes, clusterLabels)
+    private def computeWeightedClusterSimilarity(hierarchy: Hierarchy): (HierarchyWithBF, Double) = {
+      require(hierarchy.n == n, "N does not match!")
+      // create the bloom filters once
+      val newHierarchy = HierarchyWithBF.fromHierarchy(hierarchy, initialClusters)
+      val similarity = newHierarchy.weightedSimilarity(currentHierarchy)
+      (newHierarchy, similarity)
     }
+
+    private def computeClusterQuality(classes: Array[Int]): Double =
+      currentHierarchy.ari(classes)
   }
 }

@@ -4,16 +4,17 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+161-422470cf+20241209-1306
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+169-6b1888f1+20241218-1415
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
+import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.structures.*
-import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
+import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset.given
 import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
@@ -36,59 +37,6 @@ extension (order: Array[(Int, Int)]) {
       val tmp = order(i)
       order(i) = order(k)
       order(k) = tmp
-  }
-}
-
-extension (hierarchy: Hierarchy) {
-  def quality(classes: Array[Int], nClasses: Int): Double = {
-    val clusters = CutTree(hierarchy, nClasses)
-    AdjustedRandScore(classes, clusters)
-  }
-}
-
-private def jaccardSimilarity[T](s1: scala.collection.Set[T], s2: scala.collection.Set[T]): Double = {
-  val intersection = s1 & s2
-  val union = s1 | s2
-  intersection.size.toDouble / union.size
-}
-
-extension (hc: HierarchyWithClusters) {
-  def weightedSimilarity(other: HierarchyWithClusters): Double = {
-    val n = hc.hierarchy.size
-    // compute pairwise similarities between clusters
-    val dists = Array.ofDim[Double](n, n)
-    val thisClusters = hc.clusters.toArray
-    val thatClusters = other.clusters.toArray
-    var i = 0
-    while i < n do
-      var j = i
-      while j < n do
-        val d = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
-        dists(i)(j) = d
-        if i != j then
-          dists(j)(i) = d
-        j += 1
-      i += 1
-
-    // find matches greedily (because Jaccard similarity is symmetric)
-    var similaritySum = 0.0
-    val matched = mutable.BitSet.empty
-    matched.sizeHint(n-1)
-    i = 0
-    while i < n do
-      var maxId = 0
-      var maxValue = 0.0
-      var j = 0
-      while j < n do
-        if !matched.contains(j) && dists(i)(j) > maxValue then
-          maxId = j
-          maxValue = dists(i)(j)
-        j += 1
-      similaritySum += maxValue
-      matched += maxId
-      i += 1
-
-    similaritySum / n
   }
 }
 
@@ -203,11 +151,11 @@ val options: Map[String, String] = parseOptions(
     "dataFolder" -> s"$folder/data/datasets/",
     "metric" -> "msm",
     "linkage" -> "ward",
-    "qualityMeasure" -> "ari",
+    "qualityMeasure" -> "averageari",
     "includeApproxDiff" -> "false"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted|target_ari> " +
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted|target_ari|averageari> " +
   "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted> --includeApproxDiff <true|false>"
 
 ///////////////////////////////////////////////////////////
@@ -283,7 +231,7 @@ val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
 val classes =
   if qualityMeasure == "target_ari" then CutTree(targetHierarchy, 20)
-  else trainTimeseries.map(_.label.toInt)
+  else timeseries.map(_.label.toInt)
 val nClasses = classes.distinct.length
 
 println("Using prelabels from approx distance hierarchy")
@@ -302,7 +250,8 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else approxHierarchy.quality(classes, nClasses)
+    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
+    else approxHierarchy.ari(classes, nClasses)
   )
 
   var k = 0
@@ -315,7 +264,8 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
         else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else hierarchy.quality(classes, nClasses)
+        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
+        else hierarchy.ari(classes, nClasses)
       )
     k += 1
 
@@ -330,7 +280,8 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else approxHierarchy.quality(classes, nClasses)
+    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
+    else approxHierarchy.ari(classes, nClasses)
   )
 
   var k = 0
@@ -346,7 +297,8 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
         else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else approxHierarchy.quality(classes, nClasses)
+        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
+        else hierarchy.ari(classes, nClasses)
       )
     k += 1
 
@@ -361,7 +313,8 @@ def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerat
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else approxHierarchy.quality(classes, nClasses)
+    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
+    else approxHierarchy.ari(classes, nClasses)
   )
   val strategy = strategyFactory(wDists)
 
@@ -385,7 +338,8 @@ def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerat
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
         else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else approxHierarchy.quality(classes, nClasses)
+        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
+        else hierarchy.ari(classes, nClasses)
       )
     k += 1
 
@@ -439,31 +393,35 @@ while i < orderingSamples do
 // execute all defined strategies
 val (namesIt, resultsIt) = strategies.map {
   case (name, s: ApproxFullErrorWorkGenerator[_]) =>
-    val res = timed { executeDynamicStrategy(s) }
+    val ((order, qualities), duration) = timed { executeDynamicStrategy(s) }
     pb.step()
-    name -> (res._1._1, res._1._2, res._2)
+    name -> (order, qualities, duration)
   case (name, s) =>
-    val res = timed { executeStaticStrategy(s) }
+    val ((order, qualities), duration) = timed { executeStaticStrategy(s) }
     pb.step()
-    name -> (res._1._1, res._1._2, res._2)
+    name -> (order, qualities, duration)
 }.concat(Seq(
 // execute preclustering strategies
   {
-    val res = timed {
+    val ((order, qualities), duration) = timed {
+      val preClusters = {
+        val clusters = timeseries.indices.toArray.groupBy(id => preLabels(id))
+        clusters.toArray.sortBy(_._1).map(_._2)
+      }
       executePreClusterStrategy(
-        wdist => OrderedPreClusteringWorkGenerator(timeseries.indices.toArray, preLabels, wdist)
+        wdist => OrderedPreClusteringWorkGenerator[Int](timeseries.indices.zipWithIndex.toMap, preClusters, wdist)
       )
     }
     pb.step()
-    "preClustering" -> (res._1._1, res._1._2, res._2)
+    "preClustering" -> (order, qualities, duration)
   }, {
-    val res = timed {
+    val ((order, qualities), duration) = timed {
       executePreClusterStrategy(
         wdist => RecursivePreClusteringStrategy(timeseries.indices.toArray, preLabels, wdist, linkage)
       )
     }
     pb.step()
-    "recursivePreClustering" -> (res._1._1, res._1._2, res._2)
+    "recursivePreClustering" -> (order, qualities, duration)
   }
 )).unzip
 pb.finish()
@@ -472,11 +430,11 @@ val names = namesIt.toArray
 val (orders, qualities, durations) = resultsIt.toArray.unzip3
 val aucs = qualities.map(sim => sim.sum / sim.length)
 for i <- names.indices do
-  println(s"  ${names(i)} (${aucs(i)%.2f})")
+  println(f"  ${names(i)} (${aucs(i)}%.2f) in ${durations(i)} ms")
 println()
 
 println(s"Computed qualities for all orderings, storing to CSVs ...")
 val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
 writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", randomQualities ++ qualities)
+CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", qualities ++ randomQualities)
 println("Done!")

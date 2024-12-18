@@ -2,7 +2,6 @@ package de.hpi.fgis.dendrotime.structures
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.clustering.metrics.JaccardSimilarity
 
 
 object HierarchyWithBF {
@@ -11,8 +10,7 @@ object HierarchyWithBF {
   def emptyBFs(n: Int)(using BloomFilterOptions): HierarchyWithBF =
     HierarchyWithBF(Hierarchy.empty, Array.fill(n)(BloomFilter[Int](n + n - 1)))
 
-  def fromHierarchy(hierarchy: Hierarchy, initialClusters: Array[BloomFilter[Int]])
-                   (using BloomFilterOptions): HierarchyWithBF = {
+  def fromHierarchy(hierarchy: Hierarchy, initialClusters: Array[BloomFilter[Int]]): HierarchyWithBF = {
     val bfs = Array.ofDim[BloomFilter[Int]](hierarchy.length)
 
     def getBF(i: Int): BloomFilter[Int] =
@@ -34,9 +32,6 @@ case class HierarchyWithBF(hierarchy: Hierarchy, clusters: Array[BloomFilter[Int
   def apply(i: Int): BloomFilter[Int] = clusters(i)
 
   def length: Int = clusters.length
-
-  def similarity(other: HierarchyWithBF): Double =
-    JaccardSimilarity(clusters.toSet, other.clusters.toSet)
 
   def dispose(): Unit = clusters.foreach(_.close())
 

@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+168-ce4af91a+20241217-1530
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+169-6b1888f1+20241218-1415
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
@@ -32,7 +32,8 @@ extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
 
 extension (hierarchy: Hierarchy) {
-  def ind(otherHierarchy: Hierarchy): Double = hierarchy.approxAverageARI(otherHierarchy)
+  def ind(otherHierarchy: Hierarchy): Double = 1 - hierarchy.approxAverageARI(otherHierarchy)
+  def ind2(otherHierarchy: Hierarchy): Double = hierarchy.labelChangesAt(otherHierarchy)
 }
 
 def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])],
@@ -123,8 +124,8 @@ val dataset = options("dataset")
 val qualityMeasure = options("qualityMeasure").toLowerCase.strip
 val useJetPreClusters = options("jet").toBoolean
 val strategyName = options("strategy").toLowerCase.strip
-val strategyNames = if strategyName == "all" then Seq("simple", "simple-log", "advanced", "recursive")
-                    else if strategyName == "simple" then Seq("simple", "simple-log", "simple-ind")
+val strategyNames = if strategyName == "all" then Seq("simple", "advanced", "recursive")
+                    else if strategyName == "simple" then Seq("simple", "simple-log", "simple-weighted", "simple-ind1", "simple-ind2")
                     else Seq(strategyName)
 val inputDataFolder = {
   val f = options("dataFolder")
@@ -228,12 +229,13 @@ val results =
     similarities.sizeHint(maxHierarchySimilarities + 2)
     val wDists = approxDists.mutableCopy
     similarities += (
-      if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
+      if name.endsWith("log") then approxHierarchy.approxAverageARI(targetHierarchy)
+      else if name.endsWith("weighted") then approxHierarchy.weightedSimilarity(targetHierarchy)
+      else if name.endsWith("ind1") then approxHierarchy.ind(approxHierarchy)
+      else if name.endsWith("ind2") then approxHierarchy.ind2(approxHierarchy)
+      else if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
       else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-      else if qualityMeasure == "averageari" then
-        if name.endsWith("log") then approxHierarchy.approxAverageARI(targetHierarchy)
-        else if name.endsWith("ind") then approxHierarchy.ind(approxHierarchy)
-        else approxHierarchy.averageARI(targetHierarchy)
+      else if qualityMeasure == "averageari" then approxHierarchy.averageARI(targetHierarchy)
       else approxHierarchy.ari(classes, nClasses)
     )
     val debugExactDists = mutable.BitSet.empty
@@ -275,12 +277,13 @@ val results =
       val hierarchy = computeHierarchy(wDists, linkage)
       if k % hierarchyCalcFactor == 0 || k == m - 1 then
         similarities += (
-          if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
+          if name.endsWith("log") then hierarchy.approxAverageARI(targetHierarchy)
+          else if name.endsWith("weighted") then hierarchy.weightedSimilarity(targetHierarchy)
+          else if name.endsWith("ind1") then hierarchy.ind(prevHierarchy)
+          else if name.endsWith("ind2") then hierarchy.ind2(prevHierarchy)
+          else if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
           else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-          else if qualityMeasure == "averageari" then
-            if name.endsWith("log") then hierarchy.approxAverageARI(targetHierarchy)
-            else if name.endsWith("ind") then hierarchy.ind(prevHierarchy)
-            else hierarchy.averageARI(targetHierarchy)
+          else if qualityMeasure == "averageari" then hierarchy.averageARI(targetHierarchy)
           else hierarchy.ari(classes, nClasses)
         )
         prevHierarchy = hierarchy
@@ -291,13 +294,13 @@ val results =
     require(k == m, s"Expected to process $m pairs, but only processed $k")
     require((0 until n).forall(x => (x until n).forall(y => wDists(x, y) == dists(x, y))), "Not all distances set exactly!")
     val trace =
-      if name.endsWith("ind") then
+      if name.substring(0, name.length - 1).endsWith("ind") then
         val sim = similarities.result()
         val cumsum = Array.ofDim[Double](sim.length)
         var i = 0
         var sum = 0.0
         while i < sim.length do
-          sum += 1 - sim(i)
+          sum += sim(i)
           cumsum(i) = sum
           i += 1
         // scale to [0, 1]
@@ -319,7 +322,9 @@ val results =
     name match {
       case "simple" => "preClustering" -> (idx, auc, duration, order)
       case "simple-log" => "preClustering-log" -> (idx, auc, duration, order)
-      case "simple-ind" => "preClustering-ind" -> (idx, auc, duration, order)
+      case "simple-weighted" => "preClustering-weighted" -> (idx, auc, duration, order)
+      case "simple-ind1" => "preClustering-ind-averageARI" -> (idx, auc, duration, order)
+      case "simple-ind2" => "preClustering-ind-changes@k" -> (idx, auc, duration, order)
       case "advanced" => "advancedPreClustering" -> (idx, auc, duration, order)
       case "recursive" => "recursivePreClustering" -> (idx, auc, duration, order)
     }
