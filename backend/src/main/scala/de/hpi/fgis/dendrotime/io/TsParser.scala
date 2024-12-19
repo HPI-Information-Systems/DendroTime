@@ -40,7 +40,7 @@ object TsParser {
 
   def loadAllLabeledTimeSeries(file: File,
                                settings: TsParserSettings = TsParser.TsParserSettings(parseMetadata = false),
-                               idOffset: Long = 0L): Array[LabeledTimeSeries] = {
+                               idOffset: Int = 0): Array[LabeledTimeSeries] = {
     val parser = TsParser(settings)
     var idx = 0
     val builder = mutable.ArrayBuilder.make[LabeledTimeSeries]
@@ -48,7 +48,7 @@ object TsParser {
       override def processTSCount(nTimeseries: Int): Unit =
         builder.sizeHint(nTimeseries)
       override def processUnivariate(data: Array[Double], label: String): Unit = {
-        val ts = LabeledTimeSeries(idOffset + idx, idx, data, label)
+        val ts = LabeledTimeSeries(idOffset + idx, idOffset + idx, data, label)
         builder += ts
         idx += 1
       }

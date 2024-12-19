@@ -188,7 +188,7 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
   import OrderedPreClusteringWorkGenerator.*
 
   private val reverseMapping: Map[Int, T] = mapping.map(_.swap)
-  private val n = preClusters.map(_.length).sum
+  private val n = mapping.size
   private val preClusterMedoids = Array.fill[Int](preClusters.length){-1}
   { // initialize the singleton cluster medoids
     var i = 0

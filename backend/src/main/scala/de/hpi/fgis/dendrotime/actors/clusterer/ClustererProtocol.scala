@@ -151,15 +151,26 @@ object ClustererProtocol {
 
     def apply(tas: Array[Int], tbs: Array[Int], dists: Array[Double]): DistanceResult =
       (tas.length: @switch) match {
-        case 1 => new DistanceResult1(tas(0), tbs(0), dists(0), isApproximate = true)
-        case 2 => new DistanceResult2(tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1), isApproximate = true)
+        case 1 => new DistanceResult1(
+          tas(0), tbs(0), dists(0),
+          isApproximate = true
+        )
+        case 2 => new DistanceResult2(
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          isApproximate = true
+        )
         case 3 => new DistanceResult3(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), isApproximate = true
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          isApproximate = true
         )
         case 4 => new DistanceResult4(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), tas(3), tbs(3), dists(3),
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          tas(3), tbs(3), dists(3),
           isApproximate = true
         )
         case _ => new DistanceResultN(tas, tbs, dists, isApproximate = true)
@@ -177,13 +188,19 @@ object ClustererProtocol {
     def apply(t1a: Int, t1b: Int, dist1: Double,
               t2a: Int, t2b: Int, dist2: Double,
               t3a: Int, t3b: Int, dist3: Double): DistanceResult =
-      new DistanceResult3(t1a, t1b, dist1, t2a, t2b, dist2, t3a, t3b, dist3, isApproximate = false, isEstimated = true)
+      new DistanceResult3(
+        t1a, t1b, dist1, t2a, t2b, dist2, t3a, t3b, dist3,
+        isApproximate = false, isEstimated = true
+      )
 
     def apply(t1a: Int, t1b: Int, dist1: Double,
               t2a: Int, t2b: Int, dist2: Double,
               t3a: Int, t3b: Int, dist3: Double,
               t4a: Int, t4b: Int, dist4: Double): DistanceResult =
-      new DistanceResult4(t1a, t1b, dist1, t2a, t2b, dist2, t3a, t3b, dist3, t4a, t4b, dist4, isApproximate = false, isEstimated = true)
+      new DistanceResult4(
+        t1a, t1b, dist1, t2a, t2b, dist2, t3a, t3b, dist3, t4a, t4b, dist4,
+        isApproximate = false, isEstimated = true
+      )
 
     def apply(tas: Array[Int], tbs: Array[Int], dists: Array[Double]): DistanceResult =
       (tas.length: @switch) match {
@@ -192,16 +209,21 @@ object ClustererProtocol {
           isApproximate = false, isEstimated = true
         )
         case 2 => new DistanceResult2(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
           isApproximate = false, isEstimated = true
         )
         case 3 => new DistanceResult3(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), isApproximate = false, isEstimated = true
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          isApproximate = false, isEstimated = true
         )
         case 4 => new DistanceResult4(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), tas(3), tbs(3), dists(3),
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          tas(3), tbs(3), dists(3),
           isApproximate = false, isEstimated = true
         )
         case _ => new DistanceResultN(tas, tbs, dists, isApproximate = true, isEstimated = true)
@@ -229,15 +251,26 @@ object ClustererProtocol {
 
     def apply(tas: Array[Int], tbs: Array[Int], dists: Array[Double]): DistanceResult =
       (tas.length: @switch) match {
-        case 1 => new DistanceResult1(tas(0), tbs(0), dists(0), isApproximate = false)
-        case 2 => new DistanceResult2(tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1), isApproximate = false)
+        case 1 => new DistanceResult1(
+          tas(0), tbs(0), dists(0),
+          isApproximate = false
+        )
+        case 2 => new DistanceResult2(
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          isApproximate = false
+        )
         case 3 => new DistanceResult3(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), isApproximate = false
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          isApproximate = false
         )
         case 4 => new DistanceResult4(
-          tas(0), tbs(0), dists(0), tas(1), tbs(1), dists(1),
-          tas(2), tbs(2), dists(2), tas(3), tbs(3), dists(3),
+          tas(0), tbs(0), dists(0),
+          tas(1), tbs(1), dists(1),
+          tas(2), tbs(2), dists(2),
+          tas(3), tbs(3), dists(3),
           isApproximate = false
         )
         case _ => new DistanceResultN(tas, tbs, dists, isApproximate = false)

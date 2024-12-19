@@ -210,7 +210,9 @@ object WorkerProtocol {
         new CheckN(pairs, isApproximate = false)
   }
 
-  final case class CheckMedoids(m1: Long, m2: Long, ids1: Array[Long], ids2: Array[Long]) extends CheckCommand {
+  final case class CheckMedoids(m1: Long, m2: Long,
+                                ids1: Array[Long], ids2: Array[Long],
+                                justBroadcast: Boolean = false) extends CheckCommand {
     private var done = false
     override val size: Int = 1
     override val knownSize: Int = 1

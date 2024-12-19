@@ -1,15 +1,16 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props, Terminated}
+import akka.actor.typed.*
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.Communicator
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
+import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
 
 
 object Clusterer {
@@ -57,6 +58,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
 
   private val settings = Settings(ctx.system)
   private val distances: MutablePDist = PDist.empty(n).mutable
+  private val fullMask = CompactPairwiseBitset.ofDim(n)
   private val calculator = ctx.spawn(
     HierarchyCalculator(ctx.self, communicator, n, params),
     "hierarchy-calculator",
@@ -67,8 +69,8 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
   if settings.ProgressIndicators.computeHierarchyQuality || settings.ProgressIndicators.computeClusterQuality then
     ctx.spawn(GroundTruthLoader(calculator, tsManager, dataset, params), "gt-loader", GroundTruthLoader.props)
   // debug counters
-  private var approxCount = 0L
-  private var fullCount = 0L
+  private var approxCount = 0
+  private var fullCount = 0
 
   private def start(): Behavior[Command] = running(Set.empty, false, false)
 
@@ -89,7 +91,14 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
       case m : DistanceResult if m.isEstimated =>
         ctx.log.debug("Received {} new estimated distances", m.size)
         m.foreach { (t1, t2, dist) =>
-          distances(t1, t2) = dist
+          // required to prevent overwriting full distances that were computed by the fallback strategy:
+          if fullMask(t1, t2) then
+            ctx.log.warn(
+              "Distance between {} and {} was already set to {}; not overwriting with received estimated distance {}!",
+              t1, t2, distances(t1, t2), dist
+            )
+          else
+            distances(t1, t2) = dist
         }
         Behaviors.same
 
@@ -98,10 +107,10 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         approxCount += m.size
         m.foreach { (t1, t2, dist) =>
           // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
-          if distances(t1, t2) != Double.PositiveInfinity then
+          if fullMask(t1, t2) then
             ctx.log.warn(
-              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance!",
-              t1, t2, distances(t1, t2)
+              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance {}!",
+              t1, t2, distances(t1, t2), dist
             )
           else
             distances(t1, t2) = dist
@@ -113,7 +122,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
             _ ! DistanceMatrix(distances)
           }
         if waiting then
-          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
+          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
           running(reg, hasWork = false, waiting = false)
         else
           running(reg, hasWork = true, waiting = false)
@@ -123,12 +132,13 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         fullCount += m.size
         m.foreach { (t1, t2, dist) =>
           distances(t1, t2) = dist
+          fullMask.add(t1, t2)
         }
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
         if fullCount == distances.size then
           coordinator ! Coordinator.FullFinished
         if waiting then
-          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
+          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
           running(reg, hasWork = false, waiting = false)
         else
           running(reg, hasWork = true, waiting = false)
@@ -138,7 +148,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         Behaviors.same
 
       case GetDistances if hasWork =>
-        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount.toInt + fullCount.toInt, distances)
+        calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
         running(reg, hasWork = false, waiting = false)
 
       case GetDistances =>
@@ -168,5 +178,5 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         Behaviors.same
     }
 
-  private def progress(count: Long, n: Int): Int = (count.toDouble / n * 100).toInt
+  private def progress(count: Int, n: Int): Int = (count.toDouble / n * 100).toInt
 }

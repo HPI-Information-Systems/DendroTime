@@ -17,9 +17,9 @@ trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
   private var batchUpdates: Int = 0
 
   def nextBatchSize(lastDuration: Long, lastBatchSize: Int): Int = {
-    val batchMean = lastDuration / lastBatchSize
-    val oldItemTime = meanItemTime
-    if lastDuration != 0 then
+    if lastDuration != 0 && lastBatchSize != 0 then
+      val batchMean = lastDuration / lastBatchSize
+      val oldItemTime = meanItemTime
       totalNoItems += lastBatchSize
       // simple moving average
 //      meanItemTime = oldItemTime + (lastBatchSize * batchMean - lastBatchSize * oldItemTime) / totalNoItems

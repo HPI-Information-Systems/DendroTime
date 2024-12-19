@@ -34,7 +34,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
       idle(supplier)
   }
 
-  private def idle(workSupplier: ActorRef[DispatchWork], job: Option[CheckCommand] = None): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def idle(workSupplier: ActorRef[DispatchWork]): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
       ctx.context.log.debug("Switching supplier to {}", supplier)
       idle(supplier)
@@ -75,8 +75,9 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
       // send distances to clusterer
       job match {
-        case CheckMedoids(m1, m2, ids1, ids2) =>
-          ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
+        case CheckMedoids(m1, m2, ids1, ids2, justBroadcast) =>
+          if !justBroadcast then
+            ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
           // medoid distance estimates the distance between all other inter-cluster pairs:
           val estimated = for {
             idx1 <- ids1.map(ts(_).idx)

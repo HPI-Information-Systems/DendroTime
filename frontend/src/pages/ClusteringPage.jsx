@@ -43,7 +43,7 @@ function ClusteringPage() {
         "params": {
           "metricName": metric,
           "linkageName": linkage,
-          "approxLength": 10,
+          "approxLength": 20,
           "strategy": strategy
         },
       })
