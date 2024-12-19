@@ -1,6 +1,32 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
 import scala.collection.{AbstractIterator, mutable}
+import scala.reflect.ClassTag
+
+object WorkGenerator {
+
+  def empty[T](using ev: ClassTag[T]): WorkGenerator[T] = ev match
+    case ClassTag.Int => EmptyIntGen
+    case ClassTag.Long => EmptyLongGen
+    case _ => new EmptyGen[T]
+
+  private class EmptyGen[T] extends WorkGenerator[T] {
+
+    override def sizeIds: Int = 0
+
+    override def sizeTuples: Int = 0
+
+    override def index: Int = 0
+
+    override def next(): (T, T) = throw new NoSuchElementException("EmptyGen has no work")
+
+    override def hasNext: Boolean = false
+  }
+
+  private val EmptyIntGen = new EmptyGen[Int]
+
+  private val EmptyLongGen = new EmptyGen[Long]
+}
 
 trait WorkGenerator[T] extends AbstractIterator[(T, T)] {
 
@@ -8,7 +34,7 @@ trait WorkGenerator[T] extends AbstractIterator[(T, T)] {
 
   def sizeTuples: Int
 
-  def index: Int 
+  def index: Int
 
   def next(): (T, T)
 

@@ -246,6 +246,10 @@ private class Coordinator private[coordinator] (
   }
 
   private def waitingForClustering(stopTimer: Cancellable): Behavior[MessageType] = Behaviors.receiveMessagePartial[MessageType] {
+    case StrategyProtocol.FullStrategyOutOfWork | FullFinished =>
+      // ignore, we are already waiting for clustering to finish
+      Behaviors.same
+
     case ClusteringFinished =>
       communicator ! Communicator.ProgressUpdate(Status.Finalizing, 100)
       communicator ! Communicator.NewStatus(Status.Finished)

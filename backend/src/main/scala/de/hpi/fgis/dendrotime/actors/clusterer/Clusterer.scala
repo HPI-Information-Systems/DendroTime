@@ -86,6 +86,13 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         ctx.watch(receiver)
         running(reg + receiver, hasWork, waiting)
 
+      case m : DistanceResult if m.isEstimated =>
+        ctx.log.debug("Received {} new estimated distances", m.size)
+        m.foreach { (t1, t2, dist) =>
+          distances(t1, t2) = dist
+        }
+        Behaviors.same
+
       case m : DistanceResult if m.isApproximate =>
         ctx.log.trace("Received {} new approx distances", m.size)
         approxCount += m.size
@@ -136,6 +143,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
 
       case GetDistances =>
         if fullCount >= distances.size && approxCount >= distances.size then
+          ctx.log.info("Clustering finished, stopping")
           // TODO: remove safety checks
           if approxCount != distances.size then
             ctx.log.error("Approx distances missing for {} pairs", distances.size - approxCount)

@@ -14,7 +14,7 @@ object RecursivePreClusteringStrategy {
     private var iCluster = 0
     private var currentIntraClusterGen: WorkGenerator[Int] = nextPreCluster match {
       case Some(cluster) => cluster.gen
-      case None => EmptyGen
+      case None => WorkGenerator.empty
     }
 
     override def sizeIds: Int = preClusters.values.map(_.size).sum
@@ -59,19 +59,6 @@ object RecursivePreClusteringStrategy {
 
   private class IntraClusterGen(clusterIds: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
     override protected val tsIds: IndexedSeq[Int] = clusterIds
-  }
-
-  private object EmptyGen extends WorkGenerator[Int] {
-
-    override def sizeIds: Int = 0
-
-    override def sizeTuples: Int = 0
-
-    override def index: Int = 0
-
-    override def next(): (Int, Int) = throw new NoSuchElementException("EmptyGen has no work")
-
-    override def hasNext: Boolean = false
   }
 
   private enum State {

@@ -84,7 +84,8 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
             if idx1 != m1 && idx2 != m2 
           } yield (idx1, idx2, dists.head)
           val (a, b, c) = estimated.unzip3
-          ctx.clusterer ! ClustererProtocol.ApproximateDistance(a, b, c)
+          if estimated.nonEmpty then
+            ctx.clusterer ! ClustererProtocol.EstimatedDistance(a, b, c)
         case j if j.isApproximate =>
           ctx.clusterer ! ClustererProtocol.ApproximateDistance(tas, tbs, dists)
         case _ =>

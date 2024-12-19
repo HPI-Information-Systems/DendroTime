@@ -49,7 +49,7 @@ object OrderedPreClusteringWorkGenerator {
         iCluster += 1
         preCluster = preClusters(iCluster)
       if preCluster.length < 2 || iCluster >= preClusters.length then
-        throw new NoSuchElementException("PreClusterIntraclusterGen could not find a valid cluster")
+        throw new NoSuchElementException("PreClusterIntraClusterGen could not find a valid cluster")
       else
         //        println(s"  intra: selecting next cluster $iCluster (${preCluster.mkString(", ")})")
         iCluster += 1
@@ -117,7 +117,7 @@ object OrderedPreClusteringWorkGenerator {
 
     override def sizeTuples: Int = totalPairs
 
-    override def index: Int = -1
+    override def index: Int = count
 
     override def hasNext: Boolean = count < totalPairs
 
@@ -197,12 +197,12 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
         preClusterMedoids(i) = preClusters(i).head
       i += 1
   }
-  //  println("INITIALIZAING OrderedPreClusteringWorkGenerator")
-  //  println(s" Time series: $n")
-  //  println(s" PreClusters (${preClusters.length}):\n" +
-  //    preClusters.zipWithIndex.map{ case (ids, label) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
-  //  )
-  //  println("SWITCHING to intra cluster state")
+//  println("INITIALIZAING OrderedPreClusteringWorkGenerator")
+//  println(s" Time series: $n")
+//  println(s" PreClusters (${preClusters.length}):\n" +
+//    preClusters.zipWithIndex.map{ case (ids, label) => s"  $label: ${ids.mkString(", ")}"}.mkString("\n")
+//  )
+//  println("SWITCHING to intra cluster state")
   private var count = 0
   private var state = State.IntraCluster
   private var currentGen: WorkGenerator[Int] = {

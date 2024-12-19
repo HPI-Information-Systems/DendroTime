@@ -1,9 +1,9 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, RegisterApproxDistMatrixReceiver}
+import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, GetCurrentDistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
@@ -15,12 +15,13 @@ import de.hpi.fgis.dendrotime.structures.strategies.{GrowableFCFSWorkGenerator, 
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Using}
 
 object PreClusteringStrategy extends StrategyFactory {
 
   private case class TSIndexMapping(mapping: Map[Long, Int]) extends StrategyCommand
-  private case class ApproxDisances(dists: PDist) extends StrategyCommand
+  private case class ApproxDistances(dists: PDist) extends StrategyCommand
+  private case class CurrentDistanceMatrix(dists: PDist) extends StrategyCommand
   private case class PreClustersGenerated(preClusters: Array[Array[Int]]) extends StrategyCommand
 
   def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
@@ -40,7 +41,7 @@ object PreClusteringStrategy extends StrategyFactory {
 
     private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
     private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
-    private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDisances(m.distances))
+    private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
 
     // Executor for internal futures (CPU-heavy work)
     private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
@@ -63,7 +64,7 @@ object PreClusteringStrategy extends StrategyFactory {
         ctx.log.debug("Received TS Index Mapping: {}", mapping.size)
         potentiallyComputePreClusters(processedWork, Some(mapping), dists)
 
-      case ApproxDisances(dists) =>
+      case ApproxDistances(dists) =>
         ctx.log.debug(s"Received approximate distances", dists.n)
         potentiallyComputePreClusters(processedWork, mapping, Some(dists))
 
@@ -110,7 +111,7 @@ object PreClusteringStrategy extends StrategyFactory {
       val hierarchy = computeHierarchy(dists, params.params.linkage)
       val preClasses = Math.sqrt(dists.n).toInt * 3
       val preLabels = CutTree(hierarchy, preClasses)
-      val clusters = mapping.values.toArray.groupBy(id => preLabels(mapping(id)))
+      val clusters = mapping.values.toArray.groupBy(id => preLabels(id))
       clusters.toArray.sortBy(_._1).map(_._2)
     }
 
@@ -140,6 +141,8 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
   import PreClusteringStrategy.*
   import OrderedPreClusteringWorkGenerator.*
 
+  private val distMatrixAdapter = ctx.messageAdapter[DistanceMatrix](m => CurrentDistanceMatrix(m.distances))
+
   ctx.log.info("STARTING with intra cluster state")
   private val settings = Settings(ctx.system)
   private val reverseMapping: Map[Int, Long] = mapping.map(_.swap)
@@ -163,20 +166,30 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
       nextState
   }
 
-  private val wDists = PDist.empty(n)
-
-  // Executor for internal futures (CPU-heavy work)
-  private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
-
-  def running(): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
+  def running(): Behavior[StrategyCommand] = Behaviors.receiveMessage[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
+      Behaviors.same
+
+    case DispatchWork(worker, _, _) if state == State.Medoids && workGen.hasNext =>
+      val (m1, m2) = workGen.next()
+      if processed.contains(index(m1, m2)) then
+        ctx.log.debug("Medoid pair ({}, {}) already processed, skipping", m1, m2)
+      else
+        val tsIds1 = preClusters.find(ids => ids.contains(m1)).get.map(reverseMapping)
+        val tsIds2 = preClusters.find(ids => ids.contains(m2)).get.map(reverseMapping)
+        ctx.log.debug(
+          "Dispatching medoids job {}, {} ({} x {}), remaining={}, Stash={}",
+          m1, m2, tsIds1.length, tsIds2.length, workGen.remaining, stash.size
+        )
+        processed.add(index(m1, m2))
+        worker ! WorkerProtocol.CheckMedoids(reverseMapping(m1), reverseMapping(m2), tsIds1, tsIds2)
       Behaviors.same
 
     case DispatchWork(worker, time, size) if workGen.hasNext =>
       val batchSize = nextBatchSize(time, size)
       val work = workGen
-        .nextBatch(batchSize, ij => processed.contains(index(ij._1, ij._2)))
+        .nextBatch(batchSize) //, ij => processed.contains(index(ij._1, ij._2)))
         .flatMap{ case (i, j) =>
           if processed.contains(index(i, j)) then
             None
@@ -193,20 +206,39 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
 
     case msg@DispatchWork(worker, _, _) if processed.size < m =>
-      ctx.log.debug("Worker {} asked for work but there is none (stash={}), changing state", worker, stash.size)
+      ctx.log.debug("Worker {} asked for work but there is none (stash={}), changing state ({}/{} {}, {}/{} overall)", worker.path.name, stash.size, workGen.index, workGen.sizeTuples, state, processed.size, m)
       stash.stash(msg)
       if stash.size == settings.numberOfWorkers then
         workGen = nextState
-        stash.unstashAll(Behaviors.same)
-      else
-        Behaviors.same
+      Behaviors.same
 
     case msg@DispatchWork(worker, _, _) =>
-      ctx.log.debug("Worker {} asked for work but there is none (stash={}), finished", worker, stash.size)
+      ctx.log.debug("Worker {} asked for work but there is none (stash={}), finished ({}/{} {}, {}/{} overall)", worker.path.name, stash.size, workGen.index, workGen.sizeTuples, state, processed.size, m)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
       stash.stash(msg)
       Behaviors.same
+
+    case CurrentDistanceMatrix(dists) =>
+      ctx.log.info("Received current distance matrix (stash={})", stash.size)
+      state match {
+        case State.IntraCluster =>
+          ctx.log.warn("Received distance matrix in state {}, ignoring", state)
+          Behaviors.same
+
+        case State.Medoids =>
+          ctx.log.info("Computing medoids")
+          for i <- preClusters.indices if preClusterMedoids(i) == -1 do
+            preClusterMedoids(i) = computePreClusterMedoid(preClusters(i), dists)
+          workGen = new PreClusterMedoidPairGenerator(preClusterMedoids)
+          stash.unstashAll(Behaviors.same)
+
+        case State.InterCluster =>
+          ctx.log.info("Sorting pre-cluster pairs to create inter-cluster queue")
+          val queue = createInterClusterQueue(preClusters, preClusterMedoids, dists)
+          workGen = new PreClusterInterClusterGen(queue, preClusters, preClusterMedoids)
+          stash.unstashAll(Behaviors.same)
+      }
 
     case ReportStatus =>
       ctx.log.info(
@@ -228,15 +260,14 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
       case State.IntraCluster =>
         state = State.Medoids
         ctx.log.info("SWITCHING to medoids state")
-        for i <- preClusters.indices if preClusterMedoids(i) == -1 do
-          preClusterMedoids(i) = computePreClusterMedoid(preClusters(i), wDists)
-        new PreClusterMedoidPairGenerator(preClusterMedoids)
+        params.clusterer ! GetCurrentDistanceMatrix(distMatrixAdapter)
+        WorkGenerator.empty
 
       case State.Medoids =>
         state = State.InterCluster
         ctx.log.info("SWITCHING to inter cluster state")
-        val queue = createInterClusterQueue(preClusters, preClusterMedoids, wDists)
-        new PreClusterInterClusterGen(queue, preClusters, preClusterMedoids)
+        params.clusterer ! GetCurrentDistanceMatrix(distMatrixAdapter)
+        WorkGenerator.empty
 
       case State.InterCluster =>
         throw new IllegalStateException(
