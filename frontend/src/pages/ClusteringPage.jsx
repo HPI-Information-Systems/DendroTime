@@ -49,11 +49,10 @@ function ClusteringPage() {
       })
     })
       .then(resp => {
-        if (resp.status >= 300) {
-          resp.text().then(txt => toast.error("Failed to start job: " + txt));
-        } else {
-          return resp.json();
+        if (!resp.ok) {
+          throw new Error("Failed to start job: " + resp.statusText);
         }
+        return resp.json();
       })
       .then(data => {
         if (!data) return;
@@ -67,16 +66,28 @@ function ClusteringPage() {
 
   const startPolling = useCallback((jobId) => {
     toast.info("Starting job " + jobId + " and polling ...");
+    const intervalRef = {};
     function poll() {
       fetch("/api/jobs/" + jobId + "/progress")
-        .then(resp => resp.json())
-        .then(data => setState(data))
-        .catch(toast.error);
+        .then(resp => {
+          if (resp.status === 200) {
+            resp.json().then(data => setState(data));
+          } else if (resp.status >= 300) {
+            throw new Error("Failed to poll job " + jobId + ": " + resp.statusText);
+          }
+          // ignore other responses
+        })
+        .catch(msg => {
+          toast.error("ERROR: " + msg);
+          clearInterval(intervalRef.inter);
+          setPolling(null);
+        });
     }
     const inter = setInterval(poll, pollingInterval);
+    intervalRef.inter = inter;
     setPolling(inter);
     poll();
-  }, [setState]);
+  }, [setState, setPolling]);
 
   const abortPolling = useCallback(() => {
     if (polling) {
@@ -88,7 +99,7 @@ function ClusteringPage() {
       headers: {'Content-Type': 'application/json'},
     })
       .then(resp => {
-        if (!resp.ok)
+        if (resp.status >= 300)
           throw "Failed to cancel job " + jobId + ": " + resp.statusText;
         else
           return resp;
