@@ -53,15 +53,14 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * @return the average ARI
    */
   def averageARI(targetLabels: Array[Array[Int]]): Double = {
-    val b = mutable.ArrayBuilder.make[Double]
-    var i = 2
-    while i < hierarchy.size do
-      val labels = CutTree(hierarchy, i)
-      val ari = AdjustedRandScore(targetLabels(i), labels)
-      b += ari
+    val n_clusters = Array.tabulate(hierarchy.size-2)(_ + 2)
+    val labels = CutTree(hierarchy, n_clusters)
+    var aris = 0.0
+    var i = 0
+    while i < labels.length do
+      aris += AdjustedRandScore(targetLabels(i+2), labels(i))
       i += 1
-    val aris = b.result()
-    aris.sum / aris.length
+    aris / labels.length
   }
 
   /**
@@ -71,7 +70,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * @return the average ARI
    */
   def averageARI(targetHierarchy: Hierarchy): Double = {
-    val targetLabels = targetHierarchy.indices.map(CutTree(targetHierarchy, _)).toArray
+    val targetLabels = CutTree(targetHierarchy, targetHierarchy.indices.toArray)
     averageARI(targetLabels)
   }
 
@@ -99,7 +98,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * @return approximation of the average ARI
    */
   def approxAverageARI(targetHierarchy: Hierarchy, factor: Double): Double = {
-    val targetLabels = targetHierarchy.indices.map(CutTree(targetHierarchy, _)).toArray
+    val targetLabels = CutTree(targetHierarchy, targetHierarchy.indices.toArray)
     approxAverageARI(targetLabels, factor)
   }
 
@@ -129,15 +128,21 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
   def approxAverageARI(targetLabels: Array[Array[Int]], factor: Double): Double = {
     val n = Math.min(hierarchy.size, targetLabels.length)
     if n >= 2 then
-      val b = mutable.ArrayBuilder.make[Double]
+      val b = mutable.ArrayBuilder.make[Int]
+      b.sizeHint(n)
       var i = 2
       while i < n do
-        val labels = CutTree(hierarchy, i)
-        val ari = AdjustedRandScore(targetLabels(i), labels)
-        b += ari
+        b += i
         i = Math.ceil(i * factor).toInt
-      val aris = b.result()
-      aris.sum / aris.length
+      val nClusters = b.result()
+
+      val labels = CutTree(hierarchy, nClusters)
+      var aris = 0.0
+      i = 0
+      while i < labels.length do
+        aris += AdjustedRandScore(targetLabels(nClusters(i)), labels(i))
+        i += 1
+      aris / labels.length
     else
       0.0
   }

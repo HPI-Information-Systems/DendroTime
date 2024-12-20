@@ -52,6 +52,17 @@ class CutTreeSpec extends AnyWordSpec with should.Matchers {
         val labels = CutTree(hierarchy, n_clusters)
         labels shouldEqual expectedLabels
       }
+      "1,2,4,10 clusters" in {
+        val n_clusters = Array(1,2,4,10)
+        val expectedLabels = Array(
+          Array.fill(n)(0),
+          Array(0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0),
+          Array(0, 1, 2, 3, 1, 1, 2, 0, 0, 3, 2, 0, 3, 1, 1),
+          Array(0, 1, 2, 3, 4, 5, 2, 6, 6, 7, 2, 0, 7, 8, 9)
+        )
+        val labels = CutTree(hierarchy, n_clusters)
+        labels shouldEqual expectedLabels
+      }
     }
     "compare to reference for PGWZ dataset" when {
       for metric <- Seq("sbd", "msm") do
@@ -60,9 +71,9 @@ class CutTreeSpec extends AnyWordSpec with should.Matchers {
             val hierarchy = TestUtil.loadHierarchy(s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$metric-$linkage.csv")
             val expectedLabels = TestUtil.loadCSVFile(s"test-data/ground-truth/PickupGestureWiimoteZ/labels-$metric-$linkage.csv")
               .map(_.map(_.toInt))
-            for n_clusters <- 1 until hierarchy.n do
-              val predLabels = CutTree(hierarchy, n_clusters)
-              predLabels shouldEqual expectedLabels(n_clusters-1)
+            val n_clusters = Array.tabulate(hierarchy.n-1)(i => i+1)
+            val predLabels = CutTree(hierarchy, n_clusters)
+            predLabels shouldEqual expectedLabels
           }
     }
   }

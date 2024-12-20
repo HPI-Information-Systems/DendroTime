@@ -4,23 +4,32 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 object CutTree {
 
   /**
    * Cut a hierarchical clustering tree (Hierarchy) at a certain height. The height is determined by
    * the desired number of clusters.
+   *
+   * @param hierarchy The hierarchical clustering tree.
+   * @param nClusters The number of clusters to cut the tree at.
    */
-  def apply(hierarchy: Hierarchy, nClusters: Int): Array[Int] = {
+  def apply[T <: Array[Int] | Int : ClassTag](hierarchy: Hierarchy, nClusters: T): Array[T] = {
+    val _nClusters: Array[Int] = nClusters match {
+      case n: Int => Array(n)
+      case n: Array[Int] => n
+    }
     val nobs = hierarchy.n
-    val colIdx = nobs - nClusters
+    val colsIdx = _nClusters.map(n => nobs - n)
+    val nCols = _nClusters.length
 
+    val groups = Array.ofDim[Int](nCols, nobs)
     var lastGroup = Array.tabulate(nobs)(i => i)
-    if colIdx == 0 then
-      lastGroup
+    if colsIdx.contains(0) then
+      groups(0) = lastGroup
 
     else
-      var group = lastGroup
       val clusters = Array.ofDim[Array[Int]](hierarchy.length)
       for i <- 0 until hierarchy.length do
         val idx = buildCluster(hierarchy(i), clusters, nobs)
@@ -34,11 +43,15 @@ object CutTree {
           if lastGroup(j) > maxValue then
             newGroup(j) -= 1
 
-        if colIdx == i + 1 then
-          group = newGroup
+        if colsIdx.contains(i + 1) then
+          val idx = colsIdx.indexOf(i + 1)
+          groups(idx) = newGroup
         lastGroup = newGroup
-      group
-  }
+    if groups.length == 1 then
+      groups(0).asInstanceOf[Array[T]]
+    else
+      groups.map(_.asInstanceOf[T])
+}
   
   @inline
   private def buildCluster(node: Hierarchy.Node, clusters: Array[Array[Int]], nobs: Int): Array[Int] = {
