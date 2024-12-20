@@ -26,6 +26,11 @@ colors["approxFullError"] = "lightgray"
 colors["preClustering"] = "red"
 colors["recursivePreClustering"] = "green"
 colors["advancedPreClustering"] = "purple"
+# colors for different progress indicators
+colors["preClustering-log"] = "chocolate"
+colors["preClustering-weighted"] = "green"
+colors["preClustering-ind-averageARI"] = "red"
+colors["preClustering-ind-changes@k"] = "orange"
 
 
 def parse_args(args):
@@ -199,6 +204,16 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         i = row["index"]
         color = colors[strategy]
         plt.plot(index, df.iloc[i, :], color=color, label=strategy)
+
+    prototype_quality_path = Path(f"data/results/{dataset}-Finished-100/quality.csv")
+    if prototype_quality_path.exists():
+        df2 = pd.read_csv(prototype_quality_path)
+        df2["index"] = df2["index"] - m
+        df2 = df2[df2["index"] >= 0]
+        df2 = df2.set_index("index")
+        name = "Hierarchy Quality"
+        plt.plot(df2.index, df2["hierarchy-quality"], color=colors[name], label=name)
+
     plt.xlabel(f"Available distances (of {n*(n-1)/2})")
     if "ari" in quality_measure:
         plt.ylabel("Adjusted Rand Index")

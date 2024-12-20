@@ -7,6 +7,7 @@ import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
+import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
@@ -121,6 +122,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
           reg.foreach {
             _ ! DistanceMatrix(distances)
           }
+          saveDistanceMatrix("approx")
         if waiting then
           calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
           running(reg, hasWork = false, waiting = false)
@@ -137,6 +139,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
         if fullCount == distances.size then
           coordinator ! Coordinator.FullFinished
+          saveDistanceMatrix("full")
         if waiting then
           calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
           running(reg, hasWork = false, waiting = false)
@@ -179,4 +182,21 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
     }
 
   private def progress(count: Int, n: Int): Int = (count.toDouble / n * 100).toInt
+
+  private def saveDistanceMatrix(tpe: String): Unit = {
+    if settings.storeResults then
+      val datasetPath = settings.resultsPath.resolve(s"${dataset.name}")
+      datasetPath.toFile.mkdirs()
+      val file = datasetPath.resolve(s"$tpe-distances-${params.metricName}.csv").toFile
+      ctx.log.info("Saving {} distance matrix to file to {}", tpe, file)
+      val matrix = Array.ofDim[Double](distances.n, distances.n)
+      var i = 0
+      while i < distances.n do
+        var j = 0
+        while j < distances.n do
+          matrix(i)(j) = distances(i, j)
+          j += 1
+        i += 1
+      CSVWriter.write(file, matrix)
+  }
 }

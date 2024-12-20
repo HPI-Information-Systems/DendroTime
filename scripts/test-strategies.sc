@@ -162,8 +162,8 @@ val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder 
 val distanceName = options("metric").toLowerCase.strip
 val linkageName = options("linkage").toLowerCase.strip
 val distance = distanceName match {
-  case "msm" => MSM(c = 0.5, window = 0.05, itakuraMaxSlope = Double.NaN)
-  case "dtw" => DTW(window = 0.05, itakuraMaxSlope = Double.NaN)
+  case "msm" => MSM(c = 0.5, window = Double.NaN, itakuraMaxSlope = Double.NaN)
+  case "dtw" => DTW(window = 0.1, itakuraMaxSlope = Double.NaN)
   case "sbd" => SBD(standardize = false)
   case s => throw new IllegalArgumentException(s"Unknown distance metric: $s")
 }
@@ -405,8 +405,10 @@ val (namesIt, resultsIt) = strategies.map {
   {
     val ((order, qualities), duration) = timed {
       val preClusters = {
-        val clusters = timeseries.indices.toArray.groupBy(id => preLabels(id))
-        clusters.toArray.sortBy(_._1).map(_._2)
+        val clusters = Array.ofDim[Array[Int]](nPreClasses)
+        for i <- 0 until nPreClasses do
+          clusters(i) = preLabels.zipWithIndex.filter(_._1 == i).map(_._2)
+        clusters
       }
       executePreClusterStrategy(
         wdist => OrderedPreClusteringWorkGenerator[Int](timeseries.indices.zipWithIndex.toMap, preClusters, wdist)

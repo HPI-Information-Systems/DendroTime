@@ -4,16 +4,17 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+151-6d3257ef+20241127-2114
+//> using dep de.hpi.fgis:dendrotime_3:0.0.0+174-c28bcd6e+20241220-1345
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
+import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 import de.hpi.fgis.dendrotime.io.{CSVReader, CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.structures.*
-import de.hpi.fgis.dendrotime.structures.HierarchyWithClusters.given
+import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset.given
 import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
@@ -27,59 +28,6 @@ import Strategies.{GtBestTsFCFSOrderStrategy, GtBestTsFIFOOrderStrategy}
 
 extension (order: Array[(Int, Int)])
   def toCsvRecord: String = order.map(t => s"(${t._1},${t._2})").mkString("\"", " ", "\"")
-
-extension (hierarchy: Hierarchy) {
-  def quality(classes: Array[Int], nClasses: Int): Double = {
-    val clusters = CutTree(hierarchy, nClasses)
-    AdjustedRandScore(classes, clusters)
-  }
-}
-
-private def jaccardSimilarity[T](s1: scala.collection.Set[T], s2: scala.collection.Set[T]): Double = {
-  val intersection = s1 & s2
-  val union = s1 | s2
-  intersection.size.toDouble / union.size
-}
-
-extension (hc: HierarchyWithClusters) {
-  def weightedSimilarity(other: HierarchyWithClusters): Double = {
-    val n = hc.hierarchy.size
-    // compute pairwise similarities between clusters
-    val dists = Array.ofDim[Double](n, n)
-    val thisClusters = hc.clusters.toArray
-    val thatClusters = other.clusters.toArray
-    var i = 0
-    while i < n do
-      var j = i
-      while j < n do
-        val d = jaccardSimilarity[Int](thisClusters(i), thatClusters(j))
-        dists(i)(j) = d
-        if i != j then
-          dists(j)(i) = d
-        j += 1
-      i += 1
-
-    // find matches greedily (because Jaccard similarity is symmetric)
-    var similaritySum = 0.0
-    val matched = mutable.BitSet.empty
-    matched.sizeHint(n-1)
-    i = 0
-    while i < n do
-      var maxId = 0
-      var maxValue = 0.0
-      var j = 0
-      while j < n do
-        if !matched.contains(j) && dists(i)(j) > maxValue then
-          maxId = j
-          maxValue = dists(i)(j)
-        j += 1
-      similaritySum += maxValue
-      matched += maxId
-      i += 1
-
-    similaritySum / n
-  }
-}
 
 def writeStrategiesToCsv(strategies: Map[String, (Int, Double, Long, Array[(Int, Int)])], filename: String): Unit = {
   val data = strategies.map { case (name, (index, auc, duration, order)) =>
@@ -140,10 +88,10 @@ val options: Map[String, String] = parseOptions(
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/best-ts-order/",
     "dataFolder" -> s"$folder/data/datasets/",
-    "qualityMeasure" -> "ari"
+    "qualityMeasure" -> "averageari"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari>"
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|averageari>"
 
 ///////////////////////////////////////////////////////////
 val distanceName = "msm"
@@ -205,6 +153,7 @@ println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
+val targetLabels = CutTree(targetHierarchy, targetHierarchy.indices.toArray)
 
 def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
   val order = Array.ofDim[(Int, Int)](m)
@@ -214,7 +163,8 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
   similarities += (
     if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
     else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else approxHierarchy.quality(classes, nClasses)
+    else if qualityMeasure == "averageari" then approxHierarchy.averageARI(targetLabels)
+    else approxHierarchy.ari(classes)
   )
 
   var k = 0
@@ -226,8 +176,9 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     if k % hierarchyCalcFactor == 0 || k == m-1 then
       similarities += (
         if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else hierarchy.quality(classes, nClasses)
+        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
+        else if qualityMeasure == "averageari" then approxHierarchy.averageARI(targetLabels)
+        else hierarchy.ari(classes)
         )
     k += 1
 

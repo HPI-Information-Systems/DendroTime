@@ -85,7 +85,8 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
     }
 
   private def saveFinalState(status: Status, progress: Int, clusteringState: ClusteringState): Unit = {
-    val destination = settings.resultsPath.resolve(s"${dataset.name}-${status.toString}-$progress")
+    val datasetPath = settings.resultsPath.resolve(dataset.name)
+    val destination = datasetPath.resolve(s"${status.toString}-$progress")
     destination.toFile.mkdirs()
 
     // write hierarchy

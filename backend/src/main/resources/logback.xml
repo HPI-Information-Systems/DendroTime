@@ -7,19 +7,19 @@
         </encoder>
     </appender>
 
-    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-<!--        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">-->
-<!--            <level>INFO</level>-->
-<!--        </filter>-->
-        <file>dendrotime.log</file>
-        <immediateFlush>false</immediateFlush>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>dendrotime_%d{yyyy-MM-dd}.log</fileNamePattern>
-        </rollingPolicy>
-        <encoder>
-            <pattern>[%date{ISO8601}] [%level] [%logger] [%marker] [%thread] - %msg MDC: {%mdc}%n</pattern>
-        </encoder>
-    </appender>
+<!--    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--&lt;!&ndash;        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">&ndash;&gt;-->
+<!--&lt;!&ndash;            <level>INFO</level>&ndash;&gt;-->
+<!--&lt;!&ndash;        </filter>&ndash;&gt;-->
+<!--        <file>dendrotime.log</file>-->
+<!--        <immediateFlush>false</immediateFlush>-->
+<!--        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--            <fileNamePattern>dendrotime_%d{yyyy-MM-dd}.log</fileNamePattern>-->
+<!--        </rollingPolicy>-->
+<!--        <encoder>-->
+<!--            <pattern>[%date{ISO8601}] [%level] [%logger] [%marker] [%thread] - %msg MDC: {%mdc}%n</pattern>-->
+<!--        </encoder>-->
+<!--    </appender>-->
 
     <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
         <queueSize>2048</queueSize>
@@ -27,7 +27,7 @@
         <appender-ref ref="STDOUT" />
     </appender>
 
-    <root level="INFO">
+    <root level="DEBUG">
         <appender-ref ref="ASYNC"/>
     </root>
 
