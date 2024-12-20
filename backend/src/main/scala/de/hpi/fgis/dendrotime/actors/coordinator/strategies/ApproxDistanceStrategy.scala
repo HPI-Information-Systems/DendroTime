@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
@@ -106,7 +106,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
   }
 
-  private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial {
+  private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
@@ -126,6 +126,13 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
 
     case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] Serving, {}/{} work items remaining, {}",
+        workGen.remaining, workGen.sizeTuples, getBatchStats
+      )
+      Behaviors.same
+  } receiveSignal {
+    case (_, PostStop) =>
       ctx.log.info(
         "[REPORT] Serving, {}/{} work items remaining, {}",
         workGen.remaining, workGen.sizeTuples, getBatchStats

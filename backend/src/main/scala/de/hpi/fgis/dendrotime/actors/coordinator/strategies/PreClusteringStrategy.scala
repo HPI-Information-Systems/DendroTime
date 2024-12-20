@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, GetCurrentDistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
@@ -246,6 +246,13 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
       }
 
     case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] {}, {}/{} work items in this state remaining, {}",
+        state, workGen.remaining, workGen.sizeTuples, getBatchStats
+      )
+      Behaviors.same
+  } receiveSignal {
+    case (_, PostStop) =>
       ctx.log.info(
         "[REPORT] {}, {}/{} work items in this state remaining, {}",
         state, workGen.remaining, workGen.sizeTuples, getBatchStats

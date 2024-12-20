@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PostStop}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
@@ -30,7 +30,7 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
 
   def start(): Behavior[StrategyCommand] = running()
 
-  private def running(): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+  private def running(): Behavior[StrategyCommand] = Behaviors.receiveMessage[StrategyCommand] {
     case AddTimeSeries(timeseriesIds) =>
       workGenerator.addAll(timeseriesIds)
       if workGenerator.hasNext then
@@ -53,6 +53,13 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
 
     case ReportStatus =>
+      ctx.log.info(
+        "[REPORT] Serving, {}/{} work items remaining, {}",
+        workGenerator.remaining, workGenerator.sizeTuples, getBatchStats
+      )
+      Behaviors.same
+  } receiveSignal {
+    case (_, PostStop) =>
       ctx.log.info(
         "[REPORT] Serving, {}/{} work items remaining, {}",
         workGenerator.remaining, workGenerator.sizeTuples, getBatchStats
