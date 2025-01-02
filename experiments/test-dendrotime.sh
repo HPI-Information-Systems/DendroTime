@@ -2,7 +2,7 @@
 # requires:
 # - python with aeon
 # - java
-# - test-strategies.jar (built with scala-cli --power package --assembly scripts/test-strategies.sc)
+# - DendroTime-runner.jar (built with sbt runner/assembly)
 set -eu
 
 # Run the experiments for the ordering strategy analysis
@@ -47,9 +47,9 @@ echo "... done."
 
 echo ""
 echo "Processing datasets:"
-#for dataset in "${equal_datasets[@]}"; do
-#  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder data/datasets/ --qualityMeasure averageari
-#done
+for dataset in "${equal_datasets[@]}"; do
+  ./run.sh --dataset "${dataset}"
+done
 for dataset in "${variable_datasets[@]}"; do
-  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder data/datasets/ --qualityMeasure averageari
+  ./run.sh --dataset "${dataset}"
 done
