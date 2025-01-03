@@ -13,7 +13,12 @@ object CutTree {
    * the desired number of clusters.
    *
    * @param hierarchy The hierarchical clustering tree.
-   * @param nClusters The number of clusters to cut the tree at.
+   * @param nClusters The number of clusters to cut the tree at. Either a single integer or an array of integers.
+   *                  If an array is provided, the tree is cut at the height of each index (number of clusters).
+   * @tparam T The type of the number of clusters. Either an integer or an array of integers.
+   * @return An array of T. If a single integer is provided, the array contains the cluster assignments for each
+   *         observation. If an array of integers is provided, the array contains the cluster assignments for each
+   *         observation at each height.
    */
   def apply[T <: Array[Int] | Int : ClassTag](hierarchy: Hierarchy, nClusters: T): Array[T] = {
     val _nClusters: Array[Int] = nClusters match {

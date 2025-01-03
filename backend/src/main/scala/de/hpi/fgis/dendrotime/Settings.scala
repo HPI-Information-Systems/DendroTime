@@ -4,9 +4,9 @@ import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigException}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
-import de.hpi.fgis.dendrotime.actors.clusterer.ClusterSimilarityOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, MinkowskyOptions, SBDOptions}
+import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig
 
 import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
@@ -65,14 +65,31 @@ class Settings private(config: Config) extends Extension {
 
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
-    val computeHierarchySimilarity: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-similarity")
-    val computeHierarchyQuality: Boolean = config.getBoolean(s"$internalNamespace.hierarchy-quality")
-    val computeClusterQuality: Boolean = config.getBoolean(s"$internalNamespace.cluster-quality")
+    val hierarchySimilarityConfig: Option[HierarchySimilarityConfig] =
+      if config.hasPath(s"$internalNamespace.hierarchy-similarity") then
+        Some(HierarchySimilarityConfig.fromConfig(config.getConfig(s"$internalNamespace.hierarchy-similarity")))
+      else
+        None
+    val hierarchyQualityConfig: Option[HierarchySimilarityConfig] =
+      if config.hasPath(s"$internalNamespace.hierarchy-quality") then
+        Some(HierarchySimilarityConfig.fromConfig(config.getConfig(s"$internalNamespace.hierarchy-quality")))
+      else
+        None
+    val clusterQualityMethod: Option[String] =
+      if config.hasPath(s"$internalNamespace.cluster-quality") then
+        Some(config.getString(s"$internalNamespace.cluster-quality"))
+      else
+        None
     val loadingDelay: FiniteDuration = {
       val duration = config.getDuration(s"$internalNamespace.ground-truth-loading-delay")
       FiniteDuration(duration.toMillis, "milliseconds")
     }
-    val disabled: Boolean = !computeHierarchySimilarity && !computeHierarchyQuality && !computeClusterQuality
+
+    def computeHierarchySimilarity: Boolean = hierarchySimilarityConfig.isDefined
+    def computeHierarchyQuality: Boolean = hierarchyQualityConfig.isDefined
+    def computeClusterQuality: Boolean = clusterQualityMethod.isDefined
+    def disabled: Boolean =
+      hierarchySimilarityConfig.isEmpty && hierarchyQualityConfig.isEmpty && clusterQualityMethod.isEmpty
   }
 
   object Distances {
@@ -125,40 +142,32 @@ class Settings private(config: Config) extends Extension {
     BloomFilterOptions(bfHashSize, falsePositiveRate)
   }
 
-  given clusterSimilarityOptions: ClusterSimilarityOptions = {
-    val similarity = ClusterSimilarityOptions.Similarity(
-      config.getString(s"$namespace.cluster-similarity.similarity")
-    )
-    val aggregation = ClusterSimilarityOptions.Aggregation(
-      config.getString(s"$namespace.cluster-similarity.aggregation"),
-      if (config.hasPath(s"$namespace.cluster-similarity.decaying-factor"))
-        Some(config.getDouble(s"$namespace.cluster-similarity.decaying-factor"))
-      else
-        None
-    )
-    val cardLowerBound = config.getInt(s"$namespace.cluster-similarity.cardinality-lower-bound")
-    val cardUpperBound = config.getInt(s"$namespace.cluster-similarity.cardinality-upper-bound")
-    ClusterSimilarityOptions(bloomFilterOptions, similarity, aggregation, cardLowerBound, cardUpperBound)
-  }
-
   override def toString: String =
     s"""Settings(
        |  host=$host,
        |  port=$port,
        |  dataPath=$dataPath,
        |  resultsPath=$resultsPath,
+       |  groundTruthPath=$groundTruthPath,
        |  storeResults=$storeResults,
        |  askTimeout=$askTimeout,
        |  numberOfWorkers=$numberOfWorkers,
        |  maxTimeseries=$maxTimeseries,
        |  reportingInterval=$reportingInterval,
+       |  batchingTargetTime=$batchingTargetTime,
+       |  batchingMaxBatchSize=$batchingMaxBatchSize,
        |  ProgressIndicators(
-       |    computeHierarchySimilarity=${ProgressIndicators.computeHierarchySimilarity},
-       |    computeHierarchyQuality=${ProgressIndicators.computeHierarchyQuality},
-       |    computeClusterQuality=${ProgressIndicators.computeClusterQuality},
+       |    hierarchySimilarityConfig=${ProgressIndicators.hierarchySimilarityConfig},
+       |    hierarchyQualityConfig=${ProgressIndicators.hierarchyQualityConfig},
+       |    clusterQualityMethod=${ProgressIndicators.clusterQualityMethod},
        |    loadingDelay=${ProgressIndicators.loadingDelay}
        |  ),
+       |  Distances(
+       |    MSM=${Distances.MSM.msmOpts},
+       |    SBD=${Distances.SBD.sbdOpts},
+       |    DTW=${Distances.DTW.dtwOpts},
+       |    Minkowsky=${Distances.Minkowsky.minkowskyOpts},
+       |  )
        |  bloomFilterOptions=$bloomFilterOptions,
-       |  clusterSimilarityOptions=$clusterSimilarityOptions,
        |)""".stripMargin
 }

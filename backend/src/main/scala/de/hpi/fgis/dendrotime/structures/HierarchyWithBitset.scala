@@ -6,6 +6,11 @@ import scala.collection.{BitSet, mutable}
 
 
 object HierarchyWithBitset {
+  def empty: HierarchyWithBitset = HierarchyWithBitset(Hierarchy.empty, Array.empty)
+
+  def emptyBitsets(n: Int): HierarchyWithBitset =
+    HierarchyWithBitset(Hierarchy.empty, Array.fill(n)(BitSet.empty))
+
   def apply(h: Hierarchy): HierarchyWithBitset = {
     val clusters = mutable.ArrayBuffer.tabulate(h.n)(i => BitSet(i))
     for node <- h do

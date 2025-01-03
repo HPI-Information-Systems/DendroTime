@@ -19,6 +19,33 @@ object HierarchyMetricOps {
 trait HierarchyMetricOps(hierarchy: Hierarchy) {
 
   /**
+   * Computes the Adjusted Mutual Information score (AMI) compared to target classes.
+   *
+   * First cuts the hierarchy to achieve the same number of clusters as in the target classes, then
+   * computes the AMI between the predicted clusters and the given target classes.
+   *
+   * @param trueClasses the target classes as integer labels
+   * @return the Adjusted Mutual Information score (AMI) between the predicted clusters and the target classes
+   */
+  def ami(trueClasses: Array[Int]): Double = ami(trueClasses, trueClasses.distinct.length)
+
+  /**
+   * Computes the Adjusted Mutual Information score (AMI) compared to target classes.
+   *
+   * First cuts the hierarchy at the given number of clusters, then computes the AMI between the predicted clusters
+   * and the given target classes.
+   *
+   * @param trueClasses the target classes as integer labels
+   * @param nClasses the number of clusters to cut the hierarchy at, must correspond to the number of distinct
+   *                 labels in `trueClasses`
+   * @return the Adjusted Mutual Information score (AMI) between the predicted clusters and the target classes
+   */
+  def ami(trueClasses: Array[Int], nClasses: Int): Double = {
+    val clusters = CutTree(hierarchy, nClasses)
+    SupervisedClustering.ami(trueClasses, clusters)
+  }
+
+  /**
    * Computes the Adjusted Rand Index (ARI) compared to target classes.
    *
    * First cuts the hierarchy to achieve the same number of clusters as in the target classes, then
@@ -42,7 +69,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    */
   def ari(trueClasses: Array[Int], nClasses: Int): Double = {
     val clusters = CutTree(hierarchy, nClasses)
-    AdjustedRandScore(trueClasses, clusters)
+    SupervisedClustering.ari(trueClasses, clusters)
   }
 
   /**
@@ -58,7 +85,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
     var aris = 0.0
     var i = 0
     while i < labels.length do
-      aris += AdjustedRandScore(targetLabels(i+2), labels(i))
+      aris += SupervisedClustering.ari(targetLabels(i+2), labels(i))
       i += 1
     aris / labels.length
   }
@@ -140,7 +167,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
       var aris = 0.0
       i = 0
       while i < labels.length do
-        aris += AdjustedRandScore(targetLabels(nClusters(i)), labels(i))
+        aris += SupervisedClustering.ari(targetLabels(nClusters(i)), labels(i))
         i += 1
       aris / labels.length
     else

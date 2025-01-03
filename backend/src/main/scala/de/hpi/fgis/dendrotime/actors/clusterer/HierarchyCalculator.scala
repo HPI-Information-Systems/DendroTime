@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.*
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy
@@ -37,12 +38,20 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
   import HierarchyCalculator.*
 
-  private given ClusterSimilarityOptions = settings.clusterSimilarityOptions
-
   private val settings: Settings = Settings(ctx.system)
-  private val state: HierarchyState =
-    if settings.ProgressIndicators.disabled then HierarchyState.nonTracking(n)
-    else HierarchyState.tracking(n)
+  private val state: HierarchyState = {
+    import settings.given
+
+    if settings.ProgressIndicators.disabled then
+      HierarchyState.nonTracking(n)
+    else
+      HierarchyState.tracking(
+        n,
+        settings.ProgressIndicators.hierarchySimilarityConfig,
+        settings.ProgressIndicators.hierarchyQualityConfig,
+        settings.ProgressIndicators.clusterQualityMethod
+      )
+  }
   // debug counters
   private var runtime = 0L
   private var computations = 0
