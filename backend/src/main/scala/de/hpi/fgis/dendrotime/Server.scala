@@ -24,26 +24,33 @@ object Server extends ApiRoutesProvider {
   def apply(assets: Route): Behavior[Message] = Behaviors.setup { ctx =>
     given system: ActorSystem[?] = ctx.system
 
-    val settings = Settings(system)
+    try
+      // Load and parse settings
+      val settings = Settings(system)
+      ctx.log.info("Loaded configuration: {}", settings)
 
-    // start actors
-    val scheduler = ctx.spawn(Scheduler(), "scheduler")
-    ctx.watch(scheduler)
-    val datasetRegistry = ctx.spawn(DatasetRegistry(), "dataset-registry")
-    ctx.watch(datasetRegistry)
+      // start actors
+      val scheduler = ctx.spawn(Scheduler(), "scheduler")
+      ctx.watch(scheduler)
+      val datasetRegistry = ctx.spawn(DatasetRegistry(), "dataset-registry")
+      ctx.watch(datasetRegistry)
 
-    // start server
-    val routes = createApiRoutes(
-      datasetServiceRoutes(datasetRegistry),
-      jobServiceRoutes(scheduler)
-    ) ~ assets
-    val bindingFuture = Http().newServerAt(settings.host, settings.port).bind(routes)
-    ctx.pipeToSelf(bindingFuture) {
-      case Success(binding) => Started(binding)
-      case Failure(ex) => StartFailed(ex)
-    }
+      // start server
+      val routes = createApiRoutes(
+        datasetServiceRoutes(datasetRegistry),
+        jobServiceRoutes(scheduler)
+      ) ~ assets
+      val bindingFuture = Http().newServerAt(settings.host, settings.port).bind(routes)
+      ctx.pipeToSelf(bindingFuture) {
+        case Success(binding) => Started(binding)
+        case Failure(ex) => StartFailed(ex)
+      }
 
-    starting(wasStopped = false)
+      starting(wasStopped = false)
+
+    catch case e: Exception =>
+      ctx.log.error("Failed to start server", e)
+      Behaviors.stopped
   }
 
   private def starting(wasStopped: Boolean): Behavior[Message] = Behaviors.receive[Message] {

@@ -29,11 +29,12 @@ object HierarchyState {
   def tracking(n: Int,
                hierarchySimilarityConfig: Option[HSC],
                hierarchyQualityConfig: Option[HSC],
-               clusterQualityMethod: Option[String])(using bfOptions: BloomFilterOptions): HierarchyState = {
+               clusterQualityMethod: Option[String]
+              )(using BloomFilterOptions): HierarchyState = {
 
-    val hierarchySimilarityState = hierarchySimilarityConfig.map(HierarchySimilarityState(_, n))
-    val hierarchyQualityState = hierarchyQualityConfig.map(HierarchySimilarityState(_, n))
-    new TrackingHierarchyState(n, Hierarchy.empty, hierarchySimilarityState, hierarchyQualityState, clusterQualityMethod)
+    new TrackingHierarchyState(
+      n, Hierarchy.empty, hierarchySimilarityConfig, hierarchyQualityConfig, clusterQualityMethod
+    )
   }
 
   private class NonTrackingHierarchyState(override val n: Int,
@@ -58,15 +59,17 @@ object HierarchyState {
 
   private class TrackingHierarchyState(override val n: Int,
                                        private var currentHierarchy: Hierarchy,
-                                       hierarchySimilarityState: Option[HierarchySimilarityState],
-                                       hierarchyQualityState: Option[HierarchySimilarityState],
-                                       clusterQualityMethod: Option[String]) extends HierarchyState {
+                                       hierarchySimilarityConfig: Option[HSC],
+                                       hierarchyQualityConfig: Option[HSC],
+                                       clusterQualityMethod: Option[String]
+                                      )(using BloomFilterOptions) extends HierarchyState {
 
     import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 
     private var ops: Int = 0
     private var cumsum: Double = 0.0
-    private var gtHierarchy: Option[Array[Array[Int]]] = None
+    private val hierarchySimilarityState = hierarchySimilarityConfig.map(HierarchySimilarityState(_, n))
+    private var hierarchyQualityState: Option[HierarchyQualityState] = None
     private var gtClasses: Option[Array[Int]] = None
     private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
 
@@ -75,8 +78,10 @@ object HierarchyState {
     override def toClusteringState: ClusteringState = ClusteringState(currentHierarchy, traceBuilder.result())
 
     override def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
-      hierarchy.foreach(h => require(n == h.n, "N does not match!"))
-      gtHierarchy = hierarchy.map(h => h.indices.map(CutTree(h, _)).toArray)
+      hierarchyQualityState = hierarchy.zip(hierarchyQualityConfig).map{ (h, c) =>
+        require(n == h.n, s"N does not match ($n != ${h.n})!")
+        HierarchyQualityState(c, h)
+      }
     }
 
     override def setGtClasses(classes: Option[Array[String]]): Unit = {
@@ -89,34 +94,36 @@ object HierarchyState {
     override def newHierarchy(index: Int, hierarchy: Hierarchy): Unit = {
       ops += 1
       val similarity = hierarchySimilarityState match {
-        case Some(state) => state.computeSimilarity(hierarchy)
-        case None => 0.0
+        case Some(state) => 1.0 - state.computeSimilarity(hierarchy)
+        case None => 1.0
       }
       cumsum += similarity
       currentHierarchy = hierarchy
       traceBuilder.addStep(index, cumsum)
       ops += 1
 
-      if gtHierarchy.isDefined && hierarchyQualityState.isDefined then
-        val gtSimilarity = hierarchyQualityState.get.computeSimilarity(Hierarchy.empty, gtHierarchy)
+      hierarchyQualityState.foreach{ state =>
+        val gtSimilarity = state.computeQuality(hierarchy)
         traceBuilder.withGtSimilarity(gtSimilarity)
+      }
 
-      if gtClasses.isDefined then
+      gtClasses.foreach{ classes =>
         clusterQualityMethod match {
           case Some("ari") =>
-            val clusterQuality = currentHierarchy.ari(gtClasses.get)
+            val clusterQuality = currentHierarchy.ari(classes)
             traceBuilder.withClusterQuality(clusterQuality)
 
           case Some("ami") =>
-            val clusterQuality = currentHierarchy.ami(gtClasses.get)
+            val clusterQuality = currentHierarchy.ami(classes)
             traceBuilder.withClusterQuality(clusterQuality)
 
           case Some(other) =>
             throw new IllegalArgumentException(s"Unsupported cluster quality method: $other")
 
           case None =>
-            // ignore
+          // ignore
         }
+      }
     }
 
     override def dispose(): Unit = {

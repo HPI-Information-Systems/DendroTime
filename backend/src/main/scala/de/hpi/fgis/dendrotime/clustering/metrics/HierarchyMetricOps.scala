@@ -36,8 +36,8 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * and the given target classes.
    *
    * @param trueClasses the target classes as integer labels
-   * @param nClasses the number of clusters to cut the hierarchy at, must correspond to the number of distinct
-   *                 labels in `trueClasses`
+   * @param nClasses    the number of clusters to cut the hierarchy at, must correspond to the number of distinct
+   *                    labels in `trueClasses`
    * @return the Adjusted Mutual Information score (AMI) between the predicted clusters and the target classes
    */
   def ami(trueClasses: Array[Int], nClasses: Int): Double = {
@@ -63,8 +63,8 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * and the given target classes.
    *
    * @param trueClasses the target classes as integer labels
-   * @param nClasses the number of clusters to cut the hierarchy at, must correspond to the number of distinct
-   *                 labels in `trueClasses`
+   * @param nClasses    the number of clusters to cut the hierarchy at, must correspond to the number of distinct
+   *                    labels in `trueClasses`
    * @return the Adjusted Rand Index (ARI) between the predicted clusters and the target classes
    */
   def ari(trueClasses: Array[Int], nClasses: Int): Double = {
@@ -80,14 +80,18 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * @return the average ARI
    */
   def averageARI(targetLabels: Array[Array[Int]]): Double = {
-    val n_clusters = Array.tabulate(hierarchy.size-2)(_ + 2)
-    val labels = CutTree(hierarchy, n_clusters)
-    var aris = 0.0
-    var i = 0
-    while i < labels.length do
-      aris += SupervisedClustering.ari(targetLabels(i+2), labels(i))
-      i += 1
-    aris / labels.length
+    val n = Math.min(hierarchy.size, targetLabels.length) - 2
+    if n >= 2 then
+      val n_clusters = Array.tabulate(n)(_ + 2)
+      val labels = CutTree(hierarchy, n_clusters)
+      var aris = 0.0
+      var i = 0
+      while i < labels.length do
+        aris += SupervisedClustering.ari(targetLabels(i + 2), labels(i))
+        i += 1
+      aris / labels.length
+    else
+      0.0
   }
 
   /**
@@ -121,7 +125,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * of 1.0 will compute the ARI for all possible numbers of clusters.
    *
    * @param targetHierarchy the target hierarchy
-   * @param factor the factor by which the number of clusters is increased in each iteration
+   * @param factor          the factor by which the number of clusters is increased in each iteration
    * @return approximation of the average ARI
    */
   def approxAverageARI(targetHierarchy: Hierarchy, factor: Double): Double = {
@@ -149,7 +153,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * of 1.0 will compute the ARI for all possible numbers of clusters.
    *
    * @param targetLabels the target labels for each level of the hierarchy, must include the labels for the root
-   * @param factor the factor by which the number of clusters is increased in each iteration
+   * @param factor       the factor by which the number of clusters is increased in each iteration
    * @return approximation of the average ARI
    */
   def approxAverageARI(targetLabels: Array[Array[Int]], factor: Double): Double = {
@@ -179,17 +183,35 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * The result is the fraction of labels that changed.
    *
    * @param otherHierarchy the other hierarchy to compare to
-   * @param k the desired number of clusters, defaults to n_instances / 2
+   * @param k              the desired number of clusters, defaults to n_instances / 2
    * @return the fraction of labels that changed
    */
   def labelChangesAt(otherHierarchy: Hierarchy, k: Int = hierarchy.n / 2): Double = {
-    if k >= 2 then
+    if hierarchy.n > 3 && otherHierarchy.n > 3 then
       val labels = CutTree(hierarchy, k)
       val otherLabels = CutTree(otherHierarchy, k)
-      val changes = labels.zip(otherLabels).map((x, y) => if x != y then 1 else 0)
-      changes.sum.toDouble / changes.length
+      val changes = labels.lazyZip(otherLabels).map((x, y) => if x != y then 1 else 0)
+      1.0 - changes.sum.toDouble / changes.length
     else
-      0.0
+      1.0
+  }
+
+  /**
+   * Cuts hierarchy at a fixed height (to get k clusters) and compares the labels to the reference labels.
+   * The result is the fraction of labels that changed compared to the reference. k is the number of
+   * distinct labels in the reference.
+   *
+   * @param targetLabels the other hierarchy to compare to
+   * @return the fraction of targetLabels that changed
+   */
+  def labelChanges(targetLabels: Array[Int]): Double = {
+    val k = targetLabels.distinct.length
+    if hierarchy.n > 3 && k > 1 then
+      val labels = CutTree(hierarchy, k)
+      val changes = labels.lazyZip(targetLabels).map((x, y) => if x != y then 1 else 0)
+      1.0 - changes.sum.toDouble / changes.length
+    else
+      1.0
   }
 
   /**
@@ -225,12 +247,12 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
    * cluster by its contained time series. The similarity is computed as the Jaccard similarity between the
    * sets of cluster representations.
    *
-   * @param other the other hierarchy with clusters represented as BloomFilters
+   * @param other          the other hierarchy with clusters represented as BloomFilters
    * @param cardLowerBound the lower bound for the cardinality of clusters to consider
    *                       (inclusive, default: 3)
    * @param cardUpperBound the upper bound for the cardinality of clusters to consider
    *                       (inclusive, default: 1 = at most n-1 elements)
-   * @param conv  the conversion from Hierarchy to HierarchyWithBF
+   * @param conv           the conversion from Hierarchy to HierarchyWithBF
    * @return the similarity
    */
   def similarity(other: HierarchyWithBF, cardLowerBound: Int = 3, cardUpperBound: Int = 1)(using conv: Conversion[Hierarchy, HierarchyWithBF]): Double =
@@ -240,6 +262,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
     }
 
   protected def computeBoundedJaccardSimilarity[T <: BitSet | BloomFilter[Int] : ClassTag](clusters1: Array[T], clusters2: Array[T], cardLowerBound: Int, cardUpperBound: Int): Double = {
+    require(clusters1.length == clusters2.length, s"Both hierarchies must have the same number of clusters (${clusters1.length} != ${clusters2.length})")
     val n = clusters1.length
     val self = mutable.HashSet.empty[T]
     val other = mutable.HashSet.empty[T]
@@ -298,6 +321,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
   }
 
   protected def pairwiseClusterSimilarities[T <: BitSet | BloomFilter[Int]](clusters1: Array[T], clusters2: Array[T]): Array[Array[Double]] = {
+    require(clusters1.length == clusters2.length, s"Both hierarchies must have the same number of clusters (${clusters1.length} != ${clusters2.length})")
     val n = clusters1.length
     val sims = Array.ofDim[Double](n, n)
     var i = 0

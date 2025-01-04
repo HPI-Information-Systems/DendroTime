@@ -48,7 +48,7 @@ object HierarchySimilarityConfig {
   }
 
   def fromConfig(config: Config): HierarchySimilarityConfig = {
-    val name = config.getString("name")
+    val name = config.getString("method")
     name match {
       case "ariAt" => AriAt(config.getInt("k"))
       case "amiAt" => AmiAt(config.getInt("k"))

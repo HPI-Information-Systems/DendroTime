@@ -65,16 +65,20 @@ class Settings private(config: Config) extends Extension {
 
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
+    private def resolveSubConfig(path: String): Option[Config] = {
+      if config.hasPath(s"$internalNamespace.$path") then
+        try
+          Some(config.getConfig(s"$internalNamespace.$path"))
+        catch case _: ConfigException.WrongType =>
+          val reference = config.getString(s"$internalNamespace.$path")
+          Some(config.getConfig(s"$internalNamespace.$reference"))
+      else
+        None
+    }
     val hierarchySimilarityConfig: Option[HierarchySimilarityConfig] =
-      if config.hasPath(s"$internalNamespace.hierarchy-similarity") then
-        Some(HierarchySimilarityConfig.fromConfig(config.getConfig(s"$internalNamespace.hierarchy-similarity")))
-      else
-        None
+      resolveSubConfig("hierarchy-similarity").map(HierarchySimilarityConfig.fromConfig)
     val hierarchyQualityConfig: Option[HierarchySimilarityConfig] =
-      if config.hasPath(s"$internalNamespace.hierarchy-quality") then
-        Some(HierarchySimilarityConfig.fromConfig(config.getConfig(s"$internalNamespace.hierarchy-quality")))
-      else
-        None
+      resolveSubConfig("hierarchy-quality").map(HierarchySimilarityConfig.fromConfig)
     val clusterQualityMethod: Option[String] =
       if config.hasPath(s"$internalNamespace.cluster-quality") then
         Some(config.getString(s"$internalNamespace.cluster-quality"))

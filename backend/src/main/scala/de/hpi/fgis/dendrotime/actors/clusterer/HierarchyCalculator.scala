@@ -2,7 +2,6 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 
 import akka.actor.typed.*
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.Communicator.NewHierarchy

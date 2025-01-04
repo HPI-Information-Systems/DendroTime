@@ -1,6 +1,5 @@
 package de.hpi.fgis.dendrotime.clustering.metrics
 
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset
 
 object HierarchyWithBitsetMetricOps {
