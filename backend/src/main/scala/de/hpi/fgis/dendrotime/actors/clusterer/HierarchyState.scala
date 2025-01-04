@@ -114,8 +114,9 @@ object HierarchyState {
             traceBuilder.withClusterQuality(clusterQuality)
 
           case Some("ami") =>
-            val clusterQuality = currentHierarchy.ami(classes)
-            traceBuilder.withClusterQuality(clusterQuality)
+            throw new IllegalArgumentException("AMI is not supported yet!")
+//            val clusterQuality = currentHierarchy.ami(classes)
+//            traceBuilder.withClusterQuality(clusterQuality)
 
           case Some(other) =>
             throw new IllegalArgumentException(s"Unsupported cluster quality method: $other")

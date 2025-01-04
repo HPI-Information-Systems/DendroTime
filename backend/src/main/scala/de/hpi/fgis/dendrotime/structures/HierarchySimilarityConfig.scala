@@ -51,7 +51,9 @@ object HierarchySimilarityConfig {
     val name = config.getString("method")
     name match {
       case "ariAt" => AriAt(config.getInt("k"))
-      case "amiAt" => AmiAt(config.getInt("k"))
+      case "amiAt" =>
+        throw new NotImplementedError("AMI is not implemented yet")
+        // AmiAt(config.getInt("k"))
       case "labelChangesAt" => LabelChangesAt(config.getIntOption("k"))
       case "averageAri" => AverageAri
       case "approxAverageAri" => ApproxAverageAri(config.getDouble("factor"))
