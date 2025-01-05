@@ -4,9 +4,11 @@ import akka.actor.CoordinatedShutdown
 import akka.actor.typed.ActorSystem
 import caseapp.{CaseApp, RemainingArgs}
 import com.typesafe.config.{Config, ConfigFactory}
-import de.hpi.fgis.dendrotime.{SerialHAC, Settings}
+import de.hpi.fgis.dendrotime.Settings
+import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
+import de.hpi.fgis.dendrotime.model.StateModel.Status
 
 import java.nio.file.Path
 
@@ -24,10 +26,9 @@ object App extends CaseApp[Arguments] {
     // parse options and create parameters for DendroTime
     val dataset = loadDataset(settings.dataPath, options.dataset)
     val params = DendroTimeParams(
-      metricName = options.metric,
+      distanceName = options.metric,
       linkageName = options.linkage,
-      strategy = options.strategy,
-      approxLength = options.approxLength
+      strategy = options.strategy
     )
     println(s"Dataset: $dataset")
     println(s"Parameters: $params")
@@ -101,5 +102,13 @@ object App extends CaseApp[Arguments] {
     if datasetOption.isEmpty then
       throw new IllegalArgumentException(s"Dataset $datasetName not found in $localDatasetsFolder")
     datasetOption.get
+  }
+
+  def storeRuntimes(runtimes: scala.collection.Map[Status, Long], path: Path): Unit = {
+    val runtimesFile = path.resolve("runtimes.csv").toFile
+    val data = runtimes.iterator.toArray
+      .sortBy(_._1)
+      .map((status, runtime) => Array(status.toString, runtime.toString))
+    CSVWriter.write(runtimesFile, data, Array("phase", "runtime"))
   }
 }

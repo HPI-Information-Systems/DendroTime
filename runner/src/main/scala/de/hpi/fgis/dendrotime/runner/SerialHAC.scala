@@ -1,17 +1,22 @@
-package de.hpi.fgis.dendrotime
+package de.hpi.fgis.dendrotime.runner
 
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, computeHierarchy}
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
+import de.hpi.fgis.dendrotime.model.StateModel.Status
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import java.io.File
+import scala.collection.mutable
 
 class SerialHAC(settings: Settings) {
   import settings.Distances.given
+
+  private val runtimes = mutable.Map.empty[Status, Long]
 
   def run(dataset: Dataset, params: DendroTimeParams): Hierarchy = {
     println(s"Running SerialHAC on dataset $dataset with parameters $params")
@@ -26,23 +31,37 @@ class SerialHAC(settings: Settings) {
     val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(testPath, idOffset = trainTimeseries.length)
     val n = timeseries.length
     val m = n * (n - 1) / 2
-    println(s"  ... loaded $n TS in ${System.currentTimeMillis() - startTime} ms")
+    val dataDuration = System.currentTimeMillis() - startTime
+    runtimes(Status.Initializing) = dataDuration
+    println(s"  ... loaded $n TS in $dataDuration ms")
 
     println(s"  computing $m pairwise distances ...")
     val t0 = System.currentTimeMillis()
-    val dists = PDist(params.metric.pairwise(timeseries.map(_.data)), n)
-    println(s"  ... done in ${System.currentTimeMillis() - t0} ms")
+    val dists = PDist(params.distance.pairwise(timeseries.map(_.data)), n)
+    val distanceDuration = System.currentTimeMillis() - t0
+    runtimes(Status.Approximating) = 0L
+    runtimes(Status.ComputingFullDistances) = distanceDuration
+    println(s"  ... done in $distanceDuration ms")
 
     println("  running SerialHAC ...")
     val t1 = System.currentTimeMillis()
     val hierarchy = computeHierarchy(dists, params.linkage)
-    println(s"  ... done in ${System.currentTimeMillis() - t1} ms")
+    val hacDuration = System.currentTimeMillis() - t1
+    runtimes(Status.Finalizing) = hacDuration
+    println(s"  ... done in $hacDuration ms")
 
-    println(s"Finished SeriesHAC in ${System.currentTimeMillis() - startTime} ms")
+    val duration = System.currentTimeMillis() - startTime
+    runtimes(Status.Finished) = duration
+    println(s"Finished SeriesHAC in $duration ms")
 
     if settings.storeResults then
-      val hierarchyFile = settings.resultsPath.resolve(s"${dataset.name}-serial/hierarchy.csv").toFile
+      val datasetPath = settings.resolveResultsFolder(dataset, params)
+      val resultFolder = datasetPath.resolve("serial")
+      val hierarchyFile = resultFolder.resolve("hierarchy.csv").toFile
+      val settingsFile = resultFolder.resolve("config.json").toFile
       HierarchyCSVWriter.write(hierarchyFile, hierarchy)
+      App.storeRuntimes(runtimes, resultFolder)
+      settings.writeJson(settingsFile)
     hierarchy
   }
 }

@@ -9,8 +9,7 @@ case class Arguments(
                       serial: Boolean = false,
                       metric: String = "msm",
                       linkage: String = "ward",
-                      strategy: String = "fcfs",
-                      approxLength: Int = 10,
+                      strategy: String = "approx-distance-ascending",
                     )
 
 object Arguments {

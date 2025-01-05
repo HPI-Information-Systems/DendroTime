@@ -24,7 +24,7 @@ object StrategyFactory {
     case "approx-distance-descending" => ApproxDistanceStrategy.Descending
     case "pre-clustering" => PreClusteringStrategy
     case _ => throw new IllegalArgumentException(
-      s"Unknown strategy: $strategy, use one of: fcfs, shortest-ts, approx-distance-ascending, approx-distance-descending"
+      s"Unknown strategy: $strategy, use one of: fcfs, shortest-ts, approx-distance-ascending, approx-distance-descending, pre-clustering"
     )
   }
 

@@ -73,7 +73,7 @@ private class Coordinator private[coordinator] (
   import Coordinator.*
 
   private val settings: Settings = Settings(ctx.system)
-  private val communicator = ctx.spawn(Communicator(dataset), s"communicator-$id")
+  private val communicator = ctx.spawn(Communicator(dataset, params), s"communicator-$id")
   ctx.watch(communicator)
   private val clusterer = ctx.spawn(
     Clusterer(ctx.self, tsManager, communicator, dataset, params),
@@ -104,6 +104,7 @@ private class Coordinator private[coordinator] (
   def start(): Behavior[MessageType] = {
     tsManager ! TsmProtocol.GetTimeSeriesIds(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
+    reportTo ! ProcessingStatus(id, Status.Initializing)
     workers ! WorkerProtocol.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
 
     initializing(Vector.empty)
@@ -154,7 +155,7 @@ private class Coordinator private[coordinator] (
         Behaviors.stopped
     }
 
-  private def loading(nTimeseries: Int, tsIds: Seq[Long]):  Behavior[MessageType] =
+  private def loading(nTimeseries: Int, tsIds: Seq[Long], approxFinished: Boolean = false):  Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
@@ -175,6 +176,11 @@ private class Coordinator private[coordinator] (
         // switch to approximating state
         ctx.log.info("All {} time series loaded for dataset d-{}, SWITCHING TO APPROXIMATING STATE", allTsIds.size, dataset.id)
         communicator ! Communicator.NewStatus(Status.Approximating)
+        reportTo ! ProcessingStatus(id, Status.Approximating)
+        if approxFinished then
+          ctx.log.info("SWITCHING TO FULL STATE")
+          communicator ! Communicator.NewStatus(Status.ComputingFullDistances)
+          reportTo ! ProcessingStatus(id, Status.ComputingFullDistances)
         stash.unstashAll(running())
 
       case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>
@@ -188,6 +194,10 @@ private class Coordinator private[coordinator] (
         ctx.log.debug("Worker {} asked for work but there is none", m.worker)
         stash.stash(m)
         Behaviors.same
+
+      case ApproxFinished =>
+        ctx.log.warn("Approximation finished before all TS where loaded, deferring state switch")
+        loading(nTimeseries, tsIds, approxFinished = true)
 
       case StrategyProtocol.ReportStatus =>
         ctx.log.info("[REPORT] Loading, {}/{} time series loaded, {}", tsIds.size, nTimeseries, getBatchStats)
@@ -203,7 +213,7 @@ private class Coordinator private[coordinator] (
         Behaviors.stopped
     }
 
-  private def running(): Behavior[MessageType] = Behaviors.receiveMessagePartial {
+  private def running(fullOOW: Boolean = false): Behavior[MessageType] = Behaviors.receiveMessagePartial {
     case StrategyProtocol.DispatchWork(worker, time, size) if workGenerator.hasNext =>
       val batchSize = nextBatchSize(time, size)
       val work = workGenerator.nextBatch(batchSize)
@@ -224,18 +234,26 @@ private class Coordinator private[coordinator] (
       Behaviors.same
 
     case ApproxFinished =>
-      ctx.log.info("approximation finished, SWITCHING TO FULL STATE")
+      ctx.log.info("Approximation finished, SWITCHING TO FULL STATE")
       communicator ! Communicator.NewStatus(Status.ComputingFullDistances)
+      reportTo ! ProcessingStatus(id, Status.ComputingFullDistances)
       Behaviors.same
 
     case StrategyProtocol.FullStrategyOutOfWork =>
-      ctx.log.debug("No more work to do, waiting for pending results (FINALIZING STATE)!")
+      ctx.log.info("No more work to do, waiting for pending results, SWITCHING TO FINALIZING STATE!")
       communicator ! Communicator.NewStatus(Status.Finalizing)
       communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
-      Behaviors.same
+      reportTo ! ProcessingStatus(id, Status.Finalizing)
+      running(fullOOW = true)
 
     case FullFinished =>
-      ctx.log.info("Full strategy finished, SWITCHING TO WAITING_FOR_CLUSTERING STATE!")
+      if !fullOOW then
+        ctx.log.warn("Received all full results before the message that full strategy is out of work, " +
+          "SWITCHING TO FINALIZING STATE!")
+        communicator ! Communicator.NewStatus(Status.Finalizing)
+        communicator ! Communicator.ProgressUpdate(Status.Finalizing, 50)
+        reportTo ! ProcessingStatus(id, Status.Finalizing)
+      ctx.log.debug("Full strategy finished.")
       ctx.unwatch(clusterer)
       waitingForClustering(Cancellable.alreadyCancelled)
 

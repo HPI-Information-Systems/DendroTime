@@ -26,7 +26,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
   private val settings = Settings(ctx.context.system)
   private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
   import settings.Distances.given
-  private val distanceMetric = params.metric
+  private val distanceMetric = params.distance
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial{
     case UseSupplier(supplier) =>
@@ -103,7 +103,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
   @inline
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
-    val snippetSize = params.approxLength
+    val snippetSize = settings.Distances.approxLength
     val scale = Math.max(ts1.data.length, ts2.data.length) / snippetSize
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2

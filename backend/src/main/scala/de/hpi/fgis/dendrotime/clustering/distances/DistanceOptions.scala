@@ -8,10 +8,13 @@ object DistanceOptions {
   case class SBDOptions(standardize: Boolean)
 
   case class MinkowskyOptions(p: Int)
-  
+
   given MSMOptions(using opt: DistanceOptions): DistanceOptions.MSMOptions = opt.msm
+
   given DTWOptions(using opt: DistanceOptions): DistanceOptions.DTWOptions = opt.dtw
+
   given SBDOptions(using opt: DistanceOptions): DistanceOptions.SBDOptions = opt.sbd
+
   given MinkowskyOptions(using opt: DistanceOptions): DistanceOptions.MinkowskyOptions = opt.minkowsky
 }
 

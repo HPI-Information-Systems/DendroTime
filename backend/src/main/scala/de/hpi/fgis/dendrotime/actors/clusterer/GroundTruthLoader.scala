@@ -93,7 +93,7 @@ class GroundTruthLoader(ctx: ActorContext[GroundTruthLoader.Command],
   private def loadGtHierarchy(): Option[Hierarchy] = {
     // load the ground truth hierarchy if available
     val gtPath = settings.groundTruthPath
-    val path = gtPath.resolve(s"${dataset.name}/hierarchy-${params.metricName}-${params.linkageName}.csv").toFile
+    val path = gtPath.resolve(s"${dataset.name}/hierarchy-${params.distanceName}-${params.linkageName}.csv").toFile
     try
       Some(HierarchyCSVReader.parse(path))
     catch case e =>

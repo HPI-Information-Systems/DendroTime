@@ -7,6 +7,7 @@ import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, ProgressMessage, Status}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -21,10 +22,10 @@ object Communicator {
   final case class GetProgress(replyTo: ActorRef[ProgressMessage]) extends Command
   private case object ReportStatus extends Command
 
-  def apply(dataset: Dataset): Behavior[Command] = Behaviors.setup { ctx =>
+  def apply(dataset: Dataset, params: DendroTimeParams): Behavior[Command] = Behaviors.setup { ctx =>
     Behaviors.withTimers { timers =>
       timers.startTimerAtFixedRate(ReportStatus, Settings(ctx.system).reportingInterval)
-      new Communicator(ctx, dataset).running(Status.Initializing, ClusteringState())
+      new Communicator(ctx, dataset, params).running(Status.Initializing, ClusteringState())
     }
   }
 
@@ -32,7 +33,9 @@ object Communicator {
     def toInt: Int = if b then 1 else 0
 }
 
-private class Communicator private(ctx: ActorContext[Communicator.Command], dataset: Dataset) {
+private class Communicator private(ctx: ActorContext[Communicator.Command],
+                                   dataset: Dataset,
+                                   params: DendroTimeParams) {
 
   import Communicator.*
 
@@ -85,8 +88,7 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
     }
 
   private def saveFinalState(status: Status, progress: Int, clusteringState: ClusteringState): Unit = {
-    val datasetPath = settings.resultsPath.resolve(dataset.name)
-    val destination = datasetPath.resolve(s"${status.toString}-$progress")
+    val destination = settings.resolveResultsFolder(dataset, params).resolve(s"$status-$progress")
     destination.toFile.mkdirs()
 
     // write hierarchy
@@ -94,7 +96,7 @@ private class Communicator private(ctx: ActorContext[Communicator.Command], data
     HierarchyCSVWriter.write(hierarchyFile, clusteringState.hierarchy)
 
     // write qualities
-    val qualityFile = destination.resolve("quality.csv").toFile
+    val qualityFile = destination.resolve("qualities.csv").toFile
     val dims = 3 + clusteringState.qualityTrace.hasClusterQualities.toInt + clusteringState.qualityTrace.hasGtSimilarities.toInt
     val header = Array.ofDim[String](dims)
     val matrix = Array.ofDim[Array[Double]](dims)

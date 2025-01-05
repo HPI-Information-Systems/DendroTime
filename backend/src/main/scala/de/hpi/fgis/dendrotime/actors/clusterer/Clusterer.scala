@@ -185,9 +185,9 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
 
   private def saveDistanceMatrix(tpe: String): Unit = {
     if settings.storeResults then
-      val datasetPath = settings.resultsPath.resolve(s"${dataset.name}")
+      val datasetPath = settings.resolveResultsFolder(dataset, params)
       datasetPath.toFile.mkdirs()
-      val file = datasetPath.resolve(s"$tpe-distances-${params.metricName}.csv").toFile
+      val file = datasetPath.resolve(s"$tpe-distances.csv").toFile
       ctx.log.info("Saving {} distance matrix to file to {}", tpe, file)
       val matrix = Array.ofDim[Double](distances.n, distances.n)
       var i = 0

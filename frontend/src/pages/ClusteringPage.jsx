@@ -26,7 +26,7 @@ function ClusteringPage() {
   const [dataset, setDataset] = useState(undefined);
   const [metric, setMetric] = useState("msm");
   const [linkage, setLinkage] = useState("ward");
-  const [strategy, setStrategy] = useState("fcfs");
+  const [strategy, setStrategy] = useState("approx-distance-ascending");
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
@@ -41,9 +41,8 @@ function ClusteringPage() {
       body: JSON.stringify({
         "dataset": dataset,
         "params": {
-          "metricName": metric,
+          "distanceName": metric,
           "linkageName": linkage,
-          "approxLength": 20,
           "strategy": strategy
         },
       })

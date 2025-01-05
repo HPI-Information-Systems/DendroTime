@@ -47,7 +47,7 @@ private class DatasetLoader private (
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial {
     case LoadDataset(d, replyTo) =>
       val lastId = idGen
-      ctx.log.info("Loading dataset d-{} from {}", d.id, d.testPath)
+      ctx.log.info("Loading dataset d-{} from {} and {}", d.id, d.testPath, d.trainPath)
       loadDataset(d, replyTo) match {
         case _: Success[Unit] =>
           val count = idGen - lastId

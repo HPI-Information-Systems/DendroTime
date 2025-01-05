@@ -7,15 +7,14 @@ import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsVa
 
 object ParametersModel {
 
-  case class DendroTimeParams(metricName: String,
+  case class DendroTimeParams(distanceName: String,
                               linkageName: String,
-                              strategy: String = "fcfs",
-                              approxLength: Int = 10) {
-    def metric(using DistanceOptions): Distance = Distance(metricName)
+                              strategy: String = "approx-distance-ascending") {
+    def distance(using DistanceOptions): Distance = Distance(distanceName)
     def linkage: Linkage = Linkage(linkageName)
   }
 
-  val DefaultParams: DendroTimeParams = DendroTimeParams("msm", "average")
+  val DefaultParams: DendroTimeParams = DendroTimeParams("msm", "ward")
 
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     given RootJsonFormat[Linkage] = new RootJsonFormat[Linkage] {
@@ -26,6 +25,6 @@ object ParametersModel {
       override def write(obj: Linkage): JsValue = JsString(Linkage.unapply(obj))
     }
 
-    given RootJsonFormat[DendroTimeParams] = jsonFormat4(DendroTimeParams.apply)
+    given RootJsonFormat[DendroTimeParams] = jsonFormat3(DendroTimeParams.apply)
   }
 }

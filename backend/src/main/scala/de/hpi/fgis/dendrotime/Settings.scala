@@ -2,14 +2,18 @@ package de.hpi.fgis.dendrotime
 
 import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import akka.util.Timeout
-import com.typesafe.config.{Config, ConfigException}
+import com.typesafe.config.{Config, ConfigException, ConfigRenderOptions}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, MinkowskyOptions, SBDOptions}
+import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
+import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig
 
+import java.io.File
 import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Using
 
 object Settings extends ExtensionId[Settings] {
 
@@ -29,6 +33,10 @@ class Settings private(config: Config) extends Extension {
   val groundTruthPath: Path = Path.of(config.getString(s"$namespace.ground-truth-path"))
 
   val storeResults: Boolean = config.getBoolean(s"$namespace.store-results")
+  def resolveResultsFolder(dataset: Dataset, params: DendroTimeParams): Path =
+    resultsPath.resolve(
+      s"${dataset.name}-${params.distanceName}-${params.linkageName}-${params.strategy.replace("-", "_")}"
+    )
 
   val askTimeout: Timeout = {
     val duration = config.getDuration(s"$namespace.ask-timeout")
@@ -128,6 +136,8 @@ class Settings private(config: Config) extends Extension {
       given minkowskyOpts: MinkowskyOptions = MinkowskyOptions(config.getInt(s"$internalNamespace.p"))
     }
 
+    val approxLength: Int = config.getInt(s"$namespace.distances.approx-length")
+
     given options: DistanceOptions = DistanceOptions(
       Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts, Distances.Minkowsky.minkowskyOpts
     )
@@ -144,6 +154,15 @@ class Settings private(config: Config) extends Extension {
       )
     }
     BloomFilterOptions(bfHashSize, falsePositiveRate)
+  }
+
+  def writeJson(file: File): Unit = {
+    val renderOptions = ConfigRenderOptions
+      .concise()
+//      .setFormatted(true)
+    Using.resource(new java.io.PrintWriter(file)) { writer =>
+      writer.println(config.root().render(renderOptions))
+    }
   }
 
   override def toString: String =
@@ -171,6 +190,7 @@ class Settings private(config: Config) extends Extension {
        |    SBD=${Distances.SBD.sbdOpts},
        |    DTW=${Distances.DTW.dtwOpts},
        |    Minkowsky=${Distances.Minkowsky.minkowskyOpts},
+       |    approxLength=${Distances.approxLength},
        |  )
        |  bloomFilterOptions=$bloomFilterOptions,
        |)""".stripMargin
