@@ -4,12 +4,12 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.0+169-6b1888f1+20241218-1415
+//> using dep de.hpi.fgis:dendrotime_3:0.0.1+0-84ded2ee+20250105-1408
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
-import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, SBD}
+import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, Minkowsky, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
-import de.hpi.fgis.dendrotime.clustering.metrics.AdjustedRandScore
+import de.hpi.fgis.dendrotime.clustering.metrics.SupervisedClustering
 import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
@@ -122,6 +122,13 @@ def computeApproxDistancesTwoMean(
   approxDists -> Some(approxDiffTsError)
 }
 
+def timed[T](f: => T): (T, Long) = {
+  val t0 = System.nanoTime()
+  val result = f
+  val t1 = System.nanoTime()
+  (result, Math.floorDiv(t1 - t0, 1_000_000))
+}
+
 // parse options
 @tailrec
 def parseOptions(args: List[String], required: List[String], optional: List[String], parsed: Map[String, String] = Map.empty): Map[String, String] = args match {
@@ -145,33 +152,45 @@ val folder: String = new File(scriptPath).getCanonicalFile.getParentFile.getPare
 val options: Map[String, String] = parseOptions(
   args = args.toList,
   required = List("dataset"),
-  optional = List("--resultFolder", "--dataFolder", "--qualityMeasure", "--metric", "--linkage", "--includeApproxDiff"),
+  optional = List(
+    "--resultFolder", "--dataFolder", "--distance", "--linkage", "--qualityMeasure", "--includeApproxDiff"
+  ),
   parsed = Map(
     "resultFolder" -> s"$folder/experiments/ordering-strategy-analysis/",
     "dataFolder" -> s"$folder/data/datasets/",
-    "metric" -> "msm",
+    "distance" -> "msm",
     "linkage" -> "ward",
-    "qualityMeasure" -> "averageari",
+    "qualityMeasure" -> "approxAverageAri",
     "includeApproxDiff" -> "false"
   )
 )
-val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> --qualityMeasure <hierarchy|ari|weighted|target_ari|averageari> " +
-  "--metric <sbd|msm|dtw> --linkage <ward|single|complete|average|weighted> --includeApproxDiff <true|false>"
+val validMeasures = Seq(
+  "ari", "ariAt", "averageAri", "approxAverageAri", "labelChangesAt", "hierarchySimilarity",
+  "weightedHierarchySimilarity"
+)
+val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder <dataFolder> " +
+  "--distance <sbd|msm|dtw|manhatten|euclidean|minkowsky> " +
+  "--linkage <ward|single|complete|average|weighted> " +
+  s"--qualityMeasure <${validMeasures.mkString("|")}> " +
+  "--includeApproxDiff <true|false>"
 
 ///////////////////////////////////////////////////////////
-val distanceName = options("metric").toLowerCase.strip
+val distanceName = options("distance").toLowerCase.strip
 val linkageName = options("linkage").toLowerCase.strip
 val distance = distanceName match {
-  case "msm" => MSM(c = 0.5, window = Double.NaN, itakuraMaxSlope = Double.NaN)
-  case "dtw" => DTW(window = 0.1, itakuraMaxSlope = Double.NaN)
+  case "msm" => MSM(c = 0.5, window = 0.01, itakuraMaxSlope = Double.NaN)
+  case "dtw" => DTW(window = 0.01, itakuraMaxSlope = Double.NaN)
   case "sbd" => SBD(standardize = false)
-  case s => throw new IllegalArgumentException(s"Unknown distance metric: $s")
+  case "manhatten" => Minkowsky(p = 1)
+  case "euclidean" | "minkowsky" => Minkowsky(p = 2)
+  case s => throw new IllegalArgumentException(s"Unknown distance distance: $s")
 }
 val linkage = Linkage(linkageName)
 val dataset = options("dataset")
-val qualityMeasure = options("qualityMeasure").toLowerCase.strip
-//val inputDataFolder = "Documents/projects/DendroTime/data/datasets/"
-//val resultFolder = "Documents/projects/DendroTime/experiments/ordering-strategy-analysis/"
+val qualityMeasure = options("qualityMeasure").strip
+if !validMeasures.contains(qualityMeasure) then
+  throw new IllegalArgumentException(s"Unknown quality measure: $qualityMeasure")
+
 val inputDataFolder = {
   val f = options("dataFolder")
   if !f.endsWith("/") then f + "/" else f
@@ -200,28 +219,30 @@ println(s"  inputDataFolder = $inputDataFolder")
 println(s"  resultFolder = $resultFolder")
 println(s"  distance = $distance")
 println(s"  linkage = $linkage")
+println(s"  qualityMeasure = $qualityMeasure")
 println(s"  includeApproxDiff = $includeApproxDiff")
 println(s"  seed = $seed")
 println(s"  orderingSamples = $orderingSamples")
 println(s"  maxHierarchySimilarities = $maxHierarchySimilarities")
-println(s"  qualityMeasure = $qualityMeasure")
 println()
 
 // load time series
 println("Loading time series ...")
+val t0 = System.currentTimeMillis()
 val trainTimeseries = datasetTrainFile.fold(Array.empty[LabeledTimeSeries])(f => TsParser.loadAllLabeledTimeSeries(f))
 val timeseries = trainTimeseries ++ TsParser.loadAllLabeledTimeSeries(datasetTestFile, idOffset = trainTimeseries.length)
 val n = timeseries.length
 val m = n * (n - 1) / 2
 val hierarchyCalcFactor = Math.floorDiv(m, Math.min(maxHierarchySimilarities, m))
+println(s"... done in ${System.currentTimeMillis() - t0} ms")
 
 println("Computing pairwise distances ...")
-val t0 = System.nanoTime()
+val t1 = System.currentTimeMillis()
 val (approxDists, approxDiffTsErrorOpt) =
   if includeApproxDiff then computeApproxDistancesTwoMean(distance, timeseries, n)
   else computeApproxDistances(distance, timeseries, n)
 val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
-println(s"... done in ${(System.nanoTime() - t0) / 1_000_000} ms")
+println(s"... done in ${System.currentTimeMillis() - t1} ms")
 
 println(f"Mean distance approx: ${approxDists.mean}%.4f, std=${approxDists.std}%.4f")
 println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
@@ -229,30 +250,31 @@ println(f"Mean distance full: ${dists.mean}%.4f, std=${dists.std}%.4f")
 // prepare ground truth
 val approxHierarchy = computeHierarchy(approxDists, linkage)
 val targetHierarchy = computeHierarchy(dists, linkage)
-val classes =
-  if qualityMeasure == "target_ari" then CutTree(targetHierarchy, 20)
+val targetLabels = CutTree(targetHierarchy, targetHierarchy.indices.toArray)
+val targetClasses =
+  if qualityMeasure == "ariAt" then CutTree(targetHierarchy, 20)
   else timeseries.map(_.label.toInt)
-val nClasses = classes.distinct.length
+
+def calcQuality(h: Hierarchy): Double = qualityMeasure match {
+  case "ari" => h.ari(targetClasses)
+  case "ariAt" => h.ari(targetClasses)
+  case "averageAri" => h.averageARI(targetLabels)
+  case "approxAverageAri" => h.approxAverageARI(targetLabels)
+  case "labelChangesAt" => h.labelChangesAt(targetHierarchy)
+  case "hierarchySimilarity" => h.similarity(targetHierarchy)
+  case "weightedHierarchySimilarity" => h.weightedSimilarity(targetHierarchy)
+}
 
 println("Using prelabels from approx distance hierarchy")
 val nPreClasses = Math.sqrt(n).toInt * 3
 val preLabels = CutTree(approxHierarchy, nPreClasses)
-
-//val sim = targetHierarchy.weightedSimilarity(targetHierarchy)
-//println(s"Target 2 Target weighted similarity = $sim")
-//System.exit(0)
 
 def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
   val order = Array.ofDim[(Int, Int)](m)
   val similarities = mutable.ArrayBuilder.make[Double]
   similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities += (
-    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
-    else approxHierarchy.ari(classes, nClasses)
-  )
+  similarities += calcQuality(approxHierarchy)
 
   var k = 0
   while strategy.hasNext do
@@ -261,12 +283,7 @@ def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], A
     val hierarchy = computeHierarchy(wDists, linkage)
     order(k) = (i, j)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += (
-        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
-        else hierarchy.ari(classes, nClasses)
-      )
+      similarities += calcQuality(hierarchy)
     k += 1
 
   order -> similarities.result()
@@ -277,12 +294,7 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
   val similarities = mutable.ArrayBuilder.make[Double]
   similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities += (
-    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
-    else approxHierarchy.ari(classes, nClasses)
-  )
+  similarities += calcQuality(approxHierarchy)
 
   var k = 0
   while strategy.hasNext do
@@ -294,12 +306,7 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
     order(k) = (i, j)
     val hierarchy = computeHierarchy(wDists, linkage)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += (
-        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
-        else hierarchy.ari(classes, nClasses)
-      )
+      similarities += calcQuality(hierarchy)
     k += 1
 
   order -> similarities.result()
@@ -310,12 +317,7 @@ def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerat
   val similarities = mutable.ArrayBuilder.make[Double]
   similarities.sizeHint(maxHierarchySimilarities + 2)
   val wDists = approxDists.mutableCopy
-  similarities += (
-    if qualityMeasure == "hierarchy" then approxHierarchy.similarity(targetHierarchy)
-    else if qualityMeasure == "weighted" then approxHierarchy.weightedSimilarity(targetHierarchy)
-    else if qualityMeasure == "averageari" then approxHierarchy.approxAverageARI(targetHierarchy)
-    else approxHierarchy.ari(classes, nClasses)
-  )
+  similarities += calcQuality(approxHierarchy)
   val strategy = strategyFactory(wDists)
 
   var k = 0
@@ -335,22 +337,10 @@ def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerat
     order(k) = (i, j)
     val hierarchy = computeHierarchy(wDists, linkage)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += (
-        if qualityMeasure == "hierarchy" then hierarchy.similarity(targetHierarchy)
-        else if qualityMeasure == "weighted" then hierarchy.weightedSimilarity(targetHierarchy)
-        else if qualityMeasure == "averageari" then hierarchy.approxAverageARI(targetHierarchy)
-        else hierarchy.ari(classes, nClasses)
-      )
+      similarities += calcQuality(hierarchy)
     k += 1
 
   order -> similarities.result()
-}
-
-def timed[T](f: => T): (T, Long) = {
-  val t0 = System.nanoTime()
-  val result = f
-  val t1 = System.nanoTime()
-  (result, Math.floorDiv(t1 - t0, 1_000_000))
 }
 
 // compute all orderings

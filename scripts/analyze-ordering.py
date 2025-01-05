@@ -64,8 +64,8 @@ def main(sys_args):
 #     result_dir = Path.cwd() / "experiments" / "ordering-strategy-analysis"
     result_dir = results_file.parent
     quality_measure = result_dir.stem.split("-")[-1].split(".")[0]
-    if quality_measure not in ["ari", "target_ari", "averageari", "hierarchy", "weighted"]:
-        raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
+#     if quality_measure not in ["ari", "target_ari", "averageari", "hierarchy", "weighted"]:
+#         raise ValueError(f"Unknown quality measure '{quality_measure}' in result directory name '{result_dir.stem}'")
     plot_results(result_dir, filename, quality_measure, save_best, ignore_debug)
 
 
@@ -215,11 +215,10 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         plt.plot(df2.index, df2["hierarchy-quality"], color=colors[name], label=name)
 
     plt.xlabel(f"Available distances (of {n*(n-1)/2})")
+    plt.ylabel(quality_measure)
     if "ari" in quality_measure:
-        plt.ylabel("Adjusted Rand Index")
         plt.ylim(-0.55, 1.05)
     else:
-        plt.ylabel("Hierarchy Quality")
         plt.ylim(-0.05, 1.05)
 
     plt.legend(ncol=2)
