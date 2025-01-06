@@ -18,6 +18,12 @@ object ApproxFullErrorWorkGenerator {
   }
 }
 
+/**
+ * While computing the full distances, tracks the absolute error between the new full distance and the existing
+ * approximate distance. The absolute error is tracked for all time series individually. A single computation, thus,
+ * updates the error of two time series. The time series are, then, sorted by their mean error so far and the next
+ * TS pair with the largest error is the next job.
+ * */
 class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idMap: Array[T])
   extends WorkGenerator[T] with TsErrorMixin(tsIds.length, tsIds.length * (tsIds.length - 1) / 2) {
   // memory consumption:
@@ -62,7 +68,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
 
   override def next(): (T, T) = {
     if !hasNext then
-      throw new NoSuchElementException(s"GrowableFCFSWorkGenerator has no (more) work {processed=$count/$m, ids=$n}")
+      throw new NoSuchElementException(s"ApproxFullErrorWorkGenerator has no (more) work {processed=$count/$m, ids=$n}")
 
     if sortNecessary then
       tsIds.sortInPlaceBy(id => -errors(id))
@@ -97,42 +103,42 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
   override def knownSize: Int = m
 }
 
-@main
-def main(): Unit = {
-  val approxDists = PDist(Array(
-    Array(0.0, 6.925, 8.9055, 6.116999999999999, 7.559),
-    Array(6.925, 0.0, 1.9804999999999997, 0.9229999999999999, 0.7100000000000001),
-    Array(8.9055, 1.9804999999999997, 0.0, 2.7885, 1.3464999999999998),
-    Array(6.116999999999999, 0.9229999999999999, 2.7885, 0.0, 1.5179999999999998),
-    Array(7.559, 0.7100000000000001, 1.3464999999999998, 1.5179999999999998, 0.0)
-  ), 5)
-  val dists = PDist(Array(
-    Array(0.0, 68.33999999999999, 80.89099999999996, 82.70599999999992, 98.92599999999997),
-    Array(68.33999999999999, 0.0, 26.53900000000001, 52.376000000000005, 46.347999999999985),
-    Array(80.89099999999996, 26.53900000000001, 0.0, 54.303, 46.727),
-    Array(82.70599999999992, 52.376000000000005, 54.303, 0.0, 43.83600000000002),
-    Array(98.92599999999997, 46.347999999999985, 46.727, 43.83600000000002, 0.0)
-  ), 5)
-
-  def executeDynamicStrategy(mapping: Map[Int, Int]): Array[(Int, Int)] = {
-    val order = mutable.ArrayBuilder.make[(Int, Int)]
-    val strategy = ApproxFullErrorWorkGenerator(mapping)
-
-    while strategy.hasNext do
-      val nextPair = strategy.next()
-
-      //    println(s"Processing pair $nextPair")
-      val (i, j) = nextPair
-      val dist = dists(i, j)
-      val error = approxDists(i, j) - dist
-      strategy.updateError(i, j, error)
-      order += nextPair
-
-    order.result()
-  }
-
-  // compute all orderings
-  val mapping = Map(0 -> 0, 1 -> 1, 2 -> 2, 3 -> 3, 4 -> 4)
-  val dynamicError = executeDynamicStrategy(mapping)
-  print(dynamicError.mkString(", "))
-}
+//@main
+//def main(): Unit = {
+//  val approxDists = PDist(Array(
+//    Array(0.0, 6.925, 8.9055, 6.116999999999999, 7.559),
+//    Array(6.925, 0.0, 1.9804999999999997, 0.9229999999999999, 0.7100000000000001),
+//    Array(8.9055, 1.9804999999999997, 0.0, 2.7885, 1.3464999999999998),
+//    Array(6.116999999999999, 0.9229999999999999, 2.7885, 0.0, 1.5179999999999998),
+//    Array(7.559, 0.7100000000000001, 1.3464999999999998, 1.5179999999999998, 0.0)
+//  ), 5)
+//  val dists = PDist(Array(
+//    Array(0.0, 68.33999999999999, 80.89099999999996, 82.70599999999992, 98.92599999999997),
+//    Array(68.33999999999999, 0.0, 26.53900000000001, 52.376000000000005, 46.347999999999985),
+//    Array(80.89099999999996, 26.53900000000001, 0.0, 54.303, 46.727),
+//    Array(82.70599999999992, 52.376000000000005, 54.303, 0.0, 43.83600000000002),
+//    Array(98.92599999999997, 46.347999999999985, 46.727, 43.83600000000002, 0.0)
+//  ), 5)
+//
+//  def executeDynamicStrategy(mapping: Map[Int, Int]): Array[(Int, Int)] = {
+//    val order = mutable.ArrayBuilder.make[(Int, Int)]
+//    val strategy = ApproxFullErrorWorkGenerator(mapping)
+//
+//    while strategy.hasNext do
+//      val nextPair = strategy.next()
+//
+//      //    println(s"Processing pair $nextPair")
+//      val (i, j) = nextPair
+//      val dist = dists(i, j)
+//      val error = approxDists(i, j) - dist
+//      strategy.updateError(i, j, error)
+//      order += nextPair
+//
+//    order.result()
+//  }
+//
+//  // compute all orderings
+//  val mapping = Map(0 -> 0, 1 -> 1, 2 -> 2, 3 -> 3, 4 -> 4)
+//  val dynamicError = executeDynamicStrategy(mapping)
+//  print(dynamicError.mkString(", "))
+//}
