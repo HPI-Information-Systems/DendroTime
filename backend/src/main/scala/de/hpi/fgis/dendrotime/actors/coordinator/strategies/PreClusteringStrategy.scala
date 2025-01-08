@@ -14,6 +14,7 @@ import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, computeHierarchy}
 import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
 import de.hpi.fgis.dendrotime.structures.strategies.{GrowableFCFSWorkGenerator, OrderedPreClusteringWorkGenerator, WorkGenerator}
 
+import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -42,6 +43,7 @@ object PreClusteringStrategy extends StrategyFactory {
     private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
     private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
     private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
+    private val processedWork = mutable.Set.empty[(Long, Long)]
 
     // Executor for internal futures (CPU-heavy work)
     private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
@@ -49,10 +51,10 @@ object PreClusteringStrategy extends StrategyFactory {
     def start(): Behavior[StrategyCommand] = {
       params.tsManager ! GetTSIndexMapping(params.dataset.id, tsIndexMappingAdapter)
       params.clusterer ! RegisterApproxDistMatrixReceiver(approxDistancesAdapter)
-      collecting(Set.empty, None, None)
+      collecting(None, None)
     }
 
-    private def collecting(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+    private def collecting(mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
       case AddTimeSeries(timeseriesIds) =>
         fallbackWorkGenerator.addAll(timeseriesIds.sorted)
         if fallbackWorkGenerator.hasNext then
@@ -78,7 +80,8 @@ object PreClusteringStrategy extends StrategyFactory {
           val work = fallbackWorkGenerator.nextBatch(batchSize)
           ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work.length, processedWork.size, stash.size)
           worker ! WorkerProtocol.CheckFull(work)
-          collecting(processedWork ++ work, mapping, dists)
+          processedWork ++= work
+          collecting(mapping, dists)
         else
           ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
           if stash.isEmpty then
@@ -91,7 +94,11 @@ object PreClusteringStrategy extends StrategyFactory {
         Behaviors.same
     }
 
-    private def potentiallyComputePreClusters(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
+    private def potentiallyComputePreClusters(
+                                               processedWork: scala.collection.Set[(Long, Long)],
+                                               mapping: Option[Map[Long, Int]],
+                                               dists: Option[PDist]
+                                             ): Behavior[StrategyCommand] = {
       if mapping.isDefined && dists.isDefined then
         ctx.log.info("Received both approximate distances and mapping, computing pre clusters ({} already processed)", processedWork.size)
         val f = Future { computePreClusters(dists.get) }
@@ -99,7 +106,7 @@ object PreClusteringStrategy extends StrategyFactory {
           case Success(preClusters) => PreClustersGenerated(preClusters)
           case Failure(e) => throw e
         }
-      collecting(processedWork, mapping, dists)
+      collecting(mapping, dists)
     }
 
     private def computePreClusters(dists: PDist): Array[Array[Int]] = {
@@ -112,7 +119,11 @@ object PreClusteringStrategy extends StrategyFactory {
       clusters
     }
 
-    private def startPreClusterer(processedWork: Set[(Long, Long)], mapping: Map[Long, Int], preClusters: Array[Array[Int]]): Behavior[StrategyCommand] = {
+    private def startPreClusterer(
+                                   processedWork: scala.collection.Set[(Long, Long)],
+                                   mapping: Map[Long, Int],
+                                   preClusters: Array[Array[Int]]
+                                 ): Behavior[StrategyCommand] = {
       val n = mapping.size
       val processed = CompactPairwiseBitset.ofDim(n)
       val it = processedWork.iterator

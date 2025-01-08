@@ -56,6 +56,7 @@ class GrowableFCFSWorkGenerator[T: Numeric : ClassTag] extends WorkGenerator[T] 
   }
 
   override def addAll(tsIds: IterableOnce[T]): this.type = {
+    ids.sizeHint(ids.size + tsIds.knownSize)
     ids ++= tsIds
     this
   }
