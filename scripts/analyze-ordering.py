@@ -13,8 +13,8 @@ from pathlib import Path
 colors = defaultdict(lambda: "blue")
 colors["fcfs"] = "dimgray"
 colors["shortestTs"] = "gray"
-colors["approxAscending"] = "chocolate"
-colors["approxDescending"] = "saddlebrown"
+colors["approxAscending"] = "purple"
+colors["approxDescending"] = "chocolate"
 colors["highestVar"] = "darkgray"
 colors["gtLargestPairError"] = "brown"
 colors["gtLargestTsError"] = "darkgray"
@@ -161,7 +161,7 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         print(tuples[:20])
 
     plt.figure()
-    plt.title("Distribution of ordering quality")
+    plt.title(f"{dataset}: Distribution of ordering quality")
     aucs.plot(kind="hist", density=1, bins=30, stacked=False, alpha=0.5, label="AUC histogram")
     x = np.linspace(-0.5, 1.0, 1500)
     plt.plot(x, dist.pdf(x), "k-", lw=2,
@@ -182,7 +182,7 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
     plt.savefig(figures_dir / f"hist-{n}-{dataset}-{seed}.pdf", bbox_inches='tight')
 
     plt.figure()
-    plt.title("Solutions")
+    plt.title(f"{dataset}: Solutions")
 
     # add debug information if present
     if preClusterDebugPath.exists() and not ignore_debug:

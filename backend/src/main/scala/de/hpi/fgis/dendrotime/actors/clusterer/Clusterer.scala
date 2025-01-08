@@ -95,13 +95,13 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         ctx.log.debug("Received {} new estimated distances", m.size)
         m.foreach { (t1, t2, dist) =>
           // required to prevent overwriting full distances that were computed by the fallback strategy:
-          if fullMask(t1, t2) then
-            ctx.log.warn(
-              "Distance between {} and {} was already set to {}; not overwriting with received estimated distance {}!",
-              t1, t2, distances(t1, t2), dist
-            )
-          else
+          if !fullMask(t1, t2) then
             distances(t1, t2) = dist
+//          else
+//            ctx.log.warn(
+//              "Distance between {} and {} was already set to {}; not overwriting with received estimated distance {}!",
+//              t1, t2, distances(t1, t2), dist
+//            )
         }
         Behaviors.same
 
@@ -110,13 +110,13 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         approxCount += m.size
         m.foreach { (t1, t2, dist) =>
           // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
-          if fullMask(t1, t2) then
-            ctx.log.warn(
-              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance {}!",
-              t1, t2, distances(t1, t2), dist
-            )
-          else
+          if !fullMask(t1, t2) then
             distances(t1, t2) = dist
+//          else
+//            ctx.log.warn(
+//              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance {}!",
+//              t1, t2, distances(t1, t2), dist
+//            )
         }
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
         if approxCount == distances.size then

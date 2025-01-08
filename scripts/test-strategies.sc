@@ -427,6 +427,6 @@ println()
 
 println(s"Computed qualities for all orderings, storing to CSVs ...")
 val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
-writeStrategiesToCsv(results, resultFolder + s"strategies-$n-$dataset.csv")
-CSVWriter.write(resultFolder + s"traces-$n-$dataset.csv", qualities ++ randomQualities)
+writeStrategiesToCsv(results, resultFolder + s"strategies-$distanceName-$linkageName-$n-$dataset.csv")
+CSVWriter.write(resultFolder + s"traces-$distanceName-$linkageName-$n-$dataset.csv", qualities ++ randomQualities)
 println("Done!")

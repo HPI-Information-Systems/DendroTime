@@ -74,25 +74,25 @@ class Runner(ctx: ActorContext[Runner.MessageType]) {
       case Coordinator.ProcessingStatus(_, Status.Approximating) =>
         val t = System.currentTimeMillis()
         runtimes(Status.Initializing) = t - lastTime
-        ctx.log.info("Initializing took {} ms", runtimes(Status.Initializing))
+        println(s"Initializing took ${runtimes(Status.Initializing)} ms")
         waitingForFinish(dataset, params, coordinator, t)
 
       case Coordinator.ProcessingStatus(_, Status.ComputingFullDistances) =>
         val t = System.currentTimeMillis()
         runtimes(Status.Approximating) = t - lastTime
-        ctx.log.info(s"Approximating took {} ms", runtimes(Status.Approximating))
+        println(s"Approximating took ${runtimes(Status.Approximating)} ms")
         waitingForFinish(dataset, params, coordinator, t)
 
       case Coordinator.ProcessingStatus(_, Status.Finalizing) =>
         val t = System.currentTimeMillis()
         runtimes(Status.ComputingFullDistances) = t - lastTime
-        ctx.log.info(s"Computing full distances took {} ms", runtimes(Status.ComputingFullDistances))
+        println(s"Computing full distances took ${runtimes(Status.ComputingFullDistances)} ms")
         waitingForFinish(dataset, params, coordinator, t)
 
       case Coordinator.ProcessingStatus(_, Status.Finished) =>
         val t = System.currentTimeMillis()
         runtimes(Status.Finalizing) = t - lastTime
-        ctx.log.info(s"Finalizing took {} ms", runtimes(Status.Finalizing))
+        println(s"Finalizing took ${runtimes(Status.Finalizing)} ms")
 
         val duration = t - startTime
         runtimes(Status.Finished) = duration
@@ -100,6 +100,7 @@ class Runner(ctx: ActorContext[Runner.MessageType]) {
 
         if settings.storeResults then
           val resultFolder = settings.resolveResultsFolder(dataset, params).resolve(s"${Status.Finished}-100")
+          resultFolder.toFile.mkdirs()
           val settingsFile = resultFolder.resolve("config.json").toFile
           settings.writeJson(settingsFile)
           App.storeRuntimes(runtimes, resultFolder)

@@ -57,6 +57,7 @@ class SerialHAC(settings: Settings) {
     if settings.storeResults then
       val datasetPath = settings.resolveResultsFolder(dataset, params)
       val resultFolder = datasetPath.resolve("serial")
+      resultFolder.toFile.mkdirs()
       val hierarchyFile = resultFolder.resolve("hierarchy.csv").toFile
       val settingsFile = resultFolder.resolve("config.json").toFile
       HierarchyCSVWriter.write(hierarchyFile, hierarchy)
