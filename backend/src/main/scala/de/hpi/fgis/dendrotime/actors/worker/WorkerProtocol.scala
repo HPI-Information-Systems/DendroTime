@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.actors.worker
 import akka.actor.typed.ActorRef
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
+import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import scala.collection.AbstractIterator
 
@@ -11,14 +12,12 @@ object WorkerProtocol {
 
   case class UseSupplier(supplier: ActorRef[DispatchWork]) extends Command
 
-  private[worker] case class GetTimeSeriesResponse(msg: TsmProtocol.GetTimeSeriesResponse) extends Command
+  private[worker] case class TimeSeriesLoaded(timeseries: Map[Long, LabeledTimeSeries]) extends Command
 
   sealed trait CheckCommand extends AbstractIterator[(Long, Long)] with Command {
     val isApproximate: Boolean
     def isFull: Boolean = !isApproximate
     def medoidsFor: Option[(Array[Long], Array[Long])] = None
-
-    def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries
   }
 
   private final class Check1(t1: Long, t2: Long,
@@ -33,9 +32,6 @@ object WorkerProtocol {
       done = true
       (t1, t2)
     }
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries =
-      TsmProtocol.GetTimeSeries(t1, t2, replyTo)
   }
 
   private final class Check2(p1t1: Long, p1t2: Long, p2t1: Long, p2t2: Long,
@@ -54,21 +50,6 @@ object WorkerProtocol {
       idx += 1
       res
     }
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries =
-      // deduplicate time series IDs before creating the request
-      if (p1t1 == p2t1 && p1t2 == p2t2) || (p1t1 == p2t2 && p1t2 == p2t1) then
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, replyTo)
-      else if p1t1 == p2t1 then
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, p2t2, replyTo)
-      else if p1t1 == p2t2 then
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, p2t1, replyTo)
-      else if p1t2 == p2t1 then
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, p2t2, replyTo)
-      else if p1t2 == p2t2 then
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, p2t1, replyTo)
-      else
-        TsmProtocol.GetTimeSeries(p1t1, p1t2, p2t1, p2t2, replyTo)
   }
 
   private final class Check3(p1t1: Long, p1t2: Long, p2t1: Long, p2t2: Long, p3t1: Long, p3t2: Long,
@@ -88,19 +69,6 @@ object WorkerProtocol {
       idx += 1
       res
     }
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries =
-      // deduplicate time series IDs before creating the request
-      val distinctIds = Set(p1t1, p1t2, p2t1, p2t2, p3t1, p3t2)
-      val it = distinctIds.iterator
-      if distinctIds.size == 2 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), replyTo)
-      else if distinctIds.size == 3 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), it.next(), replyTo)
-      else if distinctIds.size == 4 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), it.next(), it.next(), replyTo)
-      else
-        TsmProtocol.GetTimeSeries(it.toArray, replyTo)
   }
 
   private final class Check4(p1t1: Long, p1t2: Long, p2t1: Long, p2t2: Long,
@@ -122,19 +90,6 @@ object WorkerProtocol {
       idx += 1
       res
     }
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries =
-      // deduplicate time series IDs before creating the request
-      val distinctIds = Set(p1t1, p1t2, p2t1, p2t2, p3t1, p3t2, p4t1, p4t2)
-      val it = distinctIds.iterator
-      if distinctIds.size == 2 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), replyTo)
-      else if distinctIds.size == 3 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), it.next(), replyTo)
-      else if distinctIds.size == 4 then
-        TsmProtocol.GetTimeSeries(it.next(), it.next(), it.next(), it.next(), replyTo)
-      else
-        TsmProtocol.GetTimeSeries(it.toArray, replyTo)
   }
 
   private final class CheckN(ids: Array[(Long, Long)], override val isApproximate: Boolean) extends CheckCommand {
@@ -145,17 +100,6 @@ object WorkerProtocol {
     override def hasNext: Boolean = it.hasNext
 
     override def next(): (Long, Long) = it.next()
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries =
-      val distinctIds = ids.flatMap { case (t1, t2) => Set(t1, t2) }.distinct
-      if distinctIds.length == 2 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), replyTo)
-      else if distinctIds.length == 3 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), replyTo)
-      else if distinctIds.length == 4 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), distinctIds(3), replyTo)
-      else
-        TsmProtocol.GetTimeSeries(distinctIds, replyTo)
   }
 
   object CheckApproximate {
@@ -223,18 +167,6 @@ object WorkerProtocol {
     override def next(): (Long, Long) = {
       done = true
       (m1, m2)
-    }
-
-    override def tsRequest(replyTo: ActorRef[TsmProtocol.GetTimeSeriesResponse]): TsmProtocol.GetTimeSeries = {
-      val distinctIds = ids1.concat(ids2).distinct
-      if distinctIds.length == 2 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), replyTo)
-      else if distinctIds.length == 3 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), replyTo)
-      else if distinctIds.length == 4 then
-        TsmProtocol.GetTimeSeries(distinctIds(0), distinctIds(1), distinctIds(2), distinctIds(3), replyTo)
-      else
-        TsmProtocol.GetTimeSeries(distinctIds, replyTo)
     }
 
     override def medoidsFor: Option[(Array[Long], Array[Long])] = Some((ids1, ids2))

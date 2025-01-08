@@ -20,11 +20,13 @@ object Clusterer {
 
   private case object ReportStatus extends ClustererProtocol.Command
 
-  def apply(coordinator: ActorRef[Coordinator.Command],
-            tsManager: ActorRef[TsmProtocol.Command],
-            communicator: ActorRef[Communicator.Command],
-            dataset: Dataset,
-            params: DendroTimeParams): Behavior[ClustererProtocol.Command] = Behaviors.setup { ctx =>
+  def apply(
+             dataset: Dataset,
+             params: DendroTimeParams,
+             coordinator: ActorRef[Coordinator.Command],
+             tsManager: ActorRef[TsmProtocol.Command],
+             communicator: ActorRef[Communicator.Command]
+           ): Behavior[ClustererProtocol.Command] = Behaviors.setup { ctx =>
 
     def uninitialized(stash: StashBuffer[ClustererProtocol.Command]): Behavior[ClustererProtocol.Command] =
       Behaviors.receiveMessage {

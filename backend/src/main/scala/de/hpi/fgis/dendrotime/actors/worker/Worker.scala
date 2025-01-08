@@ -6,52 +6,63 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
+import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.GetTimeSeriesResponse
+import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.TimeSeries
+import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 
 object Worker {
-  def apply(tsManager: ActorRef[TsmProtocol.Command],
+  def apply(dataset: Dataset,
+            params: DendroTimeParams,
+            tsManager: ActorRef[TsmProtocol.Command],
             clusterer: ActorRef[ClustererProtocol.Command],
-            params: DendroTimeParams): Behavior[WorkerProtocol.Command] = Behaviors.setup { ctx =>
-    new Worker(WorkerContext(ctx, tsManager, clusterer), params).start()
+           ): Behavior[WorkerProtocol.Command] = Behaviors.setup { ctx =>
+    Behaviors.withStash(10) { stash =>
+      new Worker(WorkerContext(ctx, stash, tsManager, clusterer), dataset.id, params).start()
+    }
   }
 
   def props: Props = DispatcherSelector.fromConfig("dendrotime.worker-dispatcher")
 }
 
-private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
+private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroTimeParams) {
 
   import WorkerProtocol.*
 
-  private val settings = Settings(ctx.context.system)
-  private val getTSAdapter = ctx.context.messageAdapter(GetTimeSeriesResponse.apply)
-  import settings.Distances.given
+  private val getTSAdapter = ctx.context.messageAdapter[GetTimeSeriesResponse](m => TimeSeriesLoaded(m.timeseries))
+  import ctx.settings.Distances.given
   private val distanceMetric = params.distance
 
-  private def start(): Behavior[Command] = Behaviors.receiveMessagePartial{
+  ctx.tsManager ! TsmProtocol.GetTimeSeries(datasetId, getTSAdapter)
+
+  private def start(supplier: Option[ActorRef[DispatchWork]] = None,
+                    tsMap: Option[Map[Long, LabeledTimeSeries]] = None): Behavior[Command] = Behaviors.receiveMessagePartial{
     case UseSupplier(supplier) =>
-      supplier ! DispatchWork(ctx.context.self)
-      idle(supplier)
+      supplier ! DispatchWork(ctx.self)
+      if tsMap.isDefined then
+        ctx.unstashAll(idle(supplier, tsMap.get))
+      else
+        start(Some(supplier), tsMap)
+
+    case TimeSeriesLoaded(ts) =>
+      if supplier.isDefined then
+        ctx.unstashAll(idle(supplier.get, ts))
+      else
+        start(supplier, Some(ts))
+
+    case m =>
+      ctx.stash(m)
+      Behaviors.same
   }
 
-  private def idle(workSupplier: ActorRef[DispatchWork]): Behavior[Command] = Behaviors.receiveMessagePartial {
+  private def idle(workSupplier: ActorRef[DispatchWork],
+                   ts: Map[Long, LabeledTimeSeries],
+                   sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
-      ctx.context.log.debug("Switching supplier to {}", supplier)
-      idle(supplier)
+      ctx.log.debug("Switching supplier to {}", supplier)
+      idle(supplier, ts, sendBatchStatistics = false)
 
-    case m: CheckCommand =>
-      ctx.tsManager ! m.tsRequest(getTSAdapter)
-      waitingForTs(workSupplier, m)
-  }
-
-  private def waitingForTs(workSupplier: ActorRef[DispatchWork],
-                           job: CheckCommand,
-                           sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
-    case UseSupplier(supplier) =>
-      ctx.context.log.debug("Switching supplier to {}", supplier)
-      waitingForTs(supplier, job, sendBatchStatistics = false)
-
-    case GetTimeSeriesResponse(ts: TsmProtocol.TimeSeriesFound) =>
+    case job: CheckCommand =>
       // compute distances
       val start = System.nanoTime()
       val tas = Array.ofDim[Int](job.size)
@@ -69,9 +80,9 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
 
       // send batch statistics to coordinator and request more work
       if sendBatchStatistics then
-        workSupplier ! DispatchWork(ctx.context.self, lastJobDuration = duration, lastBatchSize = job.size)
+        workSupplier ! DispatchWork(ctx.self, lastJobDuration = duration, lastBatchSize = job.size)
       else
-        workSupplier ! DispatchWork(ctx.context.self)
+        workSupplier ! DispatchWork(ctx.self)
 
       // send distances to clusterer
       job match {
@@ -82,7 +93,7 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
           val estimated = for {
             idx1 <- ids1.map(ts(_).idx)
             idx2 <- ids2.map(ts(_).idx)
-            if idx1 != m1 && idx2 != m2 
+            if idx1 != m1 && idx2 != m2
           } yield (idx1, idx2, dists.head)
           val (a, b, c) = estimated.unzip3
           if estimated.nonEmpty then
@@ -92,18 +103,12 @@ private class Worker private(ctx: WorkerContext, params: DendroTimeParams) {
         case _ =>
           ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
       }
-      idle(workSupplier)
-
-    // FIXME: this case does not happen in regular operation (only reason would be a bug in my code)
-    case GetTimeSeriesResponse(TsmProtocol.TimeSeriesNotFound) =>
-      ctx.context.log.error("Time series for job {} not found", job)
-      // report failure to coordinator?
-      Behaviors.stopped
+      idle(workSupplier, ts)
   }
 
   @inline
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
-    val snippetSize = settings.Distances.approxLength
+    val snippetSize = ctx.settings.Distances.approxLength
     val scale = Math.max(ts1.data.length, ts2.data.length) / snippetSize
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2

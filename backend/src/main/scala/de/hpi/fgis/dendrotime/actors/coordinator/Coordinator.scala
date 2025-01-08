@@ -76,13 +76,13 @@ private class Coordinator private[coordinator] (
   private val communicator = ctx.spawn(Communicator(dataset, params), s"communicator-$id")
   ctx.watch(communicator)
   private val clusterer = ctx.spawn(
-    Clusterer(ctx.self, tsManager, communicator, dataset, params),
+    Clusterer(dataset, params, ctx.self, tsManager, communicator),
     s"clusterer-$id",
     Clusterer.props
   )
   ctx.watch(clusterer)
   private val workers = {
-    val router = Routers.pool(settings.numberOfWorkers)(Worker(tsManager, clusterer, params))
+    val router = Routers.pool(settings.numberOfWorkers)(Worker(dataset, params, tsManager, clusterer))
       .withRouteeProps(Worker.props)
       // broadcast supplier reference to all workers
       .withBroadcastPredicate{

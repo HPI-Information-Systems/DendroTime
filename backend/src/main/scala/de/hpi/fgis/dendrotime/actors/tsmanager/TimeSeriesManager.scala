@@ -53,40 +53,47 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
   ctx.watch(loader)
 
   private def start(): Behavior[Command] = running(
-    HashMap.empty[Long, LabeledTimeSeries],
-    HashMap.empty[Int, Set[Long]],
+    HashMap.empty[Int, HashMap[Long, LabeledTimeSeries]],
     HashMap.empty[Int, ActorRef[HandlerMessageType]]
   )
 
   private def running(
-                       timeseries: HashMap[Long, LabeledTimeSeries],
-                       datasetMapping: HashMap[Int, Set[Long]],
+                       timeseries: HashMap[Int, Map[Long, LabeledTimeSeries]],
                        handlers: Map[Int, ActorRef[HandlerMessageType]]
                      ): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ReportStatus =>
-      ctx.log.info("[REPORT] Currently managing {} time series for {} datasets", timeseries.size, datasetMapping.size)
+      ctx.log.info(
+        "[REPORT] Currently managing {} time series for {} datasets",
+        timeseries.values.map(_.size).sum,
+        timeseries.size
+      )
       Behaviors.same
 
     case AddTimeSeries(datasetId, ts) =>
       running(
-        timeseries + (ts.id -> ts),
-        datasetMapping.updatedWith(datasetId){
-          case Some(mapping) => Some(mapping + ts.id)
-          case None => Some(Set(ts.id))
+        timeseries.updatedWith(datasetId){
+          case Some(mapping) => Some(mapping + (ts.id -> ts))
+          case None => Some(Map(ts.id -> ts))
         },
         handlers
       )
 
-    case m: GetTimeSeries =>
-      m.replyWith(timeseries)
+    case m @ GetTimeSeries(datasetId, replyTo) =>
+      timeseries.get(datasetId) match {
+        case Some(ts) =>
+          replyTo ! GetTimeSeriesResponse(ts)
+        case None =>
+          ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
+          stash.stash(m)
+      }
       Behaviors.same
 
     case GetTimeSeriesIds(Right(d), replyTo) =>
-      datasetMapping.get(d.id) match {
-        case Some(ids) =>
-          replyTo ! Coordinator.DatasetHasNTimeseries(ids.size)
-          ids.foreach(replyTo ! Coordinator.NewTimeSeries(_))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(ids)
+      timeseries.get(d.id) match {
+        case Some(ts) =>
+          replyTo ! Coordinator.DatasetHasNTimeseries(ts.size)
+          ts.keys.foreach(replyTo ! Coordinator.NewTimeSeries(_))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(ts.keys.toSet)
           Behaviors.same
         case None =>
           handlers.get(d.id) match {
@@ -99,16 +106,16 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
               val loadingHandler = ctx.spawn(DatasetLoadingHandler(Set(replyTo)), f"loading-handler-${d.id}")
               ctx.watch(loadingHandler)
               loader ! DatasetLoader.LoadDataset(d, loadingHandler)
-              running(timeseries, datasetMapping, handlers + (d.id -> loadingHandler))
+              running(timeseries, handlers + (d.id -> loadingHandler))
           }
       }
 
     case m@GetTimeSeriesIds(Left(datasetId), replyTo) =>
-      datasetMapping.get(datasetId) match {
-        case Some(ids) =>
-          replyTo ! Coordinator.DatasetHasNTimeseries(ids.size)
-          ids.foreach(replyTo ! Coordinator.NewTimeSeries(_))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(ids)
+      timeseries.get(datasetId) match {
+        case Some(ts) =>
+          replyTo ! Coordinator.DatasetHasNTimeseries(ts.size)
+          ts.keys.foreach(replyTo ! Coordinator.NewTimeSeries(_))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(ts.keys.toSet)
         case None => handlers.get(datasetId) match {
           case Some(handler) =>
             ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
@@ -121,10 +128,9 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
       Behaviors.same
 
     case EvictDataset(datasetId) =>
-      val tsIds = datasetMapping.getOrElse(datasetId, Set.empty)
-      val newTimeseries = timeseries.filterNot{ case (id, _) => tsIds.contains(id) }
-      ctx.log.debug("Evicted {} time series of dataset d-{}", timeseries.size - newTimeseries.size, datasetId)
-      running(newTimeseries, datasetMapping - datasetId, handlers)
+      val newTimeseries = timeseries.filterNot{ case (id, _) => id == datasetId }
+      ctx.log.debug("Evicted all time series for dataset d-{}", datasetId)
+      running(newTimeseries, handlers)
 
     case m @ GetDatasetClassLabels(datasetId, replyTo) =>
       handlers.get(datasetId) match {
@@ -132,9 +138,9 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
           ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
           stash.stash(m)
         case None =>
-          datasetMapping.get(datasetId) match {
-            case Some(ids) =>
-              val labels = ids.toArray.sorted.map(timeseries(_).label)
+          timeseries.get(datasetId) match {
+            case Some(ts) =>
+              val labels = ts.values.toArray.sortBy(_.idx).map(_.label)
               replyTo ! DatasetClassLabels(labels)
             case None =>
               ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
@@ -149,9 +155,9 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
           ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
           stash.stash(m)
         case None =>
-          datasetMapping.get(datasetId) match {
-            case Some(ids) =>
-              val lengths = ids.map(id => (id, timeseries(id).data.length)).toMap
+          timeseries.get(datasetId) match {
+            case Some(ts) =>
+              val lengths = ts.map((id, t) => id -> t.data.length)
               replyTo ! TSLengthsResponse(lengths)
             case None =>
               ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
@@ -166,9 +172,9 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
           ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
           stash.stash(m)
         case None =>
-          datasetMapping.get(datasetId) match {
-            case Some(ids) =>
-              val mapping = ids.map(id => (id, timeseries(id).idx)).toMap
+          timeseries.get(datasetId) match {
+            case Some(ts) =>
+              val mapping = ts.map((id, t) => id -> t.idx)
               replyTo ! TSIndexMappingResponse(mapping)
             case None =>
               ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
@@ -180,7 +186,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
   } receiveSignal {
     case (_, Terminated(localLoader)) =>
       stash.unstashAll(
-        running(timeseries, datasetMapping, handlers.filterNot(_._2.narrow == localLoader))
+        running(timeseries, handlers.filterNot(_._2.narrow == localLoader))
       )
   }
 }
