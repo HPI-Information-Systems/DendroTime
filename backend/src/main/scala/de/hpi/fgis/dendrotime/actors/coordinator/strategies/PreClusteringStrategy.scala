@@ -1,20 +1,18 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, GetCurrentDistanceMatrix, RegisterApproxDistMatrixReceiver}
-import de.hpi.fgis.dendrotime.actors.coordinator.AdaptiveBatchingMixin
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyParameters.InternalStrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, computeHierarchy}
 import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
-import de.hpi.fgis.dendrotime.structures.strategies.{GrowableFCFSWorkGenerator, OrderedPreClusteringWorkGenerator, WorkGenerator}
+import de.hpi.fgis.dendrotime.structures.strategies.{OrderedPreClusteringWorkGenerator, WorkGenerator}
 
-import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -25,82 +23,51 @@ object PreClusteringStrategy extends StrategyFactory {
   private case class CurrentDistanceMatrix(dists: PDist) extends StrategyCommand
   private case class PreClustersGenerated(preClusters: Array[Array[Int]]) extends StrategyCommand
 
-  def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
-    Behaviors.setup { ctx =>
-      val settings = Settings(ctx.system)
-      val stashSize = settings.numberOfWorkers * 5
+  override def apply(params: InternalStrategyParameters): Behavior[StrategyCommand] =
+    new Initializer(params).start()
 
-      Behaviors.withStash(stashSize) { stash =>
-        new Initializer(ctx, stash, eventReceiver, params).start()
-      }
-    }
+  private class Initializer(params: InternalStrategyParameters) extends Strategy(params) with ProcessedTrackingMixin {
 
-  private class Initializer(ctx: ActorContext[StrategyCommand],
-                            stash: StashBuffer[StrategyCommand],
-                            eventReceiver: ActorRef[StrategyEvent],
-                            params: StrategyParameters) extends AdaptiveBatchingMixin(ctx.system) {
-
-    private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[TsId]
     private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
     private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
-    private val processedWork = mutable.Set.empty[(TsId, TsId)]
 
     // Executor for internal futures (CPU-heavy work)
     private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
-    def start(): Behavior[StrategyCommand] = {
+    override def start(): Behavior[StrategyCommand] = {
       params.tsManager ! GetTSIndexMapping(params.dataset.id, tsIndexMappingAdapter)
       params.clusterer ! RegisterApproxDistMatrixReceiver(approxDistancesAdapter)
       collecting(None, None)
     }
 
     private def collecting(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
-      case AddTimeSeries(timeseriesIds) =>
-        fallbackWorkGenerator.addAll(timeseriesIds.sorted)
-        if fallbackWorkGenerator.hasNext then
-          stash.unstashAll(Behaviors.same)
-        else
-          Behaviors.same
+      case AddTimeSeries(_) => Behaviors.same // ignore
+
+      case m: DispatchWork => dispatchFallbackWork(m)
 
       case TSIndexMapping(mapping) =>
         ctx.log.debug("Received TS Index Mapping: {}", mapping.size)
-        potentiallyComputePreClusters(processedWork, Some(mapping), dists)
+        potentiallyComputePreClusters(Some(mapping), dists)
 
       case ApproxDistances(dists) =>
         ctx.log.debug(s"Received approximate distances", dists.n)
-        potentiallyComputePreClusters(processedWork, mapping, Some(dists))
+        potentiallyComputePreClusters(mapping, Some(dists))
 
       case PreClustersGenerated(preClusters) =>
-        ctx.log.info("Starting pre-clustering strategy with {} preClusters ({} already processed), serving", preClusters.length, processedWork.size)
-        stash.unstashAll(startPreClusterer(processedWork, mapping.get, preClusters))
-
-      case m@DispatchWork(worker, time, size) =>
-        if fallbackWorkGenerator.hasNext then
-          val batchSize = Math.max(nextBatchSize(time, size), 16)
-          val work = fallbackWorkGenerator.nextBatch(batchSize)
-          ctx.log.trace("Dispatching full job ({}) processedWork={}, Stash={}", work.length, processedWork.size, stash.size)
-          worker ! WorkerProtocol.CheckFull(work)
-          processedWork ++= work
-          collecting(mapping, dists)
-        else
-          ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
-          if stash.isEmpty then
-            eventReceiver ! FullStrategyOutOfWork
-          stash.stash(m)
-          Behaviors.same
+        ctx.log.info("Starting pre-clustering strategy with {} preClusters ({} already processed), serving", preClusters.length, processed.size)
+        stash.unstashAll(startPreClusterer(mapping.get, preClusters))
 
       case ReportStatus =>
-        ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processedWork.size)
+        ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processed.size)
         Behaviors.same
     }
 
     private def potentiallyComputePreClusters(
-                                               processedWork: scala.collection.Set[(TsId, TsId)],
                                                mapping: Option[Map[TsId, Int]],
                                                dists: Option[PDist]
                                              ): Behavior[StrategyCommand] = {
       if mapping.isDefined && dists.isDefined then
-        ctx.log.info("Received both approximate distances and mapping, computing pre clusters ({} already processed)", processedWork.size)
+        ctx.log.info("Received both approximate distances and mapping, computing pre clusters ({} already processed)", processed.size)
         val f = Future { computePreClusters(dists.get) }
         ctx.pipeToSelf(f) {
           case Success(preClusters) => PreClustersGenerated(preClusters)
@@ -119,33 +86,17 @@ object PreClusteringStrategy extends StrategyFactory {
       clusters
     }
 
-    private def startPreClusterer(
-                                   processedWork: scala.collection.Set[(TsId, TsId)],
-                                   mapping: Map[TsId, Int],
-                                   preClusters: Array[Array[Int]]
-                                 ): Behavior[StrategyCommand] = {
-      val n = mapping.size
-      val processed = CompactPairwiseBitset.ofDim(n)
-      val it = processedWork.iterator
-      while it.hasNext do
-        val (i, j) = it.next()
-        processed.add(mapping(i), mapping(j))
-
-      new PreClusteringStrategy(
-        ctx, stash, eventReceiver, params, processed, mapping.map(_.swap), preClusters
-      ).running()
+    private def startPreClusterer(mapping: Map[TsId, Int], preClusters: Array[Array[Int]]): Behavior[StrategyCommand] = {
+      new PreClusteringStrategy(params, mapping.map(_.swap), preClusters, processed).running()
     }
   }
 }
 
-class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
-                                    stash: StashBuffer[StrategyCommand],
-                                    eventReceiver: ActorRef[StrategyEvent],
-                                    params: StrategyParameters,
-                                    processed: CompactPairwiseBitset,
+class PreClusteringStrategy private(params: InternalStrategyParameters,
                                     reverseMapping: Map[Int, StrategyProtocol.TsId],
-                                    preClusters: Array[Array[Int]]
-                                   ) extends AdaptiveBatchingMixin(ctx.system) {
+                                    preClusters: Array[Array[Int]],
+                                    processed: CompactPairwiseBitset
+                                   ) extends Strategy(params) {
   import OrderedPreClusteringWorkGenerator.*
   import PreClusteringStrategy.*
 
@@ -172,6 +123,8 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
     else
       nextState
   }
+
+  override def start(): Behavior[StrategyCommand] = running()
 
   def running(): Behavior[StrategyCommand] = Behaviors.receiveMessage[StrategyCommand] {
     case AddTimeSeries(_) =>

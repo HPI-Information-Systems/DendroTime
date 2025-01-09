@@ -6,8 +6,7 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, StashBuffer}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.clusterer.{Clusterer, ClustererProtocol}
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyFactory.StrategyParameters
-import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{StrategyFactory, StrategyProtocol}
+import de.hpi.fgis.dendrotime.actors.coordinator.strategies.{AdaptiveBatchingMixin, StrategyFactory, StrategyParameters, StrategyProtocol}
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.actors.worker.{Worker, WorkerProtocol}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset

@@ -13,7 +13,7 @@ object ApproxDistanceWorkGenerator {
 
   // create queue in factory function to allow GC of input data
   def apply[T: Numeric : ClassTag](mapping: Map[T, Int],
-                                   processedWork: Set[(T, T)],
+                                   processedWork: scala.collection.Set[(T, T)],
                                    dists: PDist,
                                    direction: Direction): WorkGenerator[T] = {
     val queue = createQueue(mapping, processedWork, dists)
@@ -22,7 +22,7 @@ object ApproxDistanceWorkGenerator {
 
   private def createQueue[T: ClassTag](
                                         mapping: Map[T, Int],
-                                        processedWork: Set[(T, T)],
+                                        processedWork: scala.collection.Set[(T, T)],
                                         dists: PDist
                                       )(
                                         using ord: Numeric[T]
