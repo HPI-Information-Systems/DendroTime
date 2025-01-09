@@ -26,8 +26,8 @@ private[hierarchy] object NNChain {
     // nn chain
     val chain = Array.ofDim[Int](n)
     var chainLength = 0
-
-    for k <- 0 until n - 1 do
+    var k = 0
+    while k < n - 1 do
       if chainLength == 0 then
         chainLength = 1
         chain(0) = sizes.indexWhere(_ > 0)
@@ -55,13 +55,15 @@ private[hierarchy] object NNChain {
       sizes(y) = nx + ny
 
       // update distances
-      sizes
-        .lazyZip(sizes.indices)
-        .withFilter((ni, i) => ni != 0 && i != y)
-        .foreach { (ni, i) =>
+      var i = 0
+      while i < sizes.length do
+        val ni = sizes(i)
+        if ni != 0 && i != y then
           val newDist = linkage(d(i, x), d(i, y), distXY, nx, ny, ni)
           d(i, y) = if newDist.isNaN then Double.PositiveInfinity else newDist
-        }
+        i += 1
+
+      k += 1
 
     z.sort()
 
@@ -93,12 +95,14 @@ private[hierarchy] object NNChain {
         else
           currentMin = Double.PositiveInfinity - 1
 
-        for i <- sizes.indices do
+        var i = 0
+        while i < sizes.length do
           if sizes(i) != 0 && x != i then
             val dist = d(x, i)
             if dist <= currentMin then
               currentMin = dist
               y = i
+          i += 1
 
         if chainLength > 1 && y == chain(chainLength - 2) then
           break((x, y, currentMin, chainLength))

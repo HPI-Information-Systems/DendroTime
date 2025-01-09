@@ -41,6 +41,8 @@ object CompactPairwiseBitset {
 case class CompactPairwiseBitset private(buffer: mutable.BitSet, n: Int, m: Int)
   extends mutable.AbstractSet[(Int, Int)] {
 
+  private var currentSize: Int = 0
+
   def contains(i: Int, j: Int): Boolean =
     if (i == j) false
     else if (i < j) buffer(PDist.index(i, j, n))
@@ -63,6 +65,7 @@ case class CompactPairwiseBitset private(buffer: mutable.BitSet, n: Int, m: Int)
     if (i == j) throw new IllegalArgumentException("Cannot set self-distance, it is always 0.")
     else if (i < j) buffer.add(PDist.index(i, j, n))
     else buffer.add(PDist.index(j, i, n))
+    currentSize += 1
     this
   }
 
@@ -70,6 +73,7 @@ case class CompactPairwiseBitset private(buffer: mutable.BitSet, n: Int, m: Int)
     if (i == j) throw new IllegalArgumentException("Cannot set self-distance, it is always 0.")
     else if (i < j) buffer.subtractOne(PDist.index(i, j, n))
     else buffer.subtractOne(PDist.index(j, i, n))
+    currentSize -= 1
     this
   }
 
@@ -96,9 +100,9 @@ case class CompactPairwiseBitset private(buffer: mutable.BitSet, n: Int, m: Int)
    **/
   override def sizeHint(size: Int): Unit = buffer.sizeHint(size * (size - 1) / 2)
 
-  override def knownSize: Int = buffer.knownSize
+  override def knownSize: Int = currentSize
 
-  override def size: Int = buffer.size
+  override def size: Int = currentSize
 
   override def clear(): Unit = buffer.clear()
 

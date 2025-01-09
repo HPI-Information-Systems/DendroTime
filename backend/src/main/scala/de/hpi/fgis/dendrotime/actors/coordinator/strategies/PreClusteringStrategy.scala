@@ -55,7 +55,9 @@ object PreClusteringStrategy extends StrategyFactory {
 
       case PreClustersGenerated(preClusters) =>
         ctx.log.info("Starting pre-clustering strategy with {} preClusters ({} already processed), serving", preClusters.length, processed.size)
-        stash.unstashAll(startPreClusterer(mapping.get, preClusters))
+        stash.unstashAll(
+          new PreClusteringStrategy(params, mapping.get.map(_.swap), preClusters, processed).start()
+        )
 
       case ReportStatus =>
         ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processed.size)
@@ -84,10 +86,6 @@ object PreClusteringStrategy extends StrategyFactory {
       for i <- 0 until preClasses do
         clusters(i) = preLabels.withFilter(_._1 == i).map(_._2)
       clusters
-    }
-
-    private def startPreClusterer(mapping: Map[TsId, Int], preClusters: Array[Array[Int]]): Behavior[StrategyCommand] = {
-      new PreClusteringStrategy(params, mapping.map(_.swap), preClusters, processed).running()
     }
   }
 }

@@ -121,6 +121,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
         if approxCount == distances.size then
           coordinator ! Coordinator.ApproxFinished
+          // FIXME: copy?
           reg.foreach {
             _ ! DistanceMatrix(distances)
           }

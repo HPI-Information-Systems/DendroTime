@@ -49,6 +49,7 @@ object App extends CaseApp[Arguments] {
     val system = ActorSystem(Runner.create(), "dendro-time-runner", config)
     // CoordinatedShutdown(system).addActorTerminationTask(CoordinatedShutdown.PhaseServiceUnbind, "stop-http-server", system, Server.Stop)
     CoordinatedShutdown(system).addJvmShutdownHook({
+      println(s"Received termination signal: stopping runner!")
       system ! Runner.Stop
     })
 
