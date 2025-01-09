@@ -19,9 +19,9 @@ import scala.util.{Failure, Success}
 
 object ApproxDistanceStrategy {
 
-  private case class TSIndexMapping(mapping: Map[Long, Int]) extends StrategyCommand
+  private case class TSIndexMapping(mapping: Map[TsId, Int]) extends StrategyCommand
   private case class ApproxDistances(dists: PDist) extends StrategyCommand
-  private case class WorkGenCreated(queue: WorkGenerator[Long]) extends StrategyCommand
+  private case class WorkGenCreated(queue: WorkGenerator[TsId]) extends StrategyCommand
 
   object Ascending extends StrategyFactory {
     def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
@@ -53,7 +53,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
 
   import ApproxDistanceStrategy.*
 
-  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
+  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[TsId]
   private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
   private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
   // Executor for internal futures (CPU-heavy work)
@@ -65,7 +65,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
     collecting(Set.empty, None, None)
   }
 
-  private def collecting(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+  private def collecting(processedWork: Set[(TsId, TsId)], mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
       fallbackWorkGenerator.addAll(timeseriesIds.sorted)
       if fallbackWorkGenerator.hasNext then
@@ -106,7 +106,7 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
   }
 
-  private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
+  private def serving(workGen: WorkGenerator[TsId], processedWork: Set[(TsId, TsId)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
@@ -140,12 +140,12 @@ class ApproxDistanceStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
   }
 
-  private def potentiallyBuildQueue(processedWork: Set[(Long, Long)], mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
+  private def potentiallyBuildQueue(processedWork: Set[(TsId, TsId)], mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
     (mapping, dists) match {
       case (Some(m), Some(d)) =>
         val size = d.n * (d.n - 1) / 2 - processedWork.size
         ctx.log.info("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processedWork.size)
-        val f = Future { ApproxDistanceWorkGenerator[Long](m, processedWork, d, direction) }
+        val f = Future { ApproxDistanceWorkGenerator[TsId](m, processedWork, d, direction) }
         ctx.pipeToSelf(f) {
           case Success(queue) => WorkGenCreated(queue)
           case Failure(e) => throw e

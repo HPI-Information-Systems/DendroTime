@@ -53,12 +53,12 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
   ctx.watch(loader)
 
   private def start(): Behavior[Command] = running(
-    HashMap.empty[Int, HashMap[Long, LabeledTimeSeries]],
+    HashMap.empty[Int, HashMap[Int, LabeledTimeSeries]],
     HashMap.empty[Int, ActorRef[HandlerMessageType]]
   )
 
   private def running(
-                       timeseries: HashMap[Int, Map[Long, LabeledTimeSeries]],
+                       timeseries: HashMap[Int, Map[Int, LabeledTimeSeries]],
                        handlers: Map[Int, ActorRef[HandlerMessageType]]
                      ): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ReportStatus =>

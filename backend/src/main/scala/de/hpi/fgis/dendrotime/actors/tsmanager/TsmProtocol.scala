@@ -28,12 +28,12 @@ object TsmProtocol {
 
   case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
 
-  case class TSLengthsResponse(lengths: Map[Long, Int])
+  case class TSLengthsResponse(lengths: Map[Int, Int])
 
-  case class TSIndexMappingResponse(mapping: Map[Long, Int])
+  case class TSIndexMappingResponse(mapping: Map[Int, Int])
 
   case class GetTimeSeries(dataset: Int, replyTo: ActorRef[GetTimeSeriesResponse]) extends Command
 
-  case class GetTimeSeriesResponse(timeseries: Map[Long, LabeledTimeSeries])
+  case class GetTimeSeriesResponse(timeseries: Map[Int, LabeledTimeSeries])
 
 }

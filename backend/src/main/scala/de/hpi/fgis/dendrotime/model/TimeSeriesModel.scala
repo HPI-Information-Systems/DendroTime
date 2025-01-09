@@ -6,12 +6,12 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 object TimeSeriesModel {
 
   sealed trait TimeSeries {
-    def id: Long
+    def id: Int
     def idx: Int
     def data: Array[Double]
   }
-  final case class RawTimeSeries(id: Long, idx: Int, data: Array[Double]) extends TimeSeries
-  final case class LabeledTimeSeries(id: Long, idx: Int, data: Array[Double], label: String) extends TimeSeries
+  final case class RawTimeSeries(id: Int, idx: Int, data: Array[Double]) extends TimeSeries
+  final case class LabeledTimeSeries(id: Int, idx: Int, data: Array[Double], label: String) extends TimeSeries
 
   given Ordering[TimeSeries] = Ordering.by(_.id)
 

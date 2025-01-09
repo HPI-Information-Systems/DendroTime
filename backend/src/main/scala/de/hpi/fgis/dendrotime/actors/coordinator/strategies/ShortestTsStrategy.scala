@@ -16,9 +16,9 @@ import scala.util.{Failure, Success}
 
 object ShortestTsStrategy extends StrategyFactory {
   
-  private case class TSLengthsResponse(lengths: Map[Long, Int]) extends StrategyCommand
+  private case class TSLengthsResponse(lengths: Map[TsId, Int]) extends StrategyCommand
   
-  private case class WorkGenCreated(generator: WorkGenerator[Long]) extends StrategyCommand
+  private case class WorkGenCreated(generator: WorkGenerator[TsId]) extends StrategyCommand
 
   def apply(params: StrategyParameters, eventReceiver: ActorRef[StrategyEvent]): Behavior[StrategyCommand] =
     Behaviors.setup { ctx =>
@@ -40,7 +40,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
   import ShortestTsStrategy.*
 
   private val tsAdapter = ctx.messageAdapter[TsmProtocol.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
-  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
+  private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[TsId]
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
@@ -49,7 +49,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
     collecting(Set.empty)
   }
 
-  private def collecting(processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+  private def collecting(processedWork: Set[(TsId, TsId)]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(timeseriesIds) =>
       fallbackWorkGenerator.addAll(timeseriesIds)
       if fallbackWorkGenerator.hasNext then
@@ -58,7 +58,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
         Behaviors.same
 
     case TSLengthsResponse(lengths) =>
-      val f = Future { ShortestTsWorkGenerator[Long](lengths) }
+      val f = Future { ShortestTsWorkGenerator[TsId](lengths) }
       ctx.pipeToSelf(f){
         case Success(generator) => WorkGenCreated(generator)
         case Failure(e) => throw e
@@ -91,7 +91,7 @@ class ShortestTsStrategy private(ctx: ActorContext[StrategyCommand],
       Behaviors.same
   }
   
-  private def serving(workGen: WorkGenerator[Long], processedWork: Set[(Long, Long)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
+  private def serving(workGen: WorkGenerator[TsId], processedWork: Set[(TsId, TsId)]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same

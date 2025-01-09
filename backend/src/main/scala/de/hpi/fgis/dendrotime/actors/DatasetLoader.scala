@@ -18,10 +18,10 @@ object DatasetLoader {
   case class LoadDataset(d: Dataset, replyTo: ActorRef[Response]) extends Command
 
   sealed trait Response
-  case class DatasetLoaded(id: Int, tsIds: NumericRange[Long]) extends Response
+  case class DatasetLoaded(id: Int, tsIds: Range) extends Response
   case class DatasetNotLoaded(id: Int, reason: String) extends Response
   case class DatasetNTimeseries(n: Int) extends Response
-  case class NewTimeSeries(datasetId: Int, tsId: Long) extends Response
+  case class NewTimeSeries(datasetId: Int, tsId: Int) extends Response
 
   def apply(tsManager: ActorRef[TsmProtocol.Command]): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetLoader(ctx, tsManager).start()
@@ -37,7 +37,7 @@ private class DatasetLoader private (
 
   import DatasetLoader.*
   
-  private var idGen = 0L
+  private var idGen = 0
   private val settings = Settings(ctx.system)
   private val parser = TsParser(TsParser.TsParserSettings(
     parseMetadata = false,
@@ -78,6 +78,8 @@ private class DatasetLoader private (
         tsManager ! TsmProtocol.AddTimeSeries(d.id, ts)
         replyTo ! NewTimeSeries(datasetId = d.id, tsId = idGen)
         idGen += 1
+        if idGen < 0 then
+          throw new IllegalStateException(s"Too many time series, Int overflow detected (max integer value: ${Int.MaxValue})!")
         idx += 1
       }
     }

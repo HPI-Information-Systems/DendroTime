@@ -20,7 +20,7 @@ import scala.util.{Failure, Success}
 
 object PreClusteringStrategy extends StrategyFactory {
 
-  private case class TSIndexMapping(mapping: Map[Long, Int]) extends StrategyCommand
+  private case class TSIndexMapping(mapping: Map[TsId, Int]) extends StrategyCommand
   private case class ApproxDistances(dists: PDist) extends StrategyCommand
   private case class CurrentDistanceMatrix(dists: PDist) extends StrategyCommand
   private case class PreClustersGenerated(preClusters: Array[Array[Int]]) extends StrategyCommand
@@ -40,10 +40,10 @@ object PreClusteringStrategy extends StrategyFactory {
                             eventReceiver: ActorRef[StrategyEvent],
                             params: StrategyParameters) extends AdaptiveBatchingMixin(ctx.system) {
 
-    private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[Long]
+    private val fallbackWorkGenerator = GrowableFCFSWorkGenerator.empty[TsId]
     private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
     private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
-    private val processedWork = mutable.Set.empty[(Long, Long)]
+    private val processedWork = mutable.Set.empty[(TsId, TsId)]
 
     // Executor for internal futures (CPU-heavy work)
     private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
@@ -54,7 +54,7 @@ object PreClusteringStrategy extends StrategyFactory {
       collecting(None, None)
     }
 
-    private def collecting(mapping: Option[Map[Long, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+    private def collecting(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
       case AddTimeSeries(timeseriesIds) =>
         fallbackWorkGenerator.addAll(timeseriesIds.sorted)
         if fallbackWorkGenerator.hasNext then
@@ -95,8 +95,8 @@ object PreClusteringStrategy extends StrategyFactory {
     }
 
     private def potentiallyComputePreClusters(
-                                               processedWork: scala.collection.Set[(Long, Long)],
-                                               mapping: Option[Map[Long, Int]],
+                                               processedWork: scala.collection.Set[(TsId, TsId)],
+                                               mapping: Option[Map[TsId, Int]],
                                                dists: Option[PDist]
                                              ): Behavior[StrategyCommand] = {
       if mapping.isDefined && dists.isDefined then
@@ -120,8 +120,8 @@ object PreClusteringStrategy extends StrategyFactory {
     }
 
     private def startPreClusterer(
-                                   processedWork: scala.collection.Set[(Long, Long)],
-                                   mapping: Map[Long, Int],
+                                   processedWork: scala.collection.Set[(TsId, TsId)],
+                                   mapping: Map[TsId, Int],
                                    preClusters: Array[Array[Int]]
                                  ): Behavior[StrategyCommand] = {
       val n = mapping.size
@@ -143,7 +143,7 @@ class PreClusteringStrategy private(ctx: ActorContext[StrategyCommand],
                                     eventReceiver: ActorRef[StrategyEvent],
                                     params: StrategyParameters,
                                     processed: CompactPairwiseBitset,
-                                    reverseMapping: Map[Int, Long],
+                                    reverseMapping: Map[Int, StrategyProtocol.TsId],
                                     preClusters: Array[Array[Int]]
                                    ) extends AdaptiveBatchingMixin(ctx.system) {
   import OrderedPreClusteringWorkGenerator.*

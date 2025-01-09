@@ -26,7 +26,7 @@ class FCFSStrategy private(ctx: ActorContext[StrategyCommand],
                            eventReceiver: ActorRef[StrategyEvent]
                           ) extends AdaptiveBatchingMixin(ctx.system) {
 
-  private val workGenerator = GrowableFCFSWorkGenerator.empty[Long]
+  private val workGenerator = GrowableFCFSWorkGenerator.empty[TsId]
 
   def start(): Behavior[StrategyCommand] = running()
 

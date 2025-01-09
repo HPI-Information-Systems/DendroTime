@@ -36,7 +36,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
   ctx.tsManager ! TsmProtocol.GetTimeSeries(datasetId, getTSAdapter)
 
   private def start(supplier: Option[ActorRef[DispatchWork]] = None,
-                    tsMap: Option[Map[Long, LabeledTimeSeries]] = None): Behavior[Command] = Behaviors.receiveMessagePartial{
+                    tsMap: Option[Map[Int, LabeledTimeSeries]] = None): Behavior[Command] = Behaviors.receiveMessagePartial{
     case UseSupplier(supplier) =>
       supplier ! DispatchWork(ctx.self)
       if tsMap.isDefined then
@@ -56,7 +56,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
   }
 
   private def idle(workSupplier: ActorRef[DispatchWork],
-                   ts: Map[Long, LabeledTimeSeries],
+                   ts: Map[Int, LabeledTimeSeries],
                    sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
     case UseSupplier(supplier) =>
       ctx.log.debug("Switching supplier to {}", supplier)

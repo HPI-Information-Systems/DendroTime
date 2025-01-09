@@ -29,9 +29,9 @@ object Coordinator {
   case object Stop extends Command
 
   sealed trait TsLoadingCommand extends Command
-  case class DatasetHasNTimeseries(n: Int) extends TsLoadingCommand
-  case class NewTimeSeries(tsId: Long) extends TsLoadingCommand
-  case class AllTimeSeriesLoaded(ids: Set[Long]) extends TsLoadingCommand
+  case class DatasetHasNTimeseries(n: StrategyProtocol.TsId) extends TsLoadingCommand
+  case class NewTimeSeries(tsId: StrategyProtocol.TsId) extends TsLoadingCommand
+  case class AllTimeSeriesLoaded(ids: Set[StrategyProtocol.TsId]) extends TsLoadingCommand
   case class FailedToLoadAllTimeSeries(cause: String) extends TsLoadingCommand
 
   sealed trait Response
@@ -98,7 +98,7 @@ private class Coordinator private[coordinator] (
     StrategyFactory.props
   )
   ctx.watch(fullStrategy)
-  private val workGenerator = GrowableFCFSWorkGenerator.empty[Long]
+  private val workGenerator = GrowableFCFSWorkGenerator.empty[Int]
 
 
   def start(): Behavior[MessageType] = {
@@ -110,7 +110,7 @@ private class Coordinator private[coordinator] (
     initializing(Vector.empty)
   }
 
-  private def initializing(tsIds: Seq[Long]): Behavior[MessageType] =
+  private def initializing(tsIds: Seq[Int]): Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
@@ -155,7 +155,7 @@ private class Coordinator private[coordinator] (
         Behaviors.stopped
     }
 
-  private def loading(nTimeseries: Int, tsIds: Seq[Long], approxFinished: Boolean = false):  Behavior[MessageType] =
+  private def loading(nTimeseries: Int, tsIds: Seq[Int], approxFinished: Boolean = false):  Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
       case NewTimeSeries(tsId) =>
         ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
