@@ -88,6 +88,16 @@ object PDist {
   def apply(dists: Array[Array[Double]]): PDist =
     apply(dists, dists.length)
 
+  /**
+   * Wrap an existing compact pairwise distance vector.
+   *
+   * @param distances list of n*(n-1)/2 pairwise distances
+   * @return pairwise distance vector of size n*(n-1)/2
+   */
+  def unsafeWrapArray(distances: Array[Double], n: Int): PDist =
+    require(distances.length == n * (n - 1) / 2, "Number of distances does not match n.")
+    PDistImpl(distances, n)
+
   /** Extract a pairwise distance vector for a subset of the objects in `pdist`.
    * 
    * @param pdist source pairwise distance vector

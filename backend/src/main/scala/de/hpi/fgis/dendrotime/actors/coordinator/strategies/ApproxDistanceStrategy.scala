@@ -113,9 +113,9 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
   private def potentiallyBuildQueue(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
     (mapping, dists) match {
       case (Some(m), Some(d)) =>
-        val size = d.n * (d.n - 1) / 2 - processed.size
+        val size = d.n * (d.n - 1) / 2
         ctx.log.info("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processed.size)
-        val f = Future { ApproxDistanceWorkGenerator[TsId](m, processed, d, direction) }
+        val f = Future { ApproxDistanceWorkGenerator[TsId](m, d, direction) }
         ctx.pipeToSelf(f) {
           case Success(queue) => WorkGenCreated(queue)
           case Failure(e) => throw e
