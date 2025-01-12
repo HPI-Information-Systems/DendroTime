@@ -1,6 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.MSMOptions
+import org.apache.commons.math3.util.FastMath
 
 object MSM {
   val DEFAULT_COST: Double = 0.5
@@ -137,7 +138,7 @@ class MSM(
     val costMatrix = Array.fill[Double](n, m) {
       Double.PositiveInfinity
     }
-    costMatrix(0)(0) = Math.abs(x(0) - y(0))
+    costMatrix(0)(0) = FastMath.abs(x(0) - y(0))
 
     var i = 1
     while i < n do
@@ -158,11 +159,11 @@ class MSM(
       j = 1
       while j < m do
         if boundingMatrix(i)(j) then
-          val cost1 = costMatrix(i - 1)(j - 1) + Math.abs(x(i) - y(j))
+          val cost1 = costMatrix(i - 1)(j - 1) + FastMath.abs(x(i) - y(j))
           val cost2 = costMatrix(i - 1)(j) + independentCost(x(i), x(i - 1), y(j), c)
           val cost3 = costMatrix(i)(j - 1) + independentCost(y(j), x(i), y(j - 1), c)
 
-          costMatrix(i)(j) = Math.min(cost1, Math.min(cost2, cost3))
+          costMatrix(i)(j) = FastMath.min(cost1, FastMath.min(cost2, cost3))
         j += 1
       i += 1
     costMatrix
@@ -173,6 +174,6 @@ class MSM(
     if (y <= x && x <= z) || (y >= x && x >= z) then
       c
     else
-      c + Math.min(Math.abs(x - y), Math.abs(x - z))
+      c + FastMath.min(FastMath.abs(x - y), FastMath.abs(x - z))
   }
 }

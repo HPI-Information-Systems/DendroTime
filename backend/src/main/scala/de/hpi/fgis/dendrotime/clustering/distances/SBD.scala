@@ -2,12 +2,13 @@ package de.hpi.fgis.dendrotime.clustering.distances
 
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.SBDOptions
 import fftw3.FFTWReal
+import org.apache.commons.math3.util.FastMath
 
 object SBD {
   @inline
   private final def standardize(x: Array[Double]): Array[Double] = {
     val xMean = x.sum / x.length
-    val xStd = Math.sqrt(x.map(xi => Math.pow(xi - xMean, 2)).sum / x.length)
+    val xStd = FastMath.sqrt(x.map(xi => FastMath.pow(xi - xMean, 2)).sum / x.length)
     x.map(xi => (xi - xMean) / xStd)
   }
 
@@ -93,8 +94,8 @@ class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE) extends Distance {
 
     // FIXME: avoid re-allocating a new FFTWReal instance for each call
     val a = FFTWReal.fftwConvolve(xStd, yStd)
-    val b = Math.sqrt(xStd.map(xi => xi * xi).sum * yStd.map(yi => yi * yi).sum)
-    Math.abs(1.0 - a.max / b)
+    val b = FastMath.sqrt(xStd.map(xi => xi * xi).sum * yStd.map(yi => yi * yi).sum)
+    FastMath.abs(1.0 - a.max / b)
   }
 
   override def toString: String = s"SBD(standardize=$standardize)"

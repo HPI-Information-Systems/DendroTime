@@ -64,7 +64,9 @@ lazy val `backend` = project.in(file("backend"))
       "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
       // fft
-      "net.java.dev.jna" % "jna" % "5.14.0",
+      "net.java.dev.jna" % "jna" % "5.16.0",
+      // math stuff
+      "org.apache.commons" % "commons-math3" % "3.6.1",
 
       // logging
       "ch.qos.logback" % "logback-classic" % "1.5.16",

@@ -1,12 +1,11 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
-import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.structures.MeanErrorTracker
+import org.apache.commons.math3.util.FastMath
 
 import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
-import scala.util.boundary
 
 object ApproxFullErrorWorkGenerator {
 
@@ -46,7 +45,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
   private var sortNecessary = false
 
   def updateError(i: Int, j: Int, error: Double): Unit = {
-    val absError = Math.abs(error)
+    val absError = FastMath.abs(error)
     tracker.update(i, absError)
     tracker.update(j, absError)
     sortNecessary = true

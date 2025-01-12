@@ -1,5 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering.hierarchy
 
+import org.apache.commons.math3.util.FastMath
+
 /**
  * Linkage methods for hierarchical clustering.
  *
@@ -46,12 +48,12 @@ object Linkage {
 
   case object SingleLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      Math.min(dXi, dYi)
+      FastMath.min(dXi, dYi)
   }
 
   case object CompleteLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      Math.max(dXi, dYi)
+      FastMath.max(dXi, dYi)
   }
 
   case object AverageLinkage extends Linkage {
@@ -62,7 +64,7 @@ object Linkage {
   case object WardLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
       val t = 1.0 / (nX + nY + nI)
-      Math.sqrt(
+      FastMath.sqrt(
         (nI + nX) * t * dXi * dXi +
           (nI + nY) * t * dYi * dYi -
           nI * t * dXY * dXY
@@ -80,7 +82,7 @@ object Linkage {
    */
   case object MedianLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      Math.sqrt(
+      FastMath.sqrt(
         0.5 * (dXi * dXi + dYi * dYi) - 0.25 * dXY * dXY
       )
   }
@@ -91,7 +93,7 @@ object Linkage {
    */
   case object CentroidLinkage extends Linkage {
     override def apply(dXi: Double, dYi: Double, dXY: Double, nX: Int, nY: Int, nI: Int): Double =
-      Math.sqrt((
+      FastMath.sqrt((
         (nX * dXi * dXi) + (nY * dYi * dYi) -
           (nX * nY * dXY * dXY) / (nX + nY)
         ) / (nX + nY))

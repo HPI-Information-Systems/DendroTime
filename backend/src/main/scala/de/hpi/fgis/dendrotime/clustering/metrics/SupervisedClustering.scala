@@ -1,8 +1,9 @@
 package de.hpi.fgis.dendrotime.clustering.metrics
 
+import org.apache.commons.math3.special.Gamma
+
 import scala.collection.{IndexedSeq, mutable}
 import scala.reflect.ClassTag
-import de.hpi.fgis.gamma.BoostGamma
 
 object SupervisedClustering {
 
@@ -120,7 +121,7 @@ object SupervisedClustering {
       1.0
 
     else
-      val mi = mutualInfomrationScore(contingency, nClasses, nClusters)
+      val mi = mutualInformationScore(contingency, nClasses, nClusters)
       val emi = expectedMutualInformation(contingency, trueLabels.length, nClasses, nClusters)
       val entropyTrue = entropy(trueLabels)
       val entropyPred = entropy(predLabels)
@@ -138,7 +139,7 @@ object SupervisedClustering {
       (mi - emi) / denominator
   }
 
-  private def mutualInfomrationScore(contingency: Array[Array[Long]], nClasses: Int, nClusters: Int): Double = {
+  private def mutualInformationScore(contingency: Array[Array[Long]], nClasses: Int, nClusters: Int): Double = {
     val nzx = contingency.map(_.count(_ != 0))
     val nzy = contingency.transpose.map(_.count(_ != 0))
     val sum = contingency.flatten.sum
@@ -212,9 +213,9 @@ object SupervisedClustering {
             val term2 = logNnij(nij) - logA(i) - logB(j)
             // Numerators are positive, denominators are negative
             val gln = gln_a(i) + gln_b(j) + gln_Na(i) + gln_Nb(j)
-              - gln_Nnij(nij) - BoostGamma.lgamma(a(i) - nij + 1)
-              - BoostGamma.lgamma(b(j) - nij + 1)
-              - BoostGamma.lgamma(n - a(i) - b(j) + nij + 1)
+              - gln_Nnij(nij) - Gamma.logGamma(a(i) - nij + 1)
+              - Gamma.logGamma(b(j) - nij + 1)
+              - Gamma.logGamma(n - a(i) - b(j) + nij + 1)
             val term3 = Math.exp(gln)
             emi += (term1(nij) * term2 * term3)
       emi

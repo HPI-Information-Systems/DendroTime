@@ -10,6 +10,7 @@ import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.GetTimeSeriesResponse
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
+import org.apache.commons.math3.util.FastMath
 
 object Worker {
   def apply(dataset: Dataset,
@@ -109,7 +110,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
   @inline
   private def checkApproximate(ts1: TimeSeries, ts2: TimeSeries): (Int, Int, Double) = {
     val snippetSize = ctx.settings.Distances.approxLength
-    val scale = Math.max(ts1.data.length, ts2.data.length) / snippetSize
+    val scale = FastMath.max(ts1.data.length, ts2.data.length) / snippetSize
     val ts1Center = ts1.data.length / 2
     val ts2Center = ts2.data.length / 2
     val dist = distanceMetric(

@@ -1,5 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import org.apache.commons.math3.util.FastMath
+
 object Bounding {
   extension (d: Double) {
     /** Round a double to a given number of decimal places.
@@ -9,7 +11,7 @@ object Bounding {
      */
     @inline
     private def roundTo(decimals: Int): Double = {
-      val factor = Math.pow(10, decimals)
+      val factor = FastMath.pow(10, decimals)
       (d * factor).round / factor
     }
   }
@@ -36,14 +38,14 @@ object Bounding {
   private final def sakoeChibaBounding(n: Int, m: Int, window: Double): Array[Array[Boolean]] = {
     val boundingMatrix = Array.ofDim[Boolean](n, m)
 
-    val maxSize = Math.max(n, m) + 1
-    val shortestDim = Math.min(n, m)
+    val maxSize = FastMath.max(n, m) + 1
+    val shortestDim = FastMath.min(n, m)
     val thickness = (window * shortestDim).floor.toInt
 
     var j = 0
     while j < maxSize do
-      val lower = Math.max(0, (j.toDouble/maxSize*n).floor.toInt - thickness)
-      val upper = Math.min(n, (j.toDouble/maxSize*n).floor.toInt + thickness + 1)
+      val lower = FastMath.max(0, (j.toDouble/maxSize*n).floor.toInt - thickness)
+      val upper = FastMath.min(n, (j.toDouble/maxSize*n).floor.toInt + thickness + 1)
       val yIndex = (j.toDouble/maxSize*m).floor.toInt
       var i = lower
       while i < upper do
@@ -55,8 +57,8 @@ object Bounding {
 
   @inline
   private final def itakuraParallelogram(n: Int, m: Int, itakuraMaxSlope: Double): Array[Array[Boolean]] = {
-    val onePercent = Math.min(n, m) / 100.0
-    var maxSlope = Math.floor((itakuraMaxSlope * onePercent) * 100)
+    val onePercent = FastMath.min(n, m) / 100.0
+    var maxSlope = FastMath.floor((itakuraMaxSlope * onePercent) * 100)
     var minSlope = 1 / maxSlope
     maxSlope *= n.toDouble / m
     minSlope *= n.toDouble / m
@@ -64,12 +66,12 @@ object Bounding {
     @inline
     def computeBound(i: Int, upper: Boolean): Int =
       if upper then
-        Math.min(
+        FastMath.min(
           (i * maxSlope).roundTo(2),
           ((n - 1) - minSlope * (m - 1) + minSlope * i).roundTo(2)
         ).floor.toInt + 1
       else
-        Math.max(
+        FastMath.max(
           (i * minSlope).roundTo(2),
           ((n - 1) - maxSlope * (m - 1) + maxSlope * i).roundTo(2)
         ).ceil.toInt

@@ -1,5 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering
 
+import org.apache.commons.math3.util.FastMath
+
 import scala.collection.mutable
 
 /**
@@ -89,14 +91,13 @@ object PDist {
     apply(dists, dists.length)
 
   /**
-   * Wrap an existing compact pairwise distance vector.
+   * Wrap an existing compact pairwise distance vector of size n*(n-1)/2 for n objects.
    *
    * @param distances list of n*(n-1)/2 pairwise distances
    * @return pairwise distance vector of size n*(n-1)/2
    */
-  def unsafeWrapArray(distances: Array[Double], n: Int): PDist =
-    require(distances.length == n * (n - 1) / 2, "Number of distances does not match n.")
-    PDistImpl(distances, n)
+  def unsafeWrapArray(distances: Array[Double]): PDist =
+    PDistImpl(distances, FastMath.ceil(FastMath.sqrt(2 * distances.length)).toInt)
 
   /** Extract a pairwise distance vector for a subset of the objects in `pdist`.
    * 
