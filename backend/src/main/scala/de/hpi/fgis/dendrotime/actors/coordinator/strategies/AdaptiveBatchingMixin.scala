@@ -16,6 +16,8 @@ trait AdaptiveBatchingMixin(system: ActorSystem[Nothing]) {
   private var meanBatchSize: Int = 0
   private var batchUpdates: Int = 0
 
+  protected def nextBatchSize(): Int = nextBatchSize(0L, 0)
+
   protected def nextBatchSize(lastDuration: Long, lastBatchSize: Int): Int = {
     if lastDuration != 0 && lastBatchSize != 0 then
       val batchMean = lastDuration / lastBatchSize

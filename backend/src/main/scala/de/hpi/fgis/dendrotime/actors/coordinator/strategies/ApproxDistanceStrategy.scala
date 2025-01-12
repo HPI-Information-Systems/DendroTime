@@ -64,28 +64,37 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
       ctx.log.debug(s"Received approximate distances", dists.n)
       potentiallyBuildQueue(mapping, Some(dists))
 
-    case WorkGenCreated(queue) =>
-      if queue.isEmpty then
+    case WorkGenCreated(workGen) =>
+      if workGen.isEmpty then
         eventReceiver ! FullStrategyOutOfWork
-      ctx.log.info("Received work queue of size {} ({} already processed), serving", queue.sizeTuples, processed.size)
-      stash.unstashAll(serving(queue))
+      ctx.log.info("Received work queue of size {} ({} already processed), serving", workGen.sizeTuples, processed.size)
+      stash.unstashAll(serving(workGen, Some(prepareNextBatch(workGen, nextBatchSize()))))
 
     case ReportStatus =>
       ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processed.size)
       Behaviors.same
   }
 
-  private def serving(workGen: WorkGenerator[TsId]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
+  private def serving(workGen: WorkGenerator[TsId], cachedWork: Option[WorkerProtocol.CheckCommand] = None): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
 
-    case DispatchWork(worker, time, size) if workGen.hasNext =>
+    case DispatchWork(worker, time, size) if cachedWork.isDefined && workGen.hasNext =>
+      val m = cachedWork.get
+      ctx.log.trace("Dispatching full job ({}) remaining={}, Stash={}", m.length, workGen.remaining, stash.size)
+      worker ! m
+
+      // prepare next batch
       val batchSize = nextBatchSize(time, size)
-      val work = workGen.nextBatch(batchSize, processed.contains)
+      val work = prepareNextBatch(workGen, batchSize)
+      serving(workGen, Some(work))
+
+    case DispatchWork(worker, _, _) if cachedWork.isDefined =>
+      val work = cachedWork.get
       ctx.log.trace("Dispatching full job ({}) remaining={}, Stash={}", work.length, workGen.remaining, stash.size)
-      worker ! WorkerProtocol.CheckFull(work)
-      Behaviors.same
+      worker ! work
+      serving(workGen, None)
 
     case m@DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
@@ -123,5 +132,10 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
       case _ =>
     }
     collecting(mapping, dists)
+  }
+
+  private def prepareNextBatch(workGen: WorkGenerator[TsId], batchSize: Int): WorkerProtocol.CheckCommand = {
+    val work = workGen.nextBatch(batchSize, processed.contains)
+    WorkerProtocol.CheckFull(work)
   }
 }
