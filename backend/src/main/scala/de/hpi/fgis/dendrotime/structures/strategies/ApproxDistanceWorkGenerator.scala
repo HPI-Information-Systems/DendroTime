@@ -1,6 +1,9 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.structures.WelfordsAlgorithm
+import org.apache.commons.math3.special.Erf
+import org.apache.commons.math3.util.FastMath
 
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
@@ -12,9 +15,11 @@ object ApproxDistanceWorkGenerator {
   }
 
   // create queue in factory function to allow GC of input data
-  def apply[T: Numeric : ClassTag](mapping: Map[T, Int],
-                                   dists: PDist,
-                                   direction: Direction): WorkGenerator[T] = {
+  def apply[T: Numeric : ClassTag](
+                                    mapping: Map[T, Int],
+                                    dists: PDist,
+                                    direction: Direction
+                                  ): WorkGenerator[T] = {
     val (distsCopy, pivots) = createQueue(dists)
     val reverseMapping = Array.ofDim[T](mapping.size)
     mapping.foreach { (id, idx) =>
@@ -24,28 +29,39 @@ object ApproxDistanceWorkGenerator {
   }
 
   private def createQueue(dists: PDist): (PDist, Array[Double]) = {
-    // create copy of distances and sort them
-    val distances = dists.distances.clone()
-    distances.sortInPlace()
-
-    // extract pivots to create log2(n * (n-1) / 2) bins
-    val nBins = (Math.log(distances.length) / Math.log(2)).toInt
-    val binSize = distances.length / nBins
-    val pivots = Array.ofDim[Double](nBins + 1)
-    pivots(0) = Double.MinValue
-    var i = 1
-    while i < nBins do
-      pivots(i) = distances(i * binSize)
-      i += 1
-    pivots(pivots.length - 1) = Double.MaxValue
-//    println(s"Pivots (pivots=$nBins, segments=${nBins-1} size=$binSize): ${pivots.mkString(", ")}")
-
     // create copy of the distances to freeze the contents
-    Array.copy(dists.distances, 0, distances, 0, dists.length)
+    val distances = dists.distances.clone()
+
+    // extract pivots to create 3 * log2(n * (n-1) / 2) bins (must be even)
+    val n = 3 * (Math.log(distances.length) / Math.log(2)).toInt
+    val nBins = if n % 2 == 1 then n + 1 else n
+    val pivots = extractPivotsQuantiles(distances, nBins)
+//    println(s"Pivots (pivots=${nBins+1}, segments=$nBins, size=${distances.length / nBins}): ${pivots.mkString(", ")}")
 
     // return both
-    PDist.unsafeWrapArray(distances, dists.n) -> pivots
+    PDist.unsafeWrapArray(distances) -> pivots
   }
+
+  private def extractPivotsQuantiles(distances: Array[Double], nBins: Int): Array[Double] = {
+    // estimate normal distribution parameters
+    val stats = WelfordsAlgorithm(distances)
+//    println(f"Stats: $stats, expected size=${distances.length / nBins} (${100.0/nBins}%.2f%%)")
+
+    // create pivots based on normal distribution
+    val pivots = Array.ofDim[Double](nBins + 1)
+    var i = - nBins / 2
+    var j = 0
+    while i <= nBins / 2 do
+      val p = 1.0 / nBins * i
+      val x = customProbit(p)
+      pivots(j) = stats.mean + x * stats.stdDev
+      i += 1
+      j += 1
+
+    pivots
+  }
+
+  private def customProbit(x: Double): Double = Erf.erfInv(2 * x) * FastMath.sqrt(2.0)
 }
 
 class ApproxDistanceWorkGenerator[T: Numeric] private(
@@ -74,9 +90,7 @@ class ApproxDistanceWorkGenerator[T: Numeric] private(
 
   override def next(): (T, T) = {
     if !hasNext then
-      throw new NoSuchElementException(
-        s"ApproxDistanceWorkGenerator has no (more) work ($index / $sizeTuples)"
-      )
+      throw new NoSuchElementException(s"ApproxDistanceWorkGenerator has no (more) work ($index / $sizeTuples)")
     else
       while
         val d = dists(i, j)
@@ -115,26 +129,4 @@ class ApproxDistanceWorkGenerator[T: Numeric] private(
 //      println(s"New segment (${iPivot-1}) ${iPivot-1} - $iPivot: (${pivots(iPivot - 1)}, ${pivots(iPivot)}] ($index/$sizeTuples, last size=${count - lastCount})")
 //      lastCount = count
   }
-
-//  override def nextBatch(maxN: Int): Array[(T, T)] = {
-//    val n = Math.min(maxN, remaining)
-//    val batch =
-//      if direction == ApproxDistanceWorkGenerator.Direction.Ascending then queue.slice(count, count + n)
-//      else queue.slice(queue.length - count - n - 1, queue.length - count)
-//    count += n
-//    batch
-//  }
-//
-//  override def nextBatch(maxN: Int, ignore: ((T, T)) => Boolean): Array[(T, T)] = {
-//    val buf = mutable.ArrayBuilder.make[(T, T)]
-//    buf.sizeHint(maxN)
-//    while buf.length < maxN && hasNext do
-//      val item =
-//        if direction == ApproxDistanceWorkGenerator.Direction.Ascending then queue(count)
-//        else queue(queue.length - count - 1)
-//      if !ignore(item) then
-//        buf += item
-//      count += 1
-//    buf.result()
-//  }
 }

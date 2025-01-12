@@ -4,7 +4,7 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.1+0-84ded2ee+20250105-1408
+//> using dep de.hpi.fgis:dendrotime_3:0.0.1+10-0bf66bad+20250112-1343
 //> using file Strategies.sc
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, Minkowsky, SBD}
@@ -349,11 +349,14 @@ val strategies: mutable.Map[String, WorkGenerator[Int]] = mutable.Map(
   "shortestTs" -> ShortestTsWorkGenerator(
     timeseries.zipWithIndex.map((ts, i) => i -> ts.data.length).toMap
   ),
+  "oldApproxAscending" -> OldApproxDistanceWorkGenerator(
+    timeseries.indices.zipWithIndex.toMap, approxDists, OldApproxDistanceWorkGenerator.Direction.Ascending
+  ),
   "approxAscending" -> ApproxDistanceWorkGenerator(
-    timeseries.indices.zipWithIndex.toMap, Set.empty, approxDists, Direction.Ascending
+    timeseries.indices.zipWithIndex.toMap, approxDists, Direction.Ascending
   ),
   "approxDescending" -> ApproxDistanceWorkGenerator(
-    timeseries.indices.zipWithIndex.toMap, Set.empty, approxDists, Direction.Descending
+    timeseries.indices.zipWithIndex.toMap, approxDists, Direction.Descending
   ),
   "gtLargestPairError" -> GtLargestPairErrorStrategy(approxDists, dists, timeseries.indices.toArray),
   "gtLargestTsError" -> GtLargestTsErrorStrategy(approxDists, dists, timeseries.indices.toArray),
