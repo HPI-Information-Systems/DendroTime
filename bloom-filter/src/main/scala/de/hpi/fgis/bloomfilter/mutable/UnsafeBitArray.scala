@@ -1,13 +1,14 @@
 package de.hpi.fgis.bloomfilter.mutable
 
-import java.io.*
 import de.hpi.fgis.bloomfilter.util.Unsafe.unsafe
+import org.apache.commons.math3.util.FastMath.ceil
 
+import java.io.*
 import scala.annotation.targetName
 
 @SerialVersionUID(2L)
 private[bloomfilter] final class UnsafeBitArray(val numberOfBits: Long) extends Serializable with Equals {
-  private val indices = math.ceil(numberOfBits.toDouble / 64).toLong
+  private val indices = ceil(numberOfBits.toDouble / 64).toLong
   @transient
   private val ptr = unsafe.allocateMemory(8L * indices)
   unsafe.setMemory(ptr, 8L * indices, 0.toByte)

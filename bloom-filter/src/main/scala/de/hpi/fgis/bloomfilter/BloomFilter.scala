@@ -1,10 +1,11 @@
 package de.hpi.fgis.bloomfilter
 
 import de.hpi.fgis.bloomfilter.mutable.UnsafeBitArray
+import org.apache.commons.math3.util.FastMath.{abs, log1p, rint, copySign}
 
 import java.io.OutputStream
 import scala.annotation.targetName
-import scala.math.{abs, log1p, rint}
+
 
 trait BloomFilter[T] extends Serializable with AutoCloseable with Equals {
 
@@ -57,7 +58,7 @@ trait BloomFilter[T] extends Serializable with AutoCloseable with Equals {
     val x = -log1p(-fractionOfBitsSet) * numberOfBits / numberOfHashes
     val z = rint(x)
     if (abs(x - z) == 0.5)
-      (x + Math.copySign(0.5, x)).toLong
+      (x + copySign(0.5, x)).toLong
     else
       z.toLong
   }

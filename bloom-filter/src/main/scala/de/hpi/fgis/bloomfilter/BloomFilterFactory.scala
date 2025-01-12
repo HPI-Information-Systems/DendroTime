@@ -1,6 +1,7 @@
 package de.hpi.fgis.bloomfilter
 
 import de.hpi.fgis.bloomfilter.mutable.UnsafeBitArray
+import org.apache.commons.math3.util.FastMath.{ceil, log}
 
 import java.io.{DataInputStream, InputStream}
 
@@ -9,10 +10,10 @@ import java.io.{DataInputStream, InputStream}
  */
 trait BloomFilterFactory {
   protected def optimalNumberOfBits(numberOfItems: Long, falsePositiveRate: Double): Long =
-    math.ceil(-1 * numberOfItems * math.log(falsePositiveRate) / math.log(2) / math.log(2)).toLong
+    ceil(-1 * numberOfItems * log(falsePositiveRate) / log(2) / log(2)).toLong
 
   protected def optimalNumberOfHashes(numberOfItems: Long, numberOfBits: Long): Int =
-    math.ceil(numberOfBits / numberOfItems * math.log(2)).toInt
+    ceil(numberOfBits / numberOfItems * log(2)).toInt
 
   protected def prepareBitArray(in: InputStream): BFArguments =
     val din = new DataInputStream(in)

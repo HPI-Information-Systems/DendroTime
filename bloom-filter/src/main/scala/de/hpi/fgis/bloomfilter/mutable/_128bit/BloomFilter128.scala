@@ -1,11 +1,10 @@
 package de.hpi.fgis.bloomfilter.mutable._128bit
 
-import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterFactory, CanGenerateHashFrom}
-
-import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 import de.hpi.fgis.bloomfilter.mutable.UnsafeBitArray
+import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterFactory, CanGenerateHashFrom}
+import org.apache.commons.math3.util.FastMath.pow
 
-import scala.math.*
+import java.io.{DataOutputStream, InputStream, OutputStream}
 
 @SerialVersionUID(2L)
 class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int, private val bits: UnsafeBitArray)
@@ -15,7 +14,7 @@ class BloomFilter128[T] private(val numberOfBits: Long, val numberOfHashes: Int,
     this(numberOfBits, numberOfHashes, new UnsafeBitArray(numberOfBits))
 
   override val expectedFalsePositiveRate: Double =
-    math.pow(bits.getBitCount.toDouble / numberOfBits, numberOfHashes.toDouble)
+    pow(bits.getBitCount.toDouble / numberOfBits, numberOfHashes.toDouble)
 
   override def approximateElementCount: Long = internalApproximateElementCount(bits)
 

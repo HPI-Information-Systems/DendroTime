@@ -7,6 +7,7 @@ import scala.sys.process.*
 lazy val akkaVersion = "2.9.3"
 lazy val akkaHttpVersion = "10.6.3"
 lazy val targetScalaVersion = "3.3.3"
+lazy val scalaTestVersion = "3.2.19"
 
 ThisBuild / organization := "de.hpi.fgis"
 //ThisBuild / version := "0.1.0-SNAPSHOT" // automatically filled by plugin
@@ -66,14 +67,14 @@ lazy val `backend` = project.in(file("backend"))
       "net.java.dev.jna" % "jna" % "5.14.0",
 
       // logging
-      "ch.qos.logback" % "logback-classic" % "1.5.6",
+      "ch.qos.logback" % "logback-classic" % "1.5.16",
 
       // csv parsing
       "com.univocity" % "univocity-parsers" % "2.9.1",
 
       // test
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
-      "org.scalatest" %% "scalatest" % "3.2.18" % Test
+      "org.scalatest" %% "scalatest" % scalaTestVersion % Test
     ),
     javacOptions += "-Xlint:deprecation",
     javaOptions ++= Seq("-Xmx2G", "-Dfile.encoding=UTF-8"),
@@ -108,7 +109,10 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
     name := "bloom-filter",
     version := "0.14.0",
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.18" % Test,
+      // math stuff
+      "org.apache.commons" % "commons-math3" % "3.6.1",
+      // test
+      "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
       "org.scalacheck" %% "scalacheck" % "1.18.1" % Test
     ),
     scalacOptions ++= Seq(
