@@ -344,19 +344,19 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
     var similaritySum = 0.0
     val matched = mutable.BitSet.empty
     matched.sizeHint(n - 1)
-    var i = 0
-    while i < n do
+    var i = n - 1
+    while i >= 0 do
       var maxId = 0
       var maxValue = 0.0
-      var j = 0
-      while j < n do
+      var j = n - 1
+      while j >= 0 do
         if !matched.contains(j) && dists(i)(j) > maxValue then
           maxId = j
           maxValue = dists(i)(j)
-        j += 1
+        j -= 1
       similaritySum += maxValue
       matched += maxId
-      i += 1
+      i -= 1
     similaritySum
   }
 }
