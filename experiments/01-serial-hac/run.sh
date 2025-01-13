@@ -35,3 +35,9 @@ wait
 
 # aggregate runtime results
 python aggregate-runtimes.py
+
+# create tar file
+tar -czf 01-serial-hac-results.tar.gz results/*
+echo "Results are stored in 01-serial-hac-results.tar.gz"
+
+python create-runtimes-ratio-table.py
