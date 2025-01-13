@@ -174,7 +174,7 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
         plt.axvline(x=auc, linestyle="--", color=color, label=strategy)
     plt.xlabel("Solution quality")
     plt.ylabel("Frequency")
-    if "ari" in quality_measure:
+    if "ari" in quality_measure.lower():
         plt.xlim(-0.55, 1.05)
     else:
         plt.xlim(-0.05, 1.05)
@@ -216,7 +216,7 @@ def plot_results(result_dir, filename, quality_measure="ari", save_best=False, i
 
     plt.xlabel(f"Available distances (of {n*(n-1)/2})")
     plt.ylabel(quality_measure)
-    if "ari" in quality_measure:
+    if "ari" in quality_measure.lower():
         plt.ylim(-0.55, 1.05)
     else:
         plt.ylim(-0.05, 1.05)
