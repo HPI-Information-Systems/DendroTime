@@ -26,7 +26,7 @@ object App extends CaseApp[Arguments] {
     // parse options and create parameters for DendroTime
     val dataset = loadDataset(settings.dataPath, options.dataset)
     val params = DendroTimeParams(
-      distanceName = options.metric,
+      distanceName = options.distance,
       linkageName = options.linkage,
       strategy = options.strategy
     )
