@@ -30,7 +30,7 @@ for dataset in $datasets; do
       echo ""
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
-      java -Xmx16g -Dfile.encoding=UTF-8 -jar testStrategies.jar \
+      java -Xmx8g -Dfile.encoding=UTF-8 -jar testStrategies.jar \
         --resultFolder results/ \
         --dataFolder ../../data/datasets/ \
         --qualityMeasure weightedHierarchySimilarity \

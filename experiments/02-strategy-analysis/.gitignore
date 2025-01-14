@@ -2,3 +2,4 @@ results
 *.tex
 *.pdf
 .scala-build
+*.tar.gz
