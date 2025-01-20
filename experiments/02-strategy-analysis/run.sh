@@ -53,9 +53,11 @@ wait
 tar -czf 02-strategy-analysis-results.tar.gz results/*
 echo "Results are stored in 02-strategy-analysis-results.tar.gz"
 
-# create plots for three configurations
+# create plots for some configurations
 # - msm with ward-linkage
 python create-strategy-qualities-plot.py results/msm-ward-weightedHierarchySimilarity
+# - msm with average-linkage
+python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity
 # - sbd with average-linkage
 python create-strategy-qualities-plot.py results/sbd-average-weightedHierarchySimilarity
 # - dtw with average-linkage
