@@ -2,7 +2,6 @@
 import sys
 
 from pathlib import Path
-from tqdm import tqdm
 
 import pandas as pd
 
@@ -33,7 +32,11 @@ def main():
     print(f"  reading runtimes from {filepath} experiments ...", file=sys.stderr)
     df = pd.read_csv(filepath)
     df = df[df["strategy"] == "approx_distance_ascending"]
-    df = df.pivot(index=["dataset", "distance", "linkage", "strategy"], columns=["phase"], values="runtime")
+    df = df.pivot(
+        index=["dataset", "distance", "linkage", "strategy"],
+        columns=["phase"],
+        values="runtime",
+    )
     df["distance_ratio"] = df["ComputingFullDistances"] / df["Finished"]
     df = df.reset_index()
 
