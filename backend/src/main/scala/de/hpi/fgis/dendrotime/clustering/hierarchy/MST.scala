@@ -21,15 +21,16 @@ private[hierarchy] object MST {
     var y = 0
     for _ <- 0 until n - 1 do
       val x = y
-      var currentMin = Double.PositiveInfinity
+      // start with +INF - 1 to avoid adding the non-existing distances, which are set to +INF
+      var currentMin = Double.PositiveInfinity - 1
       merged(x) = true
       for i <- 0 until n do
-        if ! merged(i) then
+        if x != i && ! merged(i) then
           val dist = dists(x, i)
           if d(i) > dist then
             d(i) = dist
 
-          if d(i) < currentMin then
+          if d(i) <= currentMin then
             y = i
             currentMin = d(i)
 

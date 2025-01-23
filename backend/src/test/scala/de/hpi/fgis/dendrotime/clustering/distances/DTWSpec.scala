@@ -4,7 +4,7 @@ import de.hpi.fgis.dendrotime.TestUtil
 import org.scalatest.matchers.*
 import org.scalatest.wordspec.AnyWordSpec
 
-class DWTSpec extends AnyWordSpec with should.Matchers {
+class DTWSpec extends AnyWordSpec with should.Matchers {
 
   import TestUtil.ImplicitEqualities.given
 

@@ -51,6 +51,24 @@ class MstSpec extends AnyWordSpec with should.Matchers {
         Hierarchy.Node(3, 3, 7, 0.56610106, 5)
       )
     }
+    "deal with +INFs correctly" in {
+      val n = 6
+      val distances = PDist(n)(
+        Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
+        Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity, Double.PositiveInfinity,
+        0.64386512, 0.82276161, 0.4434142
+      )
+
+      val h = NNChain(distances, Linkage.CompleteLinkage, adjustLabels = true)
+      h.size shouldEqual n-1
+      h.toList shouldEqual List(
+        Hierarchy.Node(0, 4, 5, 0.44341420, 2),
+        Hierarchy.Node(1, 3, 6, 0.82276161, 3),
+        Hierarchy.Node(2, 2, 7, Double.PositiveInfinity, 4),
+        Hierarchy.Node(3, 1, 8, Double.PositiveInfinity, 5),
+        Hierarchy.Node(4, 0, 9, Double.PositiveInfinity, 6)
+      )
+    }
     "compare to reference for PGWZ dataset" in {
       val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
       val expectedHierarchy = TestUtil.loadHierarchy("test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-single.csv")
