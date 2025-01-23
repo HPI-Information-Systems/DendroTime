@@ -35,6 +35,9 @@ object CutTree {
       groups(0) = lastGroup
 
     else
+      println(s"CutTree with nobs=$nobs, ncols=$nCols, nClusters: ${_nClusters.mkString(", ")}")
+      for node <- hierarchy do
+          println(s"  node: ${node.cId1}, ${node.cId2}, ${node.distance}")
       val clusters = Array.ofDim[Array[Int]](hierarchy.length)
       for i <- 0 until hierarchy.length do
         val idx = buildCluster(hierarchy(i), clusters, nobs)
@@ -65,6 +68,9 @@ object CutTree {
     if node.cId1 < nobs then
       clusterBuilder.addOne(node.cId1)
     else
+      // FIXME: this ends in an infinite loop or OOMs!
+      // https://github.com/scala/bug/issues/12617
+      // test with: ./run.sh --dataset ACSF1 --distance dtw --linkage single (requires ground truth, )
       clusterBuilder.addAll(clusters(node.cId1 - nobs))
     if node.cId2 < nobs then
       clusterBuilder.addOne(node.cId2)
