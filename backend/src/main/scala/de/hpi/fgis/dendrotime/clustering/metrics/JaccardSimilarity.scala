@@ -12,6 +12,9 @@ object JaccardSimilarity {
   def apply(bf1: BloomFilter[Int], bf2: BloomFilter[Int]): Double = {
     val intersection = bf1 & bf2
     val union = bf1 | bf2
-    intersection.approximateElementCount.toDouble / union.approximateElementCount
+    val result = intersection.approximateElementCount.toDouble / union.approximateElementCount
+    intersection.dispose()
+    union.dispose()
+    result
   }
 }

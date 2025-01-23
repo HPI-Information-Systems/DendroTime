@@ -7,10 +7,12 @@ import de.hpi.fgis.dendrotime.structures.{HierarchyWithBF, HierarchyWithBitset, 
 import scala.collection.BitSet
 import scala.util.Using
 
-trait HierarchyQualityState {
+trait HierarchyQualityState extends AutoCloseable {
   def computeQuality(hierarchy: Hierarchy): Double
 
   def dispose(): Unit
+
+  override def close(): Unit = dispose()
 }
 
 object HierarchyQualityState {
