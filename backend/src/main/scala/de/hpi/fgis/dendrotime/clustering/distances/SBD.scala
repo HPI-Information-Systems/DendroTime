@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.SBDOptions
-import fftw3.FFTWReal
+import fftw3.{FFTWProvider, FFTWReal}
 import org.apache.commons.math3.util.FastMath
 
 object SBD {
@@ -16,7 +16,7 @@ object SBD {
 
   given defaultOptions: SBDOptions = SBDOptions(standardize = DEFAULT_STANDARDIZE)
 
-  def create(using opt: SBDOptions): SBD = SBD(opt.standardize)
+  def create(using opt: SBDOptions): SBD = SBD(opt.standardize, opt.localFftwCacheSize)
 }
 
 /** Compute the shape-based distance (SBD) between two time series.
@@ -70,7 +70,12 @@ object SBD {
  * val dist = sbd(x, y)
  * ```
  */
-class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE) extends Distance {
+class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE, localFftwCacheSize: Option[Int]) extends Distance with AutoCloseable {
+
+  given fftwProvider: FFTWProvider = localFftwCacheSize match {
+    case Some(cacheSize) => FFTWProvider.localCaching(cacheSize)
+    case None => FFTWProvider.defaultFfftwProvider
+  }
 
   /** Compute the SBD distance between two time series `x` and `y`.
    *
@@ -99,4 +104,11 @@ class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE) extends Distance {
   }
 
   override def toString: String = s"SBD(standardize=$standardize)"
+
+  override def close(): Unit = {
+    fftwProvider match {
+      case p: FFTWProvider.LocalCachingFFTWProvider => p.close()
+      case _ =>
+    }
+  }
 }

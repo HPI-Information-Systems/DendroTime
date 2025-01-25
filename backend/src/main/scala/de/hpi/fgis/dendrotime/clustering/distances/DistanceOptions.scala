@@ -5,7 +5,7 @@ object DistanceOptions {
 
   case class DTWOptions(window: Double, itakuraMaxSlope: Double)
 
-  case class SBDOptions(standardize: Boolean)
+  case class SBDOptions(standardize: Boolean, localFftwCacheSize: Option[Int] = None)
 
   case class MinkowskyOptions(p: Int)
 
