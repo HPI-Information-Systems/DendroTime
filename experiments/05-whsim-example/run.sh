@@ -7,10 +7,6 @@ linkages=( "single" "complete" "average" "ward" )
 datasets=( "ACSF1" )
 strategies=( "fcfs" "approx-distance-ascending" "pre-clustering" )
 
-# set parallelization factor to number of physical cores
-N=$(lscpu -p | grep -v '^#' | cut -d, -f2 | sort -n | uniq | wc -l)
-echo "Number of physical cores: $N"
-
 # download datasets
 echo "Downloading datasets ..."
 for dataset in "${datasets[@]}"; do
@@ -19,7 +15,7 @@ for dataset in "${datasets[@]}"; do
 done
 echo "... done."
 
-# run experiments in N subprocesses
+# run experiments one after the other
 mkdir -p results
 for dataset in "${datasets[@]}"; do
   for distance in "${distances[@]}"; do
@@ -28,28 +24,18 @@ for dataset in "${datasets[@]}"; do
         echo ""
         echo ""
         echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage with strategy: $strategy"
-        (
-          java -Xmx16g -Dfile.encoding=UTF-8 \
-            -Dlogback.configurationFile=../logback.xml \
-            -Dconfig.file=application.conf \
-            -jar ../DendroTime-runner.jar \
-              --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" \
-              --strategy "${strategy}";
-          python create-whsim-plot.py --dataset "${dataset}" --distance "${distance}" \
-                                      --linkage "${linkage}" --strategy "${strategy}"
-        ) &
-
-        # allow to execute up to $N jobs in parallel
-        if [[ $(jobs -r -p | wc -l) -ge $N ]]; then
-            wait -n
-        fi
+        java -Xmx16g -Dfile.encoding=UTF-8 \
+          -Dlogback.configurationFile=../logback.xml \
+          -Dconfig.file=application.conf \
+          -jar ../DendroTime-runner.jar \
+            --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" \
+            --strategy "${strategy}";
+        python create-whsim-plot.py --dataset "${dataset}" --distance "${distance}" \
+                                    --linkage "${linkage}" --strategy "${strategy}"
       done
     done
   done
 done
-
-# wait for the remaining jobs to finish
-wait
 
 # create tar file
 tar -czf 05-whsim-example-results.tar.gz results/*
