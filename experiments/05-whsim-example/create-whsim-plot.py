@@ -5,6 +5,7 @@ import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
+
 from pathlib import Path
 
 measure_name_mapping = {
@@ -122,11 +123,11 @@ def plot_results(results_file):
 
     aucs = df.sum(axis=0) / df.shape[0]
     runtime_auc = (
-        df["hierarchy-quality"] * (df["timestamp"].diff().fillna(0))
+        df["hierarchy-quality"] * df["timestamp"].diff().fillna(0).shift(-1)
     ).sum() / df["timestamp"].max()
-    step_auc = (df["hierarchy-quality"] * (df["index"].diff().fillna(0))).sum() / df[
-        "index"
-    ].max()
+    step_auc = (
+        df["hierarchy-quality"] * df["index"].diff().fillna(0).shift(-1)
+    ).sum() / df["index"].max()
     print(f"Simple AUC={aucs['hierarchy-quality']:0.2f}")
     print(f"Runtime AUC={runtime_auc:0.2f}")
     print(f"Step AUC={step_auc:0.2f}")
