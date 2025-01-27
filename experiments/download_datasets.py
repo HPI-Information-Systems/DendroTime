@@ -104,7 +104,7 @@ def select_datasets(download_all=False, only_test=False, datasets=None):
     if only_test:
         return SMALL_TEST_DATASETS
 
-    all_datasets = univariate_equal_length + univariate_variable_length
+    all_datasets = list(univariate_equal_length) + list(univariate_variable_length)
     if datasets:
         unknown_datasets = set(datasets) - set(all_datasets)
         if unknown_datasets:
