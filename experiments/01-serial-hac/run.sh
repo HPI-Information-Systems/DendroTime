@@ -5,7 +5,8 @@ set -eo pipefail  # trace exit code of failed piped commands
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 # download datasets
-datasets=$(python download-all-datasets.py)
+datasets=$(python ../download_datasets.py)
+
 # set parallelization factor to number of physical cores
 N=$(lscpu -p | grep -v '^#' | cut -d, -f2 | sort -n | uniq | wc -l)
 echo "Number of physical cores: $N"

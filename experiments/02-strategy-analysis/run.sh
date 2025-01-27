@@ -4,23 +4,12 @@ set -eo pipefail  # trace exit code of failed piped commands
 
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
-datasets=(
-    # variable length
-    "PickupGestureWiimoteZ" "ShakeGestureWiimoteZ"
-    # equal length
-    "BirdChicken" "BeetleFly" "Coffee" "Beef" "Wine" "Meat" "Lightning2" "Lightning7"
-)
+# download test datasets
+datasets=$(python ../download_datasets.py --test)
+
 # set parallelization factor to number of physical cores
 N=$(lscpu -p | grep -v '^#' | cut -d, -f2 | sort -n | uniq | wc -l)
 echo "Number of physical cores: $N"
-
-# download datasets
-echo "Downloading datasets ..."
-for dataset in "${datasets[@]}"; do
-  echo "  ${dataset}"
-  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../../data/datasets/')"
-done
-echo "... done."
 
 # run experiments in N subprocesses
 mkdir -p results

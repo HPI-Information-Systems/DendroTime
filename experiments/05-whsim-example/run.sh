@@ -4,16 +4,9 @@ set -eo pipefail  # trace exit code of failed piped commands
 
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" )
-datasets=( "ACSF1" )
 strategies=( "fcfs" "approx-distance-ascending" "pre-clustering" )
-
 # download datasets
-echo "Downloading datasets ..."
-for dataset in "${datasets[@]}"; do
-  echo "  ${dataset}"
-  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../../data/datasets/')"
-done
-echo "... done."
+datasets=$(python ../download_datasets.py --datasets ACSF1)
 
 # run experiments one after the other
 mkdir -p results

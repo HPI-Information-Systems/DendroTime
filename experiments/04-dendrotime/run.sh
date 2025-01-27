@@ -12,7 +12,7 @@ mkdir -p "results"
 echo "strategy,dataset,distance,linkage,code" > "${failure_log_file}"
 
 # download datasets
-datasets=$(python download-all-datasets.py)
+datasets=$(python ../download_datasets.py)
 
 # run experiments one after the other
 for dataset in $datasets; do
