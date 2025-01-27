@@ -50,7 +50,6 @@ def main(data_folder):
         f.write("dataset,runtime,ARI\n")
 
     for dataset in tqdm(datasets):
-        print(f"Processing dataset {dataset}")
         X, y = load_classification(
             dataset, extract_path=data_folder, load_equal_length=False
         )
