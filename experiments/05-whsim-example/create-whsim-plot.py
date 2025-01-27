@@ -45,7 +45,7 @@ def parse_args(args):
         "--strategy",
         type=str,
         default="approx-distance-ascending",
-        choices=["pre-clustering", "approx-distance-ascending"],
+        choices=["fcfs", "pre-clustering", "approx-distance-ascending"],
         help="Strategy name",
     )
 
