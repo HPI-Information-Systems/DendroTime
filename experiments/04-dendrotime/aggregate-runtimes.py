@@ -41,7 +41,14 @@ def main():
         entries,
         columns=["dataset", "distance", "linkage", "strategy", "phase", "runtime"],
     )
-    df.to_csv(RESULT_FOLDER / "aggregated-runtimes.csv", index=False)
+    file = RESULT_FOLDER / "aggregated-runtimes.csv"
+    if not file.exists():
+        df.to_csv(RESULT_FOLDER / "aggregated-runtimes.csv", index=False)
+    else:
+        print("  File already exists, adding new results to end.", file=sys.stderr)
+        df_old = pd.read_csv(file)
+        df_new = pd.concat([df_old, df], ignore_index=True)
+        df_new.to_csv(file, index=False)
     print("... done.", file=sys.stderr)
 
 

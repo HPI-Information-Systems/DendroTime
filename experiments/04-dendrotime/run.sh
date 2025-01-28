@@ -9,10 +9,12 @@ distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 failure_log_file="results/failures.csv"
 mkdir -p "results"
-echo "strategy,dataset,distance,linkage,code" > "${failure_log_file}"
+if [ ! -f "${failure_log_file}" ]; then
+  echo "strategy,dataset,distance,linkage,code" > "${failure_log_file}"
+fi
 
 # download datasets
-datasets=$(python ../download_datasets.py)
+datasets=$(python ../download_datasets.py --all)
 
 # run experiments one after the other
 for dataset in $datasets; do

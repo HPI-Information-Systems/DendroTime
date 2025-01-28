@@ -80,6 +80,12 @@ def parse_args(args):
         help="Download all datasets, even the large ones",
     )
     parser.add_argument(
+        "-l",
+        "--large",
+        action="store_true",
+        help="Download just the large datasets",
+    )
+    parser.add_argument(
         "-t",
         "--test",
         action="store_true",
@@ -92,14 +98,13 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-def select_datasets(download_all=False, only_test=False, datasets=None):
+def select_datasets(download_all=False, only_large=False, only_test=False, datasets=None):
     # filter out long-running datasets
-    if (
-        (download_all and only_test)
-        or (download_all and datasets is not None)
-        or (only_test and datasets is not None)
-    ):
-        raise ValueError("Cannot download all, only test, and just selected datasets.")
+    if sum([download_all, only_large, only_test, datasets is not None]) > 1:
+        raise ValueError("Cannot download all, only large, only test, and just selected datasets.")
+
+    if only_large:
+        return LONG_RUNNING_DATASETS
 
     if only_test:
         return SMALL_TEST_DATASETS
@@ -139,7 +144,7 @@ def main(data_folder, datasets, skip_edeniss=False):
 
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
-    datasets = select_datasets(args.all, args.test, args.datasets)
+    datasets = select_datasets(args.all, args.large, args.test, args.datasets)
     main(
         args.datafolder if args.datafolder else DATA_FOLDER,
         datasets,
