@@ -47,7 +47,7 @@ def main(data_folder):
     aggregated_result_file = RESULT_FOLDER / "results.csv"
     print(f"Storing results in {aggregated_result_file}")
     with open(aggregated_result_file, "w") as f:
-        f.write("dataset,runtime,ARI\n")
+        f.write("dataset,distance,runtime,ARI\n")
 
     for dataset in tqdm(datasets):
         X, y = load_classification(
@@ -74,7 +74,7 @@ def main(data_folder):
             runtime = int((t1 - t0) * 1000)
             ari = adjusted_rand_score(y, jet.predict(X))
             with open(aggregated_result_file, "a") as f:
-                f.write(f"{dataset},{runtime},{ari}\n")
+                f.write(f"{dataset},{distance},{runtime},{ari}\n")
             np.savetxt(
                 RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}.csv",
                 h,
