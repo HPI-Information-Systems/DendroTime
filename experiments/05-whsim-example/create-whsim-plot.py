@@ -117,9 +117,9 @@ def plot_results(results_file):
         runtime_unit = "s"
 
     df["index"] = df["index"].astype(int)
-    n = df.shape[0]
-    middle = df[df["index"] >= n // 2].index[0]
-    print("Phase change at index", middle)
+    change_point = df["index"].max() // 2
+    change_point_runtime = df.loc[df["index"] >= change_point, "timestamp"].iloc[0]
+    print(f"Phase change at index {change_point} and runtime {change_point_runtime:.0f}")
 
     aucs = df.sum(axis=0) / df.shape[0]
     runtime_auc = (
@@ -137,7 +137,7 @@ def plot_results(results_file):
     # runtime plot
     axs[0].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
     axs[0].axvline(
-        x=df.loc[middle, "timestamp"],
+        x=change_point_runtime,
         color="gray",
         linestyle="--",
         label="Approx. $\\rightarrow$ Exact",
@@ -165,7 +165,7 @@ def plot_results(results_file):
     # step plot
     axs[1].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
     axs[1].axvline(
-        x=df.loc[middle, "index"],
+        x=change_point,
         color="gray",
         linestyle="--",
         label="Approx. $\\rightarrow$ Exact",
