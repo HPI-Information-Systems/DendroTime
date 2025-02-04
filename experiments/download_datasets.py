@@ -92,16 +92,26 @@ def parse_args(args):
         help="Download only the 10 small test datasets",
     )
     parser.add_argument(
+        "-e",
+        "--edeniss",
+        action="store_true",
+        help="Only use edeniss datasets",
+    )
+    parser.add_argument(
         "--datasets", type=str, nargs="+", help="List of datasets to download"
     )
 
     return parser.parse_args(args)
 
 
-def select_datasets(download_all=False, only_large=False, only_test=False, datasets=None):
+def select_aeon_datasets(
+    download_all=False, only_large=False, only_test=False, datasets=None
+):
     # filter out long-running datasets
     if sum([download_all, only_large, only_test, datasets is not None]) > 1:
-        raise ValueError("Cannot download all, only large, only test, and just selected datasets.")
+        raise ValueError(
+            "Cannot download all, only large, only test, and just selected datasets."
+        )
 
     if only_large:
         return LONG_RUNNING_DATASETS
@@ -109,7 +119,9 @@ def select_datasets(download_all=False, only_large=False, only_test=False, datas
     if only_test:
         return SMALL_TEST_DATASETS
 
-    all_datasets = list(univariate_equal_length) + list(univariate_variable_length)
+    all_datasets = sorted(
+        list(univariate_equal_length) + list(univariate_variable_length)
+    )
     if datasets:
         unknown_datasets = set(datasets) - set(all_datasets)
         if unknown_datasets:
@@ -120,23 +132,32 @@ def select_datasets(download_all=False, only_large=False, only_test=False, datas
     return all_datasets
 
 
+def select_edeniss_datasets(data_folder):
+    path = data_folder / "edeniss20182020_anomalies"
+    if path.exists() and path.is_dir():
+        edeniss_datasets = [f.stem for f in path.glob("*.ts")]
+        return edeniss_datasets
+    else:
+        return []
+
+
 def main(data_folder, datasets, skip_edeniss=False):
     data_folder = Path(data_folder).resolve()
-    print(f"Downloading datasets to {data_folder} ...", file=sys.stderr)
     data_folder.mkdir(parents=True, exist_ok=True)
 
-    for dataset in tqdm(datasets):
-        load_classification(dataset, extract_path=data_folder)
-        print(dataset)
-    print("... done.", file=sys.stderr)
+    if datasets:
+        print(f"Downloading datasets to {data_folder} ...", file=sys.stderr)
+        for dataset in tqdm(datasets):
+            load_classification(dataset, extract_path=data_folder)
+            print(dataset)
+        print("... done.", file=sys.stderr)
 
     if not skip_edeniss:
         print("Searching for edeniss datasets ...", file=sys.stderr)
-        path = data_folder / "edeniss20182020_anomalies"
-        if path.exists() and path.is_dir():
-            edeniss_datasets = [f.stem for f in path.glob("*.ts")]
-            for dataset in edeniss_datasets:
-                print(dataset)
+        edeniss_datasets = select_edeniss_datasets(data_folder)
+        for dataset in edeniss_datasets:
+            print(dataset)
+        if edeniss_datasets:
             print("... found.", file=sys.stderr)
         else:
             print("... not found.", file=sys.stderr)
@@ -144,9 +165,16 @@ def main(data_folder, datasets, skip_edeniss=False):
 
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
-    datasets = select_datasets(args.all, args.large, args.test, args.datasets)
-    main(
-        args.datafolder if args.datafolder else DATA_FOLDER,
-        datasets,
-        skip_edeniss=args.test or args.datasets is not None,
-    )
+    if args.edeniss:
+        main(
+            args.datafolder if args.datafolder else DATA_FOLDER,
+            datasets=[],
+            skip_edeniss=False,
+        )
+    else:
+        datasets = select_aeon_datasets(args.all, args.large, args.test, args.datasets)
+        main(
+            args.datafolder if args.datafolder else DATA_FOLDER,
+            datasets,
+            skip_edeniss=args.test or args.datasets is not None,
+        )

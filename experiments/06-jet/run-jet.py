@@ -9,14 +9,14 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
-from aeon.datasets import load_classification
+from aeon.datasets import load_classification, load_from_ts_file
 from aeon.utils.validation import check_n_jobs
 
 from jet import JET, JETMetric
 from sklearn.metrics import adjusted_rand_score
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from download_datasets import DATA_FOLDER, select_datasets
+from download_datasets import DATA_FOLDER, select_aeon_datasets, select_edeniss_datasets
 
 RESULT_FOLDER = Path("results")
 distance_functions = {
@@ -36,12 +36,32 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
+def _load_edeniss_dataset(dataset, data_folder):
+    path = f"{data_folder}/edeniss20182020_anomalies/{dataset}.ts"
+    return load_from_ts_file(path)
+
+
+def load_dataset(dataset, data_folder):
+    if dataset.startswith("edeniss"):
+        X, y = _load_edeniss_dataset(dataset, data_folder)
+    else:
+        X, y = load_classification(
+            dataset, extract_path=data_folder, load_equal_length=False
+        )
+    n_clusters = len(np.unique(y))
+    # we support only univariate time series
+    X = [x.ravel() for x in X]
+    return X, y, n_clusters
+
+
 def main(data_folder):
     n_jobs = check_n_jobs(psutil.cpu_count(logical=False))
     print(f"Using {n_jobs} jobs")
     verbose = False
     distances = ("sbd", "msm", "dtw")
-    datasets = select_datasets(download_all=True)
+    # datasets = select_aeon_datasets(download_all=True)
+    # datasets = datasets + select_edeniss_datasets(data_folder)
+    datasets = datasets + select_edeniss_datasets(data_folder)
 
     (RESULT_FOLDER / "hierarchies").mkdir(exist_ok=True, parents=True)
     aggregated_result_file = RESULT_FOLDER / "results.csv"
@@ -50,13 +70,7 @@ def main(data_folder):
         f.write("dataset,distance,runtime,ARI\n")
 
     for dataset in tqdm(datasets):
-        X, y = load_classification(
-            dataset, extract_path=data_folder, load_equal_length=False
-        )
-        n_clusters = len(np.unique(y))
-        # we support only univariate time series
-        X = [x.ravel() for x in X]
-
+        X, y, n_clusters = load_dataset(dataset, data_folder)
         for distance in distances:
             t0 = time.time()
             jet = JET(
