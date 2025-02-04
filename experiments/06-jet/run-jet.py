@@ -59,8 +59,7 @@ def main(data_folder):
     print(f"Using {n_jobs} jobs")
     verbose = False
     distances = ("sbd", "msm", "dtw")
-    # datasets = select_aeon_datasets(download_all=True)
-    # datasets = datasets + select_edeniss_datasets(data_folder)
+    datasets = select_aeon_datasets(download_all=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
 
     (RESULT_FOLDER / "hierarchies").mkdir(exist_ok=True, parents=True)
@@ -73,20 +72,25 @@ def main(data_folder):
         X, y, n_clusters = load_dataset(dataset, data_folder)
         for distance in distances:
             t0 = time.time()
-            jet = JET(
-                n_clusters=n_clusters,
-                n_pre_clusters=None,
-                n_jobs=n_jobs,
-                verbose=verbose,
-                metric=distance_functions[distance],
-                c=1.0,
-            )
-            jet.fit(X)
-            h = jet._ward_clustering._linkage_matrix
-            t1 = time.time()
+            try:
+                jet = JET(
+                    n_clusters=n_clusters,
+                    n_pre_clusters=None,
+                    n_jobs=n_jobs,
+                    verbose=verbose,
+                    metric=distance_functions[distance],
+                    c=1.0,
+                )
+                jet.fit(X)
+                h = jet._ward_clustering._linkage_matrix
+                t1 = time.time()
 
-            runtime = int((t1 - t0) * 1000)
-            ari = adjusted_rand_score(y, jet.predict(X))
+                runtime = int((t1 - t0) * 1000)
+                ari = adjusted_rand_score(y, jet.predict(X))
+            except Exception as e:
+                print(f"Error for {dataset} with {distance}: {e}")
+                runtime = -1
+                ari = -1
             with open(aggregated_result_file, "a") as f:
                 f.write(f"{dataset},{distance},{runtime},{ari}\n")
             np.savetxt(
