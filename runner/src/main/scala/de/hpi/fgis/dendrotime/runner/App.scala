@@ -17,6 +17,11 @@ object App extends CaseApp[Arguments] {
   def run(options: Arguments, remainingArgs: RemainingArgs): Unit = {
     println(s"${options.toString}, $remainingArgs")
 
+    if options.serial && options.parallel then
+      throw new IllegalArgumentException(
+        "Option 'serial' and 'parallel' cannot be used simultaneously!"
+      )
+
     // load configuration
     val config = loadConfig()
     given Config = config
@@ -33,14 +38,14 @@ object App extends CaseApp[Arguments] {
     println(s"Dataset: $dataset")
     println(s"Parameters: $params")
 
-    if options.serial then
-      runSerial(settings, dataset, params)
+    if options.serial || options.parallel then
+      runSerial(settings, dataset, params, options.parallel)
     else
       runProgressive(settings, dataset, params)
   }
 
-  private def runSerial(settings: Settings, dataset: Dataset, params: DendroTimeParams): Unit = {
-    val serialHAC = new SerialHAC(settings)
+  private def runSerial(settings: Settings, dataset: Dataset, params: DendroTimeParams, parallel: Boolean): Unit = {
+    val serialHAC = new SerialHAC(settings, parallel)
     serialHAC.run(dataset, params)
   }
 
