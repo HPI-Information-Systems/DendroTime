@@ -2,16 +2,22 @@
 
 set -eo pipefail  # trace exit code of failed piped commands
 
+# set parallelization factor based on number of physical cores and installed memory
+N=$(lscpu -p | grep -v '^#' | cut -d, -f2 | sort -n | uniq | wc -l)
+TOTAL_MEM=$(lsmem -b --summary | grep 'Total online memory' | cut -d: -f2 | sed -e 's/^[[:space:]]*//')
+let "required_mem = 16 * 1024 * 1024 * 1024"  # 16 GB
+echo "Number of physical cores: $N"
+echo "Memory in bytes (required / installed): $required_mem / $TOTAL_MEM"
+let "mem_jobs = TOTAL_MEM / required_mem"
+n_jobs=$((mem_jobs < N ? mem_jobs : N))
+echo "Running $n_jobs jobs in parallel"
+
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 # download datasets
 datasets=$(python ../download_datasets.py --all)
 
-# set parallelization factor to number of physical cores
-N=$(lscpu -p | grep -v '^#' | cut -d, -f2 | sort -n | uniq | wc -l)
-echo "Number of physical cores: $N"
-
-# run experiments in N subprocesses
+# run experiments in n_jobs subprocesses
 for dataset in $datasets; do
   for distance in "${distances[@]}"; do
     for linkage in "${linkages[@]}"; do
@@ -24,7 +30,7 @@ for dataset in $datasets; do
         -jar ../DendroTime-runner.jar --serial --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" &
 
       # allow to execute up to $N jobs in parallel
-      if [[ $(jobs -r -p | wc -l) -ge $N ]]; then
+      if [[ $(jobs -r -p | wc -l) -ge $n_jobs ]]; then
           wait -n
       fi
     done
