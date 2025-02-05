@@ -24,10 +24,12 @@ for dataset in $datasets; do
       echo ""
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
+      # allow it to fail without dragging down the whole script (|| true) and run it in background (&)
       java -Xmx16g -Dfile.encoding=UTF-8 \
         -Dlogback.configurationFile=../logback.xml \
         -Dconfig.file=application.conf \
-        -jar ../DendroTime-runner.jar --serial --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" &
+        -jar ../DendroTime-runner.jar \
+        --serial --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" || true &
 
       # allow to execute up to $N jobs in parallel
       if [[ $(jobs -r -p | wc -l) -ge $n_jobs ]]; then
