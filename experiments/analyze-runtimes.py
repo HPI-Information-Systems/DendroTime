@@ -36,6 +36,9 @@ markers["serial"] = "o"
 markers["parallel"] = "s"
 markers["JET"] = "D"
 
+baseline_strategies = ["serial", "parallel", "JET"]
+dendrotime_strategies = ["fcfs", "approx_distance_ascending", "pre_clustering"]
+
 
 def load_quality_trace(strategy, dataset, distance, linkage):
     df = pd.read_csv(
@@ -74,14 +77,13 @@ def compute_serial_quality(dataset, distance, linkage):
 
 def plot_quality_trace(df, configs):
     runtime_unit = "s"
-    static_strategies = ["serial", "parallel", "JET"]
-    dendrotime_strategies = [
-        s for s in df["strategy"].unique().tolist() if s not in static_strategies
+    dynamic_strategies = [
+        s for s in df["strategy"].unique().tolist() if s not in baseline_strategies
     ]
 
     # locate quality traces for dendrotime
     dfs = []
-    for strategy in dendrotime_strategies:
+    for strategy in dynamic_strategies:
         for dataset, distance, linkage in configs:
             try:
                 dfs.append(load_quality_trace(strategy, dataset, distance, linkage))
@@ -95,24 +97,26 @@ def plot_quality_trace(df, configs):
     ).sort_index()
 
     # extract runtime & quality of static approaches
-    df_static = df[df["strategy"].isin(static_strategies)]
+    df_static = df[df["strategy"].isin(baseline_strategies)]
     checker = {
         "dataset": [d for d, _, _ in configs],
         "distance": [d for _, d, _ in configs],
         "linkage": [l for _, _, l in configs],
     }
-    df_static = df_static[df_static[["dataset", "distance", "linkage"]].isin(checker).all(axis=1)]
+    df_static = df_static[
+        df_static[["dataset", "distance", "linkage"]].isin(checker).all(axis=1)
+    ]
     df_static = df_static.set_index(["strategy", "dataset", "distance", "linkage"])
     df_static = df_static[["runtime", "ARI"]]
     df_static = df_static.sort_index()
-    print(df_static)
+
     for dataset, distance, linkage in configs:
         df_static.loc[("serial", dataset, distance, linkage), "ARI"] = (
             compute_serial_quality(dataset, distance, linkage)
         )
     static_strategies = [
         s
-        for s in static_strategies
+        for s in baseline_strategies
         if s in df_static.index.get_level_values("strategy").unique()
     ]
 
@@ -133,7 +137,7 @@ def plot_quality_trace(df, configs):
         axs[0, i].grid(
             visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
         )
-        for strategy in dendrotime_strategies:
+        for strategy in dynamic_strategies:
             try:
                 group = df_qualities.loc[(strategy, dataset, distance, linkage)]
             except KeyError:
@@ -154,7 +158,7 @@ def plot_quality_trace(df, configs):
         axs[1, i].grid(
             visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
         )
-        for strategy in dendrotime_strategies:
+        for strategy in dynamic_strategies:
             try:
                 group = df_qualities.loc[(strategy, dataset, distance, linkage)]
             except KeyError:
@@ -184,6 +188,7 @@ def plot_quality_trace(df, configs):
             axs[1, i].plot(
                 entry["runtime"],
                 entry["ARI"],
+                markersize=10,
                 marker=markers[strategy_name(strategy)],
                 color=colors[strategy_name(strategy)],
                 label=strategy_name(strategy),
@@ -197,53 +202,14 @@ def plot_quality_trace(df, configs):
         ncol=len(handles) // 2,
         bbox_to_anchor=(0.5, 0.5),
     )
-    # fig.savefig("", bbox_inches="tight")
+    fig.savefig("example-runtime-quality-traces.pdf", bbox_inches="tight")
     return fig
 
 
-def main():
-    distance = "msm"
-    linkage = "average"
-    max_datasets = 135
-
-    # load results from serial execution
-    df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
-    df_serial["strategy"] = "serial"
-    df_serial = df_serial[df_serial["phase"] == "Finished"]
-    df_serial = df_serial.drop(columns=["phase"])
-
-    # load results from jet execution
-    df_jet = pd.read_csv("06-jet/results/results.csv")
-    df_jet["strategy"] = "JET"
-    df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
-    # df_jet["linkage"] = "ward"
-    # overwrite distance and linkage
-    # df_jet["distance"] = distance
-    dfs = []
-    for l in ["single", "complete", "average", "ward"]:
-        df = df_jet.copy()
-        df["linkage"] = l
-        dfs.append(df)
-    df_jet = pd.concat(dfs, ignore_index=True)
-
-    # load results from parallel execution
-    df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
-    df_dendrotime = df_dendrotime[df_dendrotime["phase"] == "Finished"]
-
-    print(df_dendrotime.sort_values("runtime", ascending=False)["dataset"].unique())
-
-    df = pd.concat([df_serial, df_jet, df_dendrotime], ignore_index=True)
-
+def plot_runtimes(df, distance, linkage):
     # select distance and linkage
     df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
-    df["runtime"] = df["runtime"] / 1000  # convert to seconds
 
-    # datasets
-    print(f"Processed datasets per strategy (of {max_datasets}):")
-    df_datasets = df.groupby("strategy").size().reset_index(name="counts")
-    print(df_datasets)
-
-    # plot
     fig, ax = plt.subplots()
     ax.set_title(f"Runtime comparison for {distance} and {linkage}")
     ax.set_ylabel("Runtime [s]")
@@ -265,7 +231,93 @@ def main():
             showmeans=True,
             sym="",
         )
+    return fig
 
+
+def runtime_at_quality(strategy, dataset, distance, linkage, threshold, measure):
+    try:
+        df = load_quality_trace(strategy, dataset, distance, linkage)
+        # use relative runtime instead of millis since epoch
+        df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
+        # convert millis to seconds
+        df["timestamp"] = df["timestamp"] / 1000
+        df["index"] = df["index"].astype(int)
+
+        return df.loc[df[measure] >= threshold, "timestamp"].iloc[0]
+    except FileNotFoundError:
+        print(
+            f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found"
+        )
+        return np.nan
+
+
+def create_runtime_table(df, distance, linkage, threshold):
+    # select distance and linkage
+    # (might be able to remove if we have a small number of datasets)
+    df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
+    df = df.drop(columns=["distance", "linkage", "phase", "ARI"])
+    # compute runtime at quality threshold for dendrotime strategies
+    dt_mask = df["strategy"].isin(dendrotime_strategies)
+    df.loc[dt_mask, "runtime"] = df.loc[dt_mask, ["dataset", "strategy"]].apply(
+        lambda x: runtime_at_quality(x["strategy"], x["dataset"], distance, linkage, threshold, "hierarchy-quality"),
+        axis=1,
+    )
+
+    # table layout:
+    # rows: datasets
+    # columns: runtimes of serial, parallel, JET, 3 dendrotime strategies (for hwsim & ari)
+    df = df.pivot(index="dataset", columns="strategy", values="runtime")
+    first_columns = [c for c in baseline_strategies if c in df.columns]
+    df = df[first_columns + df.columns.drop(first_columns).tolist()]
+    df = df.sort_values("approx_distance_ascending", ascending=True, na_position="last")
+    df.columns = [strategy_name(c) for c in df.columns]
+    with pd.option_context("display.max_rows", None):
+        print(df)
+
+
+def main():
+    max_datasets = 135
+
+    # load results from serial execution
+    df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
+    df_serial["strategy"] = "serial"
+    df_serial = df_serial[df_serial["phase"] == "Finished"]
+    df_serial = df_serial.drop(columns=["phase"])
+
+    # load results from jet execution
+    df_jet = pd.read_csv("06-jet/results/results.csv")
+    df_jet["strategy"] = "JET"
+    df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
+    dfs = []
+    for l in ["single", "complete", "average", "ward"]:
+        df = df_jet.copy()
+        df["linkage"] = l
+        dfs.append(df)
+    df_jet = pd.concat(dfs, ignore_index=True)
+
+    # load results from parallel execution
+    df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
+    df_dendrotime = df_dendrotime[df_dendrotime["phase"] == "Finished"]
+
+    df = pd.concat([df_serial, df_jet, df_dendrotime], ignore_index=True)
+    df["runtime"] = df["runtime"] / 1000  # convert to seconds
+
+    # datasets
+    print(f"Processed datasets per strategy (of {max_datasets}):")
+    df_datasets = (
+        df.groupby(["strategy", "distance", "linkage"])
+        .size()
+        .reset_index(name="counts")
+    )
+    print(df_datasets)
+
+    # create runtime comparison table
+    create_runtime_table(df, distance="msm", linkage="average", threshold=0.8)
+
+    # plot runtimes
+    # plot_runtimes(df, distance="msm", linkage="average")
+
+    # create example runtime-quality traces
     # FaceAll (JET surprisingly good??)
     # FacesUCR (JET surprisingly good??)
     # MoteStrain (JET surprisingly good??)
@@ -280,18 +332,18 @@ def main():
 
     # Haptics (faster, but just (sub-)linear convergence)
 
-    plot_quality_trace(
-        df,
-        [
-            ("ACSF1", distance, "ward"),
-            ("PLAID", distance, linkage),
-            ("Haptics", distance, linkage),
-            ("FaceFour", distance, linkage),
-            ("FaceFour", "dtw", linkage),
-            ("FaceFour", "sbd", linkage),
-        ],
-    )
-    plt.show()
+    # plot_quality_trace(
+    #     df,
+    #     [
+    #         ("ACSF1", "msm", "ward"),
+    #         ("PLAID", "msm", "average"),
+    #         ("Haptics", "msm", "average"),
+    #         ("FaceFour", "msm", "average"),
+    #         ("FaceFour", "dtw", "average"),
+    #         ("FaceFour", "sbd", "average"),
+    #     ],
+    # )
+    # plt.show()
 
 
 if __name__ == "__main__":
