@@ -32,6 +32,7 @@ class Settings private(config: Config) extends Extension {
   val resultsPath: Path = Path.of(config.getString(s"$namespace.results-path"))
   val groundTruthPath: Path = Path.of(config.getString(s"$namespace.ground-truth-path"))
 
+  val storeDistances: Boolean = config.getBoolean(s"$namespace.store-distances")
   val storeResults: Boolean = config.getBoolean(s"$namespace.store-results")
   def resolveResultsFolder(dataset: Dataset, params: DendroTimeParams): Path =
     resultsPath.resolve(

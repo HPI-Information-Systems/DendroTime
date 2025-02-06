@@ -15,7 +15,7 @@ import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
 
 
 object Clusterer {
-  
+
   private[clusterer] case object GetDistances extends ClustererProtocol.Command
 
   private case object ReportStatus extends ClustererProtocol.Command
@@ -187,7 +187,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
   private def progress(count: Int, n: Int): Int = (count.toDouble / n * 100).toInt
 
   private def saveDistanceMatrix(tpe: String): Unit = {
-    if settings.storeResults then
+    if settings.storeDistances then
       val datasetPath = settings.resolveResultsFolder(dataset, params)
       datasetPath.toFile.mkdirs()
       val file = datasetPath.resolve(s"$tpe-distances.csv").toFile
