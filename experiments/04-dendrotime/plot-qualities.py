@@ -7,15 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-measure_name_mapping = {
-    "ari": "ARI",
-    "ariAt": "ARI@k",
-    "averageAri": "Average ARI",
-    "approxAverageAri": "Approx. average ARI",
-    "hierarchySimilarity": "HierarchySimilarity",
-    "weightedHierarchySimilarity": "WeightedHierarchySimilarity",
-    "labelChangesAt": "Prog. indicator",
-}
+sys.path.append(str(Path(__file__).parent.parent))
+from plt_commons import measure_name_mapping, colors
 
 
 def parse_args(args):
@@ -139,7 +132,13 @@ def plot_results(results_file, use_runtime=False):
         label="Approx. $\\rightarrow$ Exact",
     )
     for measurement in df.columns:
-        plt.plot(df.index, df[measurement], label=measures[measurement], lw=2)
+        plt.plot(
+            df.index,
+            df[measurement],
+            label=measures[measurement],
+            lw=2,
+            color=colors[measurement],
+        )
 
     if use_runtime:
         plt.xlabel(f"Runtime ({runtime_unit})")

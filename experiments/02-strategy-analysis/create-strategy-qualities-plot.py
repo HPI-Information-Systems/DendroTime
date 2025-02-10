@@ -5,25 +5,21 @@ import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+
 from scipy.stats import skewnorm
-from collections import defaultdict
 from pathlib import Path
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from plt_commons import colors, strategy_name, dataset_name
 
-colors = defaultdict(lambda: "blue")
-colors["shortestTs"] = "gray"
-colors["approxAscending"] = "red"
-colors["approxDescending"] = "chocolate"
-colors["approxFullError"] = "green"
-colors["preClustering"] = "purple"
 
 ariQualityMeasures = ("ari", "ariAt", "averageAri", "approxAverageAri")
 selected_strategies = (
     "preClustering",
     "approxAscending",
-    "approxDescending",
     "approxFullError",
     "shortestTs",
+    "fcfs",
 )
 histogram_bins = 10
 
@@ -85,8 +81,8 @@ def main(sys_args):
         figures_dir / f"strategy-qualities-{distance}-{linkage}.pdf",
         bbox_inches="tight",
     )
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
 
 
 def plot_results(result_dir, filename, quality_measure="ari", ax=None):
@@ -167,9 +163,11 @@ def plot_results(result_dir, filename, quality_measure="ari", ax=None):
         strategy = row["strategy"].item()
         auc = row["auc"].item()
         color = colors[strategy]
-        ax.axhline(y=auc, linestyle="--", lw=2, color=color, label=strategy)
+        ax.axhline(
+            y=auc, linestyle="--", lw=2, color=color, label=strategy_name(strategy)
+        )
     # - configure axis
-    ax.set_title(dataset)
+    ax.set_title(dataset_name(dataset), fontsize=10)
     if quality_measure in ariQualityMeasures:
         ax.set_ylim(-0.55, 1.05)
     else:

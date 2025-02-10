@@ -1,43 +1,21 @@
 #!/usr/bin/env python3
-
 import numpy as np
 import pandas as pd
+
 import matplotlib.pyplot as plt
 
 from scipy.cluster.hierarchy import cut_tree
 from aeon.datasets import load_classification
 from sklearn.metrics import adjusted_rand_score
-from collections import defaultdict
-
-
-def strategy_name(name):
-    if name == "shortestTs":
-        return "ts-length-ascending"
-    if name == "fcfs":
-        return "fcfs"
-    if name in ("approxAscending", "approx_distance_ascending"):
-        return "approx-dissimilarity-ascending"
-    if name in ("preClustering", "pre_clustering"):
-        return "pre-clustering"
-    return name
-
-
-colors = defaultdict(lambda: "blue")
-colors["ts-length-ascending"] = "gray"
-colors["fcfs"] = "gray"
-colors["approx-dissimilarity-ascending"] = "red"
-colors["pre-clustering"] = "purple"
-colors["serial"] = "black"
-colors["parallel"] = "green"
-colors["JET"] = "blue"
-
-markers = defaultdict(lambda: "")
-markers["serial"] = "o"
-markers["parallel"] = "s"
-markers["JET"] = "D"
-
-baseline_strategies = ["serial", "parallel", "JET"]
-dendrotime_strategies = ["fcfs", "approx_distance_ascending", "pre_clustering"]
+from plt_commons import (
+    colors,
+    markers,
+    strategy_name,
+    dataset_name,
+    baseline_strategies,
+    dendrotime_strategies,
+    measure_name_mapping
+)
 
 
 def load_quality_trace(strategy, dataset, distance, linkage):
@@ -129,11 +107,11 @@ def plot_quality_trace(df, configs):
         figsize=(12, 4),
     )
     axs[0, 0].set_ylim(-0.05, 1.05)
-    axs[0, 0].set_ylabel("Hierarchy quality (whsim)")
+    axs[0, 0].set_ylabel(measure_name_mapping["weightedHierarchySimilarity"])
     axs[1, 0].set_ylim(-0.55, 1.05)
-    axs[1, 0].set_ylabel("Cluster quality (ARI)")
+    axs[1, 0].set_ylabel(measure_name_mapping["ari"])
     for i, (dataset, distance, linkage) in enumerate(configs):
-        axs[0, i].set_title(f"{dataset} ({distance}, {linkage})")
+        axs[0, i].set_title(f"{dataset_name(dataset)} ({distance}, {linkage})", fontsize=10)
         axs[0, i].grid(
             visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
         )
@@ -145,7 +123,7 @@ def plot_quality_trace(df, configs):
                     f"Could not plot hierarchy quality for {strategy} - {dataset}-{distance}-{linkage}"
                 )
                 continue
-            color = colors[strategy_name(strategy)]
+            color = colors[strategy]
             axs[0, i].step(
                 group["timestamp"],
                 group["hierarchy-quality"],
@@ -166,7 +144,7 @@ def plot_quality_trace(df, configs):
                     f"Could not plot cluster quality for {strategy} - {dataset}-{distance}-{linkage}"
                 )
                 continue
-            color = colors[strategy_name(strategy)]
+            color = colors[strategy]
             axs[1, i].step(
                 group["timestamp"],
                 group["cluster-quality"],
@@ -188,9 +166,9 @@ def plot_quality_trace(df, configs):
             axs[1, i].plot(
                 entry["runtime"],
                 entry["ARI"],
-                markersize=10,
-                marker=markers[strategy_name(strategy)],
-                color=colors[strategy_name(strategy)],
+                markersize=8,
+                marker=markers[strategy],
+                color=colors[strategy],
                 label=strategy_name(strategy),
             )
         axs[1, i].set_xlabel(f"Runtime ({runtime_unit})")
@@ -224,7 +202,7 @@ def plot_runtimes(df, distance, linkage):
         ax.boxplot(
             group["runtime"],
             positions=[strategies.index(strategy)],
-            tick_labels=[strategy],
+            tick_labels=[strategy_name(strategy)],
             widths=0.6,
             whis=(0, 100),
             meanline=True,
@@ -259,7 +237,14 @@ def create_runtime_table(df, distance, linkage, threshold):
     # compute runtime at quality threshold for dendrotime strategies
     dt_mask = df["strategy"].isin(dendrotime_strategies)
     df.loc[dt_mask, "runtime"] = df.loc[dt_mask, ["dataset", "strategy"]].apply(
-        lambda x: runtime_at_quality(x["strategy"], x["dataset"], distance, linkage, threshold, "hierarchy-quality"),
+        lambda x: runtime_at_quality(
+            x["strategy"],
+            x["dataset"],
+            distance,
+            linkage,
+            threshold,
+            "hierarchy-quality",
+        ),
         axis=1,
     )
 

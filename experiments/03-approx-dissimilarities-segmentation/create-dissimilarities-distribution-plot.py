@@ -1,4 +1,5 @@
 # /usr/bin/env python3
+import sys
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -11,6 +12,9 @@ from scipy.special import erfinv
 
 from aeon.datasets import load_classification
 from aeon.distances import pairwise_distance
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from plt_commons import cm
 
 RESULT_FOLDER = Path("results")
 distance_method_params = {
@@ -77,13 +81,14 @@ def main(dataset: str = "BeetleFly", distance: str = "dtw") -> None:
         segments.append((i, middle, size))
     print("... done.")
 
-    fig, axs = plt.figure(figsize=(6, 3)), plt.gca()
-    axs.hist(dists, bins=100, density=True, color="gray")
-    axs.plot(x, y, lw=2, color="black", label="Normal Distribution")
+    fig, axs = plt.figure(figsize=(6.5, 2)), plt.gca()
+    axs.hist(dists, bins=100, density=True, color="lightgray")
+    axs.plot(x, y, lw=2, color=cm(1), label="Normal Distribution")
     axs.set_ylabel("Density")
     axs.set_yticks([])
     axs.set_yticklabels([])
     axs.set_ylim((0, axs.get_ylim()[-1] * 1.1))
+    axs.set_xlim((dists.min(), dists.max()))
     axs.set_xlabel("Dissimilarity")
     axs.set_xticks(pivots[1:-1])
     axs.set_xticklabels(
@@ -98,12 +103,12 @@ def main(dataset: str = "BeetleFly", distance: str = "dtw") -> None:
     axs.spines[["right", "top"]].set_visible(False)
 
     # add pivots
-    axs.axvline(pivots[0], color="g", linestyle="-.", label="Pivots")
-    for p in pivots[1:-1]:
+    axs.axvline(pivots[1], lw=2, color=cm(6), linestyle="-.", label="Pivots")
+    for p in pivots[2:-1]:
         if p == mean:
-            axs.axvline(mean, lw=2, color="r", linestyle="--", label="Mean")
+            axs.axvline(mean, lw=2, color=cm(4), linestyle="--", label="Mean")
         else:
-            axs.axvline(p, lw=2, color="g", linestyle="-.")
+            axs.axvline(p, lw=2, color=cm(6), linestyle="-.")
     for i, x, size in segments:
         axs.text(
             x, axs.get_ylim()[-1], f"{size:d}", ha="center", va="top", fontweight="bold"

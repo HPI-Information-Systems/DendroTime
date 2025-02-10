@@ -8,15 +8,8 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-measure_name_mapping = {
-    "ari": "ARI",
-    "ariAt": "ARI@k",
-    "averageAri": "Average ARI",
-    "approxAverageAri": "Approx. average ARI",
-    "hierarchySimilarity": "HierarchySimilarity",
-    "weightedHierarchySimilarity": "WeightedHierarchySimilarity",
-    "labelChangesAt": "Prog. indicator",
-}
+sys.path.append(str(Path(__file__).parent.parent))
+from plt_commons import cm, measure_name_mapping
 
 
 def parse_args(args):
@@ -119,7 +112,9 @@ def plot_results(results_file):
     df["index"] = df["index"].astype(int)
     change_point = df["index"].max() // 2
     change_point_runtime = df.loc[df["index"] >= change_point, "timestamp"].iloc[0]
-    print(f"Phase change at index {change_point} and runtime {change_point_runtime:.0f}")
+    print(
+        f"Phase change at index {change_point} and runtime {change_point_runtime:.0f}"
+    )
 
     aucs = df.sum(axis=0) / df.shape[0]
     runtime_auc = (
@@ -146,11 +141,16 @@ def plot_results(results_file):
         df["timestamp"],
         df["hierarchy-quality"],
         where="post",
-        label=measures["hierarchy-quality"],
+        label=measure_name_mapping[measures["hierarchy-quality"]],
+        color=cm(2),
         lw=2,
     )
     axs[0].fill_between(
-        df["timestamp"], df["hierarchy-quality"], alpha=0.2, step="post"
+        df["timestamp"],
+        df["hierarchy-quality"],
+        alpha=0.2,
+        step="post",
+        color=cm(2),
     )
     axs[0].text(
         0.6 * df["timestamp"].max(),
@@ -174,10 +174,17 @@ def plot_results(results_file):
         df["index"],
         df["hierarchy-quality"],
         where="post",
-        label=measures["hierarchy-quality"],
+        label=measure_name_mapping[measures["hierarchy-quality"]],
+        color=cm(2),
         lw=2,
     )
-    axs[1].fill_between(df["index"], df["hierarchy-quality"], alpha=0.2, step="post")
+    axs[1].fill_between(
+        df["index"],
+        df["hierarchy-quality"],
+        alpha=0.2,
+        step="post",
+        color=cm(2),
+    )
     axs[1].text(
         0.6 * df["index"].max(),
         0.5,

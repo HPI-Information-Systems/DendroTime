@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-from pathlib import Path
+import sys
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+
 from aeon.datasets import load_from_ts_file
 from matplotlib.patches import FancyArrowPatch
+from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
 
-cm = matplotlib.colormaps["inferno"].resampled(9)
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from plt_commons import cm
+
 DATA_FOLDER = Path("data")
 FIGURE_FOLDER = Path("figures")
 FIGURE_FOLDER.mkdir(exist_ok=True)
@@ -50,7 +53,7 @@ def main():
     print("  - time series")
     for i, ts in enumerate(timeseries):
         fig, ax = plt.subplots(figsize=(3, 0.75), dpi=300)
-        ax.plot(ts, lw=2, color=cm.colors[1])
+        ax.plot(ts, lw=2, color=cm(1))
         ax.axis("off")
         fig.savefig(FIGURE_FOLDER / f"time-series-{i}.pdf", bbox_inches="tight")
         plt.close(fig)
@@ -61,9 +64,9 @@ def main():
         ts = timeseries[i]
         score = scores[i]
         fig, axs = plt.subplots(2, 1, sharex="all", figsize=(3, 1.5), dpi=300)
-        axs[0].plot(ts, lw=2, color=cm.colors[1])
+        axs[0].plot(ts, lw=2, color=cm(1))
         axs[0].axis("off")
-        axs[1].plot(score, lw=2, color=cm.colors[-3])
+        axs[1].plot(score, lw=2, color=cm(6))
         spines = axs[1].spines
         spines["top"].set_visible(False)
         spines["right"].set_visible(False)
@@ -86,17 +89,17 @@ def main():
             np.nonzero(np.diff(tmp) == 1)[0], np.nonzero(np.diff(tmp) == -1)[0]
         ]
         fig, axs = plt.subplots(3, 1, sharex="all", figsize=(3, 2.25), dpi=300)
-        axs[0].plot(ts, lw=2, color=cm.colors[1])
+        axs[0].plot(ts, lw=2, color=cm(1))
         axs[0].axis("off")
 
-        axs[1].plot(score, lw=2, color=cm.colors[-3])
-        axs[1].axhline(threshold, color=cm.colors[4], lw=1, ls="--")
+        axs[1].plot(score, lw=2, color=cm(6))
+        axs[1].axhline(threshold, color=cm(4), lw=1, ls="--")
         for b, e in anomaly_bounds:
             rect = plt.Rectangle(
                 (b, 0),
                 e - b,
                 2 + fig.subplotpars.wspace,
-                color=cm.colors[-2],
+                color=cm(7),
                 alpha=0.6,
                 transform=axs[1].get_xaxis_transform(),
                 clip_on=False,
@@ -106,7 +109,7 @@ def main():
                 ((b + e) / 2, 0),
                 ((b + e) / 2, -0.5),
                 lw=1,
-                color=cm.colors[0],
+                color=cm(0),
                 transform=axs[1].get_xaxis_transform(),
                 clip_on=False,
                 mutation_scale=10,
@@ -121,7 +124,7 @@ def main():
 
         indices = np.arange(ts.shape[0])
         for b, e in anomaly_bounds:
-            axs[2].plot(indices[b:e], ts[b:e], lw=2, color=cm.colors[1])
+            axs[2].plot(indices[b:e], ts[b:e], lw=2, color=cm(1))
             anomalies[i].append(ts[b:e])
         axs[2].axis("off")
         fig.savefig(
@@ -134,7 +137,7 @@ def main():
     for i in range(len(anomalies)):
         for j, ts in enumerate(anomalies[i]):
             fig, ax = plt.subplots(figsize=(1, 0.75), dpi=300)
-            ax.plot(ts, lw=2, color=cm.colors[1])
+            ax.plot(ts, lw=2, color=cm(1))
             ax.axis("off")
             fig.savefig(FIGURE_FOLDER / f"anomaly-{i}-{j}.pdf", bbox_inches="tight")
             plt.close(fig)
