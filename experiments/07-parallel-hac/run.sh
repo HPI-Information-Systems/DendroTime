@@ -15,7 +15,7 @@ for dataset in $datasets; do
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
       # allow it to fail without dragging down the whole script (|| true) and run it in background (&)
-      java -Xmx16g -Dfile.encoding=UTF-8 \
+      java -Xmx32g -Dfile.encoding=UTF-8 \
         -Dlogback.configurationFile=../logback.xml \
         -Dconfig.file=application.conf \
         -jar ../DendroTime-runner.jar \
