@@ -13,10 +13,10 @@ import scala.util.{Failure, Success}
 
 
 object ShortestTsStrategy extends StrategyFactory {
-  
-  private case class TSLengthsResponse(lengths: Map[TsId, Int]) extends StrategyCommand
-  
-  private case class WorkGenCreated(generator: WorkGenerator[TsId]) extends StrategyCommand
+
+  private case class TSLengthsResponse(lengths: IndexedSeq[Int]) extends StrategyCommand
+
+  private case class WorkGenCreated(generator: WorkGenerator[Int]) extends StrategyCommand
 
   override def apply(params: InternalStrategyParameters): Behavior[StrategyCommand] =
     new ShortestTsStrategy(params).start()
@@ -28,6 +28,7 @@ class ShortestTsStrategy private(params: InternalStrategyParameters)
   import ShortestTsStrategy.*
 
   private val tsAdapter = ctx.messageAdapter[TsmProtocol.TSLengthsResponse](m => TSLengthsResponse(m.lengths))
+
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
@@ -42,8 +43,10 @@ class ShortestTsStrategy private(params: InternalStrategyParameters)
     case m: DispatchWork => dispatchFallbackWork(m)
 
     case TSLengthsResponse(lengths) =>
-      val f = Future { ShortestTsWorkGenerator[TsId](lengths) }
-      ctx.pipeToSelf(f){
+      val f = Future {
+        ShortestTsWorkGenerator[Int](lengths.indices.zip(lengths).toMap)
+      }
+      ctx.pipeToSelf(f) {
         case Success(generator) => WorkGenCreated(generator)
         case Failure(e) => throw e
       }
@@ -60,8 +63,8 @@ class ShortestTsStrategy private(params: InternalStrategyParameters)
       ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processed.size)
       Behaviors.same
   }
-  
-  private def serving(workGen: WorkGenerator[TsId]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
+
+  private def serving(workGen: WorkGenerator[Int]): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
 
     case DispatchWork(worker, time, size) if workGen.hasNext =>
       val batchSize = nextBatchSize(time, size)
@@ -70,7 +73,7 @@ class ShortestTsStrategy private(params: InternalStrategyParameters)
       worker ! WorkerProtocol.CheckFull(work)
       Behaviors.same
 
-    case m @ DispatchWork(worker, _, _) =>
+    case m@DispatchWork(worker, _, _) =>
       ctx.log.debug("Worker {} asked for work but there is none (stash={})", worker, stash.size)
       if stash.isEmpty then
         eventReceiver ! FullStrategyOutOfWork

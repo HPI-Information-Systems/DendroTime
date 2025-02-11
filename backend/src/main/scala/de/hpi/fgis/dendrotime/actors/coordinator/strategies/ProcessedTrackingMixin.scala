@@ -11,7 +11,7 @@ trait ProcessedTrackingMixin { self: Strategy =>
 
   override protected def dispatchFallbackWork(m: DispatchWork): Behavior[StrategyCommand] = {
     if fallbackWorkGenerator.hasNext then
-      val batchSize = Math.max(nextBatchSize(m.lastJobDuration, m.lastBatchSize), 16)
+      val batchSize = Math.min(nextBatchSize(m.lastJobDuration, m.lastBatchSize), 32)
       val work = fallbackWorkGenerator.nextBatch(batchSize)
       processed.addAll(work)
       ctx.log.trace("Dispatching full batch ({}) processedWork={}, Stash={}", batchSize, processed.size, stash.size)

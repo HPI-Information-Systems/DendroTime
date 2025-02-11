@@ -5,11 +5,10 @@ import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop}
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyParameters.InternalStrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
-import de.hpi.fgis.dendrotime.structures.strategies.{ApproxDistanceWorkGenerator, WorkGenerator}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -17,9 +16,8 @@ import scala.util.{Failure, Success}
 
 object ApproxDistanceStrategy {
 
-  private case class TSIndexMapping(mapping: Map[TsId, Int]) extends StrategyCommand
   private case class ApproxDistances(dists: PDist) extends StrategyCommand
-  private case class WorkGenCreated(queue: WorkGenerator[TsId]) extends StrategyCommand
+  private case class WorkGenCreated(queue: ApproxDistanceWorkGenerator) extends StrategyCommand
 
   object Ascending extends StrategyFactory {
     override def apply(params: InternalStrategyParameters): Behavior[StrategyCommand] =
@@ -37,32 +35,27 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
 
   import ApproxDistanceStrategy.*
 
-  private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
   private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
   // Executor for internal futures (CPU-heavy work)
   private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
   override def start(): Behavior[StrategyCommand] = {
     if fallbackWorkGenerator.hasNext then
-      params.tsManager ! GetTSIndexMapping(params.dataset.id, tsIndexMappingAdapter)
       params.clusterer ! RegisterApproxDistMatrixReceiver(approxDistancesAdapter)
-      collecting(None, None)
+      collecting()
     else
       Behaviors.stopped
   }
 
-  private def collecting(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+  private def collecting(): Behavior[StrategyCommand] = Behaviors.receiveMessage {
     case AddTimeSeries(_) => Behaviors.same // ignore
 
     case m: DispatchWork => dispatchFallbackWork(m)
 
-    case TSIndexMapping(mapping) =>
-      ctx.log.debug("Received TS Index Mapping: {}", mapping.size)
-      potentiallyBuildQueue(Some(mapping), dists)
-
     case ApproxDistances(dists) =>
       ctx.log.debug(s"Received approximate distances", dists.n)
-      potentiallyBuildQueue(mapping, Some(dists))
+      buildQueue(dists)
+      Behaviors.same
 
     case WorkGenCreated(workGen) =>
       if workGen.isEmpty then
@@ -75,7 +68,7 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
       Behaviors.same
   }
 
-  private def serving(workGen: WorkGenerator[TsId], cachedWork: Option[WorkerProtocol.CheckCommand] = None): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
+  private def serving(workGen: ApproxDistanceWorkGenerator, cachedWork: Option[WorkerProtocol.CheckCommand] = None): Behavior[StrategyCommand] = Behaviors.receiveMessagePartial[StrategyCommand] {
     case AddTimeSeries(_) =>
       // ignore
       Behaviors.same
@@ -119,22 +112,17 @@ class ApproxDistanceStrategy private(params: InternalStrategyParameters, directi
       Behaviors.same
   }
 
-  private def potentiallyBuildQueue(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = {
-    (mapping, dists) match {
-      case (Some(m), Some(d)) =>
-        val size = d.n * (d.n - 1) / 2
-        ctx.log.info("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processed.size)
-        val f = Future { ApproxDistanceWorkGenerator[TsId](m, d, direction) }
-        ctx.pipeToSelf(f) {
-          case Success(queue) => WorkGenCreated(queue)
-          case Failure(e) => throw e
-        }
-      case _ =>
+  private def buildQueue(dists: PDist): Unit = {
+    val size = dists.n * (dists.n - 1) / 2
+    ctx.log.info("Received both approximate distances and mapping, building work Queue of size {} ({} already processed)", size, processed.size)
+    val f = Future { ApproxDistanceWorkGenerator(dists, direction) }
+    ctx.pipeToSelf(f) {
+      case Success(queue) => WorkGenCreated(queue)
+      case Failure(e) => throw e
     }
-    collecting(mapping, dists)
   }
 
-  private def prepareNextBatch(workGen: WorkGenerator[TsId], batchSize: Int): WorkerProtocol.CheckCommand = {
+  private def prepareNextBatch(workGen: ApproxDistanceWorkGenerator, batchSize: Int): WorkerProtocol.CheckCommand = {
     val work = workGen.nextBatch(batchSize, processed.contains)
     WorkerProtocol.CheckFull(work)
   }

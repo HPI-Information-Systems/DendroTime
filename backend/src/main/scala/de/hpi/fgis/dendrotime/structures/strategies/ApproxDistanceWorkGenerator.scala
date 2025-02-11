@@ -15,17 +15,9 @@ object ApproxDistanceWorkGenerator {
   }
 
   // create queue in factory function to allow GC of input data
-  def apply[T: Numeric : ClassTag](
-                                    mapping: Map[T, Int],
-                                    dists: PDist,
-                                    direction: Direction
-                                  ): WorkGenerator[T] = {
+  def apply(dists: PDist, direction: Direction): ApproxDistanceWorkGenerator = {
     val (distsCopy, pivots) = createQueue(dists)
-    val reverseMapping = Array.ofDim[T](mapping.size)
-    mapping.foreach { (id, idx) =>
-      reverseMapping(idx) = id
-    }
-    new ApproxDistanceWorkGenerator(distsCopy, pivots, reverseMapping, direction)
+    new ApproxDistanceWorkGenerator(distsCopy, pivots, direction)
   }
 
   private def createQueue(dists: PDist): (PDist, Array[Double]) = {
@@ -64,12 +56,11 @@ object ApproxDistanceWorkGenerator {
   private def customProbit(x: Double): Double = Erf.erfInv(2 * x) * FastMath.sqrt(2.0)
 }
 
-class ApproxDistanceWorkGenerator[T: Numeric] private(
-                                                       dists: PDist,
-                                                       pivots: Array[Double],
-                                                       reverseMapping: Array[T],
-                                                       direction: ApproxDistanceWorkGenerator.Direction
-                                                     ) extends WorkGenerator[T] {
+class ApproxDistanceWorkGenerator private(
+                                           dists: PDist,
+                                           pivots: Array[Double],
+                                           direction: ApproxDistanceWorkGenerator.Direction
+                                         ) extends WorkGenerator[Int] {
   private var count = 0
 //  private var lastCount = 0
 
@@ -88,7 +79,7 @@ class ApproxDistanceWorkGenerator[T: Numeric] private(
 
   override def hasNext: Boolean = index < sizeTuples
 
-  override def next(): (T, T) = {
+  override def next(): (Int, Int) = {
     if !hasNext then
       throw new NoSuchElementException(s"ApproxDistanceWorkGenerator has no (more) work ($index / $sizeTuples)")
     else
@@ -97,14 +88,12 @@ class ApproxDistanceWorkGenerator[T: Numeric] private(
         d < pivots(iPivot - 1) || d >= pivots(iPivot)
       do
         inc()
-//      println(s"($i, $j) -> ${pivots(iPivot-1)} <= ${dists(i, j)} < ${pivots(iPivot)}")
-      val (id1, id2) = reverseMapping(i) -> reverseMapping(j)
+      //      println(s"($i, $j) -> ${pivots(iPivot-1)} <= ${dists(i, j)} < ${pivots(iPivot)}")
+      val idx1 = i
+      val idx2 = j
       inc()
       count += 1
-      if id2 < id1 then
-        id2 -> id1
-      else
-        id1 -> id2
+      idx1 -> idx2
   }
 
   private def inc(): Unit = {

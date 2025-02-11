@@ -6,7 +6,6 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol.{DistanceMatrix, GetCurrentDistanceMatrix, RegisterApproxDistMatrixReceiver}
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyParameters.InternalStrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.{GetTSIndexMapping, TSIndexMappingResponse}
 import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, computeHierarchy}
@@ -18,7 +17,6 @@ import scala.util.{Failure, Success}
 
 object PreClusteringStrategy extends StrategyFactory {
 
-  private case class TSIndexMapping(mapping: Map[TsId, Int]) extends StrategyCommand
   private case class ApproxDistances(dists: PDist) extends StrategyCommand
   private case class CurrentDistanceMatrix(dists: PDist) extends StrategyCommand
   private case class PreClustersGenerated(preClusters: Array[Array[Int]]) extends StrategyCommand
@@ -28,54 +26,40 @@ object PreClusteringStrategy extends StrategyFactory {
 
   private class Initializer(params: InternalStrategyParameters) extends Strategy(params) with ProcessedTrackingMixin {
 
-    private val tsIndexMappingAdapter = ctx.messageAdapter[TSIndexMappingResponse](m => TSIndexMapping(m.mapping))
     private val approxDistancesAdapter = ctx.messageAdapter[DistanceMatrix](m => ApproxDistances(m.distances))
 
     // Executor for internal futures (CPU-heavy work)
     private given ExecutionContext = ctx.system.dispatchers.lookup(DispatcherSelector.blocking())
 
     override def start(): Behavior[StrategyCommand] = {
-      params.tsManager ! GetTSIndexMapping(params.dataset.id, tsIndexMappingAdapter)
       params.clusterer ! RegisterApproxDistMatrixReceiver(approxDistancesAdapter)
-      collecting(None, None)
+      collecting()
     }
 
-    private def collecting(mapping: Option[Map[TsId, Int]], dists: Option[PDist]): Behavior[StrategyCommand] = Behaviors.receiveMessage {
+    private def collecting(): Behavior[StrategyCommand] = Behaviors.receiveMessage {
       case AddTimeSeries(_) => Behaviors.same // ignore
 
       case m: DispatchWork => dispatchFallbackWork(m)
 
-      case TSIndexMapping(mapping) =>
-        ctx.log.debug("Received TS Index Mapping: {}", mapping.size)
-        potentiallyComputePreClusters(Some(mapping), dists)
-
       case ApproxDistances(dists) =>
         ctx.log.debug(s"Received approximate distances", dists.n)
-        potentiallyComputePreClusters(mapping, Some(dists))
+        ctx.log.info("Received both approximate distances and mapping, computing pre clusters ({} already processed)", processed.size)
+        val f = Future { computePreClusters(dists) }
+        ctx.pipeToSelf(f) {
+          case Success(preClusters) => PreClustersGenerated(preClusters)
+          case Failure(e) => throw e
+        }
+        Behaviors.same
 
       case PreClustersGenerated(preClusters) =>
         ctx.log.info("Starting pre-clustering strategy with {} preClusters ({} already processed), serving", preClusters.length, processed.size)
         stash.unstashAll(
-          new PreClusteringStrategy(params, mapping.get.map(_.swap), preClusters, processed).start()
+          new PreClusteringStrategy(params, preClusters, processed).start()
         )
 
       case ReportStatus =>
         ctx.log.info("[REPORT] Preparing, {} fallback work items already processed", processed.size)
         Behaviors.same
-    }
-
-    private def potentiallyComputePreClusters(
-                                               mapping: Option[Map[TsId, Int]],
-                                               dists: Option[PDist]
-                                             ): Behavior[StrategyCommand] = {
-      if mapping.isDefined && dists.isDefined then
-        ctx.log.info("Received both approximate distances and mapping, computing pre clusters ({} already processed)", processed.size)
-        val f = Future { computePreClusters(dists.get) }
-        ctx.pipeToSelf(f) {
-          case Success(preClusters) => PreClustersGenerated(preClusters)
-          case Failure(e) => throw e
-        }
-      collecting(mapping, dists)
     }
 
     private def computePreClusters(dists: PDist): Array[Array[Int]] = {
@@ -91,7 +75,6 @@ object PreClusteringStrategy extends StrategyFactory {
 }
 
 class PreClusteringStrategy private(params: InternalStrategyParameters,
-                                    reverseMapping: Map[Int, StrategyProtocol.TsId],
                                     preClusters: Array[Array[Int]],
                                     processed: CompactPairwiseBitset
                                    ) extends Strategy(params) {
@@ -102,7 +85,7 @@ class PreClusteringStrategy private(params: InternalStrategyParameters,
 
   ctx.log.info("STARTING with intra cluster state")
   private val settings = Settings(ctx.system)
-  private val n = reverseMapping.size
+  private val n = params.timeseriesIds.size
   private val m = n * (n - 1) / 2
   private val preClusterMedoids = Array.fill[Int](preClusters.length) {-1}
   { // initialize the singleton cluster medoids
@@ -131,8 +114,8 @@ class PreClusteringStrategy private(params: InternalStrategyParameters,
 
     case msg @ DispatchWork(worker, _, _) if state == State.Medoids && workGen.hasNext =>
       val (m1, m2) = workGen.next()
-      val tsIds1 = preClusters.find(ids => ids.contains(m1)).get.map(reverseMapping)
-      val tsIds2 = preClusters.find(ids => ids.contains(m2)).get.map(reverseMapping)
+      val tsIds1 = preClusters.find(ids => ids.contains(m1)).get
+      val tsIds2 = preClusters.find(ids => ids.contains(m2)).get
       if processed(m1, m2) then
         if tsIds1.length == 1 && tsIds2.length == 1 then
           ctx.log.info(
@@ -146,28 +129,20 @@ class PreClusteringStrategy private(params: InternalStrategyParameters,
             "Medoid pair {}, {} ({} x {}) already processed, but needed for broadcast, re-computing full-distance",
             m1, m2, tsIds1.length, tsIds2.length
           )
-          worker ! WorkerProtocol.CheckMedoids(reverseMapping(m1), reverseMapping(m2), tsIds1, tsIds2, justBroadcast = true)
+          worker ! WorkerProtocol.CheckMedoids(m1, m2, tsIds1, tsIds2, justBroadcast = true)
       else
         ctx.log.debug(
           "Dispatching medoids job {}, {} ({} x {}), remaining={}, Stash={}",
           m1, m2, tsIds1.length, tsIds2.length, workGen.remaining, stash.size
         )
         processed.add(m1, m2)
-        worker ! WorkerProtocol.CheckMedoids(reverseMapping(m1), reverseMapping(m2), tsIds1, tsIds2)
+        worker ! WorkerProtocol.CheckMedoids(m1, m2, tsIds1, tsIds2)
       Behaviors.same
 
     case DispatchWork(worker, time, size) if workGen.hasNext =>
       val batchSize = nextBatchSize(time, size)
-      val work = workGen
-        .nextBatch(batchSize, ij => processed(ij._1, ij._2))
-        .map{ (i, j) =>
-          processed.add(i, j)
-          val (iMapped, jMapped) = (reverseMapping(i), reverseMapping(j))
-          if iMapped < jMapped then
-            (iMapped, jMapped)
-          else
-            (jMapped, iMapped)
-        }
+      val work = workGen.nextBatch(batchSize, processed.contains)
+      work.foreach{ (i, j) => processed.add(i, j) }
       ctx.log.trace("Dispatching full job ({}) remaining={}, Stash={}", work.length, workGen.remaining, stash.size)
       worker ! WorkerProtocol.CheckFull(work)
       Behaviors.same
@@ -213,6 +188,7 @@ class PreClusteringStrategy private(params: InternalStrategyParameters,
         state, workGen.remaining, workGen.sizeTuples, getBatchStats
       )
       Behaviors.same
+
   } receiveSignal {
     case (_, PostStop) =>
       ctx.log.info(

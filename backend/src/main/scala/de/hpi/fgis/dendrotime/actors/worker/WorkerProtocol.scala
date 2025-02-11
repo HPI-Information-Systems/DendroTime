@@ -10,19 +10,17 @@ import scala.collection.AbstractIterator
 object WorkerProtocol {
   sealed trait Command
 
-  private type TsId = Int
-
   case class UseSupplier(supplier: ActorRef[DispatchWork]) extends Command
 
-  private[worker] case class TimeSeriesLoaded(timeseries: Map[TsId, LabeledTimeSeries]) extends Command
+  private[worker] case class TimeSeriesLoaded(timeseries: IndexedSeq[LabeledTimeSeries]) extends Command
 
-  sealed trait CheckCommand extends AbstractIterator[(TsId, TsId)] with Command {
+  sealed trait CheckCommand extends AbstractIterator[(Int, Int)] with Command {
     val isApproximate: Boolean
     def isFull: Boolean = !isApproximate
-    def medoidsFor: Option[(Array[TsId], Array[TsId])] = None
+    def medoidsFor: Option[(Array[Int], Array[Int])] = None
   }
 
-  private final class Check1(t1: TsId, t2: TsId,
+  private final class Check1(t1: Int, t2: Int,
                        override val isApproximate: Boolean) extends CheckCommand {
     private var done = false
     override val size: Int = 1
@@ -30,13 +28,13 @@ object WorkerProtocol {
 
     override def hasNext: Boolean = !done
 
-    override def next(): (TsId, TsId) = {
+    override def next(): (Int, Int) = {
       done = true
       (t1, t2)
     }
   }
 
-  private final class Check2(p1t1: TsId, p1t2: TsId, p2t1: TsId, p2t2: TsId,
+  private final class Check2(p1t1: Int, p1t2: Int, p2t1: Int, p2t2: Int,
                        override val isApproximate: Boolean) extends CheckCommand {
     private var idx = 0
     override val size: Int = 2
@@ -44,7 +42,7 @@ object WorkerProtocol {
 
     override def hasNext: Boolean = idx < 2
 
-    override def next(): (TsId, TsId) = {
+    override def next(): (Int, Int) = {
       val res = idx match {
         case 0 => (p1t1, p1t2)
         case 1 => (p2t1, p2t2)
@@ -54,7 +52,7 @@ object WorkerProtocol {
     }
   }
 
-  private final class Check3(p1t1: TsId, p1t2: TsId, p2t1: TsId, p2t2: TsId, p3t1: TsId, p3t2: TsId,
+  private final class Check3(p1t1: Int, p1t2: Int, p2t1: Int, p2t2: Int, p3t1: Int, p3t2: Int,
                              override val isApproximate: Boolean) extends CheckCommand {
     private var idx = 0
     override val size: Int = 3
@@ -62,7 +60,7 @@ object WorkerProtocol {
 
     override def hasNext: Boolean = idx < 3
 
-    override def next(): (TsId, TsId) = {
+    override def next(): (Int, Int) = {
       val res = idx match {
         case 0 => (p1t1, p1t2)
         case 1 => (p2t1, p2t2)
@@ -73,8 +71,8 @@ object WorkerProtocol {
     }
   }
 
-  private final class Check4(p1t1: TsId, p1t2: TsId, p2t1: TsId, p2t2: TsId,
-                             p3t1: TsId, p3t2: TsId, p4t1: TsId, p4t2: TsId,
+  private final class Check4(p1t1: Int, p1t2: Int, p2t1: Int, p2t2: Int,
+                             p3t1: Int, p3t2: Int, p4t1: Int, p4t2: Int,
                              override val isApproximate: Boolean) extends CheckCommand {
     private var idx = 0
     override val size: Int = 4
@@ -82,7 +80,7 @@ object WorkerProtocol {
 
     override def hasNext: Boolean = idx < 4
 
-    override def next(): (TsId, TsId) = {
+    override def next(): (Int, Int) = {
       val res = idx match {
         case 0 => (p1t1, p1t2)
         case 1 => (p2t1, p2t2)
@@ -94,30 +92,30 @@ object WorkerProtocol {
     }
   }
 
-  private final class CheckN(ids: Array[(TsId, TsId)], override val isApproximate: Boolean) extends CheckCommand {
+  private final class CheckN(ids: Array[(Int, Int)], override val isApproximate: Boolean) extends CheckCommand {
     private val it = ids.iterator
     override val size: Int = ids.length
     override val knownSize: Int = ids.length
 
     override def hasNext: Boolean = it.hasNext
 
-    override def next(): (TsId, TsId) = it.next()
+    override def next(): (Int, Int) = it.next()
   }
 
   object CheckApproximate {
-    def apply(t1: TsId, t2: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int): CheckCommand =
       new Check1(t1, t2, isApproximate = true)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int): CheckCommand =
       new Check2(t1, t2, t3, t4, isApproximate = true)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId, t5: TsId, t6: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int, t5: Int, t6: Int): CheckCommand =
       new Check3(t1, t2, t3, t4, t5, t6, isApproximate = true)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId, t5: TsId, t6: TsId, t7: TsId, t8: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int, t5: Int, t6: Int, t7: Int, t8: Int): CheckCommand =
       new Check4(t1, t2, t3, t4, t5, t6, t7, t8, isApproximate = true)
 
-    def apply(pairs: Array[(TsId, TsId)]): CheckCommand =
+    def apply(pairs: Array[(Int, Int)]): CheckCommand =
       if pairs.length == 1 then
         new Check1(pairs(0)._1, pairs(0)._2, isApproximate = true)
       else if pairs.length == 2 then
@@ -131,19 +129,19 @@ object WorkerProtocol {
   }
 
   object CheckFull {
-    def apply(t1: TsId, t2: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int): CheckCommand =
       new Check1(t1, t2, isApproximate = false)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int): CheckCommand =
       new Check2(t1, t2, t3, t4, isApproximate = false)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId, t5: TsId, t6: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int, t5: Int, t6: Int): CheckCommand =
       new Check3(t1, t2, t3, t4, t5, t6, isApproximate = false)
 
-    def apply(t1: TsId, t2: TsId, t3: TsId, t4: TsId, t5: TsId, t6: TsId, t7: TsId, t8: TsId): CheckCommand =
+    def apply(t1: Int, t2: Int, t3: Int, t4: Int, t5: Int, t6: Int, t7: Int, t8: Int): CheckCommand =
       new Check4(t1, t2, t3, t4, t5, t6, t7, t8, isApproximate = false)
 
-    def apply(pairs: Array[(TsId, TsId)]): CheckCommand =
+    def apply(pairs: Array[(Int, Int)]): CheckCommand =
       if pairs.length == 1 then
         new Check1(pairs(0)._1, pairs(0)._2, isApproximate = false)
       else if pairs.length == 2 then
@@ -156,8 +154,8 @@ object WorkerProtocol {
         new CheckN(pairs, isApproximate = false)
   }
 
-  final case class CheckMedoids(m1: TsId, m2: TsId,
-                                ids1: Array[TsId], ids2: Array[TsId],
+  final case class CheckMedoids(m1: Int, m2: Int,
+                                ids1: Array[Int], ids2: Array[Int],
                                 justBroadcast: Boolean = false) extends CheckCommand {
     private var done = false
     override val size: Int = 1
@@ -166,11 +164,11 @@ object WorkerProtocol {
 
     override def hasNext: Boolean = !done
 
-    override def next(): (TsId, TsId) = {
+    override def next(): (Int, Int) = {
       done = true
       (m1, m2)
     }
 
-    override def medoidsFor: Option[(Array[TsId], Array[TsId])] = Some((ids1, ids2))
+    override def medoidsFor: Option[(Array[Int], Array[Int])] = Some((ids1, ids2))
   }
 }
