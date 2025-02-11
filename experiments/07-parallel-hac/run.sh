@@ -5,7 +5,7 @@ set -eo pipefail  # trace exit code of failed piped commands
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 # download datasets
-datasets=$(python ../download_datasets.py --all)
+datasets=$(python ../download_datasets.py --all --sorted)
 
 # run experiments in n_jobs subprocesses
 for dataset in $datasets; do
@@ -15,7 +15,7 @@ for dataset in $datasets; do
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
       # allow it to fail without dragging down the whole script (|| true) and run it in background (&)
-      java -Xmx16g -Dfile.encoding=UTF-8 \
+      java -Xmx32g -Dfile.encoding=UTF-8 \
         -Dlogback.configurationFile=../logback.xml \
         -Dconfig.file=application.conf \
         -jar ../DendroTime-runner.jar \

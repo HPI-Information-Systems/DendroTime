@@ -5,16 +5,15 @@ import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import cm, measure_name_mapping
+from plt_commons import measure_name_mapping, colors
 
 
 def parse_args(args):
     parser = argparse.ArgumentParser(
-        description="Analyze a DendroTime experiment and plot the weighted hierarchy similarity."
+        description="Analyze a DendroTime experiment and plot the qualities."
         "Either provide the result file or the dataset, distance, linkage, and strategy names."
     )
     parser.add_argument(
@@ -39,8 +38,13 @@ def parse_args(args):
         "--strategy",
         type=str,
         default="approx-distance-ascending",
-        choices=["fcfs", "pre-clustering", "approx-distance-ascending"],
+        choices=["pre-clustering", "approx-distance-ascending"],
         help="Strategy name",
+    )
+    parser.add_argument(
+        "--use-runtime",
+        action="store_true",
+        help="Use runtime instead of computational steps as x-axis.",
     )
 
     return parser.parse_args(args)
@@ -48,6 +52,7 @@ def parse_args(args):
 
 def main(sys_args):
     args = parse_args(sys_args)
+    use_runtime = args.use_runtime
     if args.resultfile is not None:
         results_file = Path(args.resultfile)
     elif args.dataset is None:
@@ -65,7 +70,7 @@ def main(sys_args):
     if not results_file.exists():
         raise FileNotFoundError(f"Result file {results_file} not found!")
 
-    plot_results(results_file)
+    plot_results(results_file, use_runtime)
 
 
 def extract_measures_from_config(config_file):
@@ -74,11 +79,11 @@ def extract_measures_from_config(config_file):
     obj = config["dendrotime"]["progress-indicators"]
     mapping = {}
     for name in ["hierarchy-similarity", "hierarchy-quality", "cluster-quality"]:
-        mapping[name] = obj[name]
+        mapping[name] = measure_name_mapping[obj[name]]
     return mapping
 
 
-def plot_results(results_file):
+def plot_results(results_file, use_runtime=False):
     # experiment details
     parts = results_file.parent.parent.stem.split("-")
     dataset = parts[0]
@@ -90,15 +95,12 @@ def plot_results(results_file):
     config_file = results_file.parent / "config.json"
     measures = extract_measures_from_config(config_file)
 
-    if measures["hierarchy-quality"] != "weightedHierarchySimilarity":
-        raise ValueError(
-            "Only 'weightedHierarchySimilarity' is supported as hierarchy similarity "
-            f"measure, but got '{measures['hierarchy-similarity']}' instead!"
-        )
-
     print(
         f"Processing dataset '{dataset}' with distance '{distance}', linkage '{linkage}', and strategy '{strategy}'"
     )
+
+    figures_dir = Path("figures")
+    figures_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(results_file)
     # use relative runtime instead of millis since epoch
@@ -110,101 +112,47 @@ def plot_results(results_file):
         runtime_unit = "s"
 
     df["index"] = df["index"].astype(int)
-    change_point = df["index"].max() // 2
-    change_point_runtime = df.loc[df["index"] >= change_point, "timestamp"].iloc[0]
-    print(
-        f"Phase change at index {change_point} and runtime {change_point_runtime:.0f}"
-    )
+    n = df.shape[0]
+    middle = df[df["index"] >= n // 2].index[0]
+    print("Phase change", middle)
+    if use_runtime:
+        df = df.set_index("timestamp").drop(columns=["index"])
+    else:
+        df = df.set_index("index").drop(columns=["timestamp"])
 
     aucs = df.sum(axis=0) / df.shape[0]
-    runtime_auc = (
-        df["hierarchy-quality"] * df["timestamp"].diff().fillna(0).shift(-1)
-    ).sum() / df["timestamp"].max()
-    step_auc = (
-        df["hierarchy-quality"] * df["index"].diff().fillna(0).shift(-1)
-    ).sum() / df["index"].max()
-    print(f"Simple AUC={aucs['hierarchy-quality']:0.2f}")
-    print(f"Runtime AUC={runtime_auc:0.2f}")
-    print(f"Step AUC={step_auc:0.2f}")
+    print(aucs)
 
-    fig, axs = plt.subplots(1, 2, figsize=(7, 3), sharey="all")
-
-    # runtime plot
-    axs[0].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
-    axs[0].axvline(
-        x=change_point_runtime,
+    plt.figure()
+    plt.title(f"{dataset}: {strategy} strategy with {distance}-{linkage}")
+    plt.axvline(
+        x=df.index[middle],
         color="gray",
         linestyle="--",
         label="Approx. $\\rightarrow$ Exact",
     )
-    axs[0].step(
-        df["timestamp"],
-        df["hierarchy-quality"],
-        where="post",
-        label=measure_name_mapping[measures["hierarchy-quality"]],
-        color=cm(2),
-        lw=2,
-    )
-    axs[0].fill_between(
-        df["timestamp"],
-        df["hierarchy-quality"],
-        alpha=0.2,
-        step="post",
-        color=cm(2),
-    )
-    axs[0].text(
-        0.6 * df["timestamp"].max(),
-        0.5,
-        f"AUC: {runtime_auc:.2f}",
-        fontweight="bold",
-    )
-    axs[0].set_xlabel(f"Runtime ({runtime_unit})")
-    axs[0].set_ylim(0.0, 1.05)
-    axs[0].set_ylabel("Quality")
+    for measurement in df.columns:
+        plt.plot(
+            df.index,
+            df[measurement],
+            label=measures[measurement],
+            lw=2,
+            color=colors[measurement],
+        )
 
-    # step plot
-    axs[1].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
-    axs[1].axvline(
-        x=change_point,
-        color="gray",
-        linestyle="--",
-        label="Approx. $\\rightarrow$ Exact",
-    )
-    axs[1].step(
-        df["index"],
-        df["hierarchy-quality"],
-        where="post",
-        label=measure_name_mapping[measures["hierarchy-quality"]],
-        color=cm(2),
-        lw=2,
-    )
-    axs[1].fill_between(
-        df["index"],
-        df["hierarchy-quality"],
-        alpha=0.2,
-        step="post",
-        color=cm(2),
-    )
-    axs[1].text(
-        0.6 * df["index"].max(),
-        0.5,
-        f"AUC: {step_auc:.2f}",
-        fontweight="bold",
-    )
-    axs[1].set_xlabel("Computational steps")
+    if use_runtime:
+        plt.xlabel(f"Runtime ({runtime_unit})")
+    else:
+        plt.xlabel("Computational steps")
+    plt.ylabel("Quality")
+    plt.ylim(-0.05, 1.05)
 
-    handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        ncol=len(handles),
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.01),
-    )
+    plt.legend(ncol=2)
     plt.savefig(
-        f"whsim-{dataset}-{distance}-{linkage}-{strategy}.pdf",
+        figures_dir / f"solutions-{dataset}-{distance}-{linkage}-{strategy}.pdf",
         bbox_inches="tight",
     )
+    plt.show()
 
 
 if __name__ == "__main__":
