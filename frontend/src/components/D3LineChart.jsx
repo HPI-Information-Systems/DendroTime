@@ -6,7 +6,7 @@ function D3LineChart({data, useTimestamps}) {
   const id = useId().replaceAll(":", "");
   // use width of outer div
   const width = useContext(WidthContext);
-  const height = 200;
+  const height = 120;
   const horizMargin = 50;
   const axisHeight = 50;
   const legendWidth = 150;
@@ -66,7 +66,7 @@ function D3LineChart({data, useTimestamps}) {
       .range([height - axisHeight, 0]);
     const yAxis = d3.select(`#${id}-yaxis`)
       .attr("transform", `translate(0,${top + axisHeight/2})`)
-      .call(d3.axisLeft(yScale))
+      .call(d3.axisLeft(yScale).ticks(5));
 
     const colorScale = d3.scaleOrdinal()
       .domain(allLabels)
@@ -86,7 +86,7 @@ function D3LineChart({data, useTimestamps}) {
           return g;
         }
       )
-      .attr("transform", (d, i) => `translate(${width-legendWidth-2*horizMargin+25},${top + axisHeight + i*30})`);
+      .attr("transform", (d, i) => `translate(${width-legendWidth-2*horizMargin+25},${top + axisHeight/2 + i*20})`);
     legend.select("circle").attr("fill", d => colorScale(d));
     legend.select("text").text(d => d);
 
@@ -112,7 +112,7 @@ function D3LineChart({data, useTimestamps}) {
   /////////////////////////////////////////////////////////////////////////////
 
   return (
-    <div className="text-sm border-4 border-blue-500 bg-gray-100">
+    <div className="text-sm mb-2">
       <svg id={id} width={width} height={height}>
         <g id={`${id}-xaxis`}/>
         <g id={`${id}-yaxis`}/>

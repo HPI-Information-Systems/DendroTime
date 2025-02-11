@@ -6,7 +6,6 @@ import {toast} from "react-toastify";
 import D3Dendrogram from "../components/D3Dendrogram";
 import WidthProvider from "../components/WidthProvider";
 import D3LineChart from "../components/D3LineChart";
-import {Label} from "@headlessui/react";
 
 const defaultState = {
   "hierarchy": {
@@ -25,13 +24,13 @@ const defaultState = {
 function ClusteringPage() {
   const [dataset, setDataset] = useState(undefined);
   const [metric, setMetric] = useState("msm");
-  const [linkage, setLinkage] = useState("ward");
+  const [linkage, setLinkage] = useState("average");
   const [strategy, setStrategy] = useState("approx-distance-ascending");
   const [state, setState] = useState(defaultState);
   const [jobId, setJobId] = useState(undefined);
   const [polling, setPolling] = useState(null);
   const [useEqualNodeDistance, setUseEqualNodeDistance] = useState(false);
-  const [useTimestamps, setUseTimestamps] = useState(false);
+  const [useTimestamps, setUseTimestamps] = useState(true);
   const pollingInterval = 200;
 
   const startJob = useCallback(() => {
@@ -162,8 +161,7 @@ function ClusteringPage() {
           <SelectItem key="pre-clustering" value="pre-clustering">PreClustering</SelectItem>
         </Select>
       </div>
-      <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>
-      <div className="flex justify-center items-center mt-5">
+      <div className="flex justify-center items-center mt-3 mb-5">
         <Button className="mx-auto" variant="primary" size="lg" disabled={!!polling || !dataset} onClick={startJob}>
           Start Clustering
         </Button>
@@ -187,19 +185,9 @@ function ClusteringPage() {
           </div>
         </div>
       </div>
+      <StatusOverview key={jobId} jobId={jobId} progress={state.progress} activeState={state.state}/>
+      <Divider/>
       <WidthProvider>
-        <div className="flex justify-center items-center mt-5 mx-auto">
-          {(jobId && polling) ? (
-            <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
-              Currently processing job {jobId ? jobId.toString() : ""}: Dataset {dataset.name}.
-            </span>
-          ) : (jobId && state?.state === "Finished") ? (
-            <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
-              Finished processing job {jobId ? jobId.toString() : ""}.
-            </span>
-          ) : (<></>)}
-        </div>
-        <Divider/>
         <div className={"grid grid-cols-1 my-auto"}>
           {state.hierarchySimilarities.length === 0 ? (<></>) : (<>
               <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
@@ -219,6 +207,17 @@ function ClusteringPage() {
             </h3>
             <D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>
           </>)}
+          <div className="flex justify-center items-center my-1 mx-auto">
+            {(jobId && polling) ? (
+              <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+                Currently processing job {jobId ? jobId.toString() : ""}: Dataset {dataset.name}.
+              </span>
+            ) : (jobId && state?.state === "Finished") ? (
+              <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+                Finished processing job {jobId ? jobId.toString() : ""}.
+              </span>
+            ) : (<></>)}
+          </div>
         </div>
       </WidthProvider>
     </div>
