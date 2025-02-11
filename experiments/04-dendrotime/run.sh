@@ -14,7 +14,7 @@ if [ ! -f "${failure_log_file}" ]; then
 fi
 
 # download datasets
-datasets=$(python ../download_datasets.py --all)
+datasets=$(python ../download_datasets.py --all --sorted)
 
 # run experiments one after the other
 for dataset in $datasets; do

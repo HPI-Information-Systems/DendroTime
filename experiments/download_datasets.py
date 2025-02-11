@@ -2,6 +2,8 @@
 import argparse
 import sys
 
+import numpy as np
+
 from pathlib import Path
 from tqdm import tqdm
 
@@ -100,12 +102,27 @@ def parse_args(args):
     parser.add_argument(
         "--datasets", type=str, nargs="+", help="List of datasets to download"
     )
+    parser.add_argument(
+        "-s",
+        "--sorted",
+        action="store_true",
+        help="Sort the datasets by estimated processing time ascending",
+    )
 
     return parser.parse_args(args)
 
 
+def _sort_datasets(datasets):
+    try:
+        dataset_order = np.loadtxt(DATA_FOLDER.parent / "datasets.csv", delimiter=",", skiprows=1, usecols=(0,), dtype=str).tolist()
+        return sorted(datasets, key=lambda x: dataset_order.index(x))
+    except FileNotFoundError:
+        print("Could not find datasets.csv. Sorting by name.", file=sys.stderr)
+        return sorted(datasets)
+
+
 def select_aeon_datasets(
-    download_all=False, only_large=False, only_test=False, datasets=None
+    download_all=False, only_large=False, only_test=False, datasets=None, sorted=False
 ):
     # filter out long-running datasets
     if sum([download_all, only_large, only_test, datasets is not None]) > 1:
@@ -114,28 +131,32 @@ def select_aeon_datasets(
         )
 
     if only_large:
-        return LONG_RUNNING_DATASETS
+        result = LONG_RUNNING_DATASETS
 
-    if only_test:
-        return SMALL_TEST_DATASETS
+    elif only_test:
+        result = SMALL_TEST_DATASETS
 
-    all_datasets = sorted(
-        list(univariate_equal_length) + list(univariate_variable_length)
-    )
-    if datasets:
-        unknown_datasets = set(datasets) - set(all_datasets)
-        if unknown_datasets:
-            raise ValueError(f"Unknown datasets: {', '.join(unknown_datasets)}")
-        return datasets
-    if not download_all:
-        return [d for d in all_datasets if d not in LONG_RUNNING_DATASETS]
-    return all_datasets
+    else:
+        all_datasets = list(univariate_equal_length) + list(univariate_variable_length)
+        if datasets:
+            unknown_datasets = set(datasets) - set(all_datasets)
+            if unknown_datasets:
+                raise ValueError(f"Unknown datasets: {', '.join(unknown_datasets)}")
+            result = datasets
+        elif not download_all:
+            result = [d for d in all_datasets if d not in LONG_RUNNING_DATASETS]
+        else:
+            result = all_datasets
+
+    if sorted:
+        return _sort_datasets(result)
+    return result
 
 
 def select_edeniss_datasets(data_folder):
     path = data_folder / "edeniss20182020_anomalies"
     if path.exists() and path.is_dir():
-        edeniss_datasets = [f.stem for f in path.glob("*.ts")]
+        edeniss_datasets = sorted([f.stem for f in path.glob("*.ts")])
         return edeniss_datasets
     else:
         return []
@@ -172,7 +193,7 @@ if __name__ == "__main__":
             skip_edeniss=False,
         )
     else:
-        datasets = select_aeon_datasets(args.all, args.large, args.test, args.datasets)
+        datasets = select_aeon_datasets(args.all, args.large, args.test, args.datasets, args.sorted)
         main(
             args.datafolder if args.datafolder else DATA_FOLDER,
             datasets,

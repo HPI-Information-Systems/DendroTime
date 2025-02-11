@@ -5,7 +5,7 @@ set -eo pipefail  # trace exit code of failed piped commands
 distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 # download datasets
-datasets=$(python ../download_datasets.py --all)
+datasets=$(python ../download_datasets.py --all --sorted)
 
 # run experiments in n_jobs subprocesses
 for dataset in $datasets; do
