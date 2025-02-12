@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from dataclasses import dataclass
-from scipy.hierarchy import cut_tree
+from scipy.cluster.hierarchy import cut_tree
 from sklearn.metrics import adjusted_rand_score
 from aeon.datasets import load_classification
 
@@ -50,7 +50,7 @@ def main():
     for file in tqdm(experiments):
         exp = parse_experiment_name(file)
         exp_runtimes = pd.read_csv(file / "parallel" / "runtimes.csv")
-        ari = evaluate_clustering()
+        ari = evaluate_clustering(exp, file)
         for phase, runtime in exp_runtimes.itertuples(index=False):
             entries.append(
                 (exp.dataset, exp.distance, exp.linkage, exp.strategy, phase, runtime, ari)

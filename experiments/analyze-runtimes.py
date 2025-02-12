@@ -256,6 +256,7 @@ def create_runtime_table(df, distance, linkage, threshold):
     df = df[first_columns + df.columns.drop(first_columns).tolist()]
     df = df.sort_values("approx_distance_ascending", ascending=True, na_position="last")
     df.columns = [strategy_name(c) for c in df.columns]
+    print("\nRuntime at hierarchy quality >= {threshold:.2f}:")
     with pd.option_context("display.max_rows", None):
         print(df)
 
@@ -280,11 +281,17 @@ def main():
         dfs.append(df)
     df_jet = pd.concat(dfs, ignore_index=True)
 
-    # load results from parallel execution
+    # load results from system execution
     df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
     df_dendrotime = df_dendrotime[df_dendrotime["phase"] == "Finished"]
 
-    df = pd.concat([df_serial, df_jet, df_dendrotime], ignore_index=True)
+    # load results from parallel execution
+    df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
+    df_parallel["strategy"] = "parallel"
+    df_parallel = df_parallel[df_parallel["phase"] == "Finished"]
+    df_parallel = df_parallel.drop(columns=["phase"])
+
+    df = pd.concat([df_serial, df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
 
     # datasets
@@ -317,18 +324,18 @@ def main():
 
     # Haptics (faster, but just (sub-)linear convergence)
 
-    # plot_quality_trace(
-    #     df,
-    #     [
-    #         ("ACSF1", "msm", "ward"),
-    #         ("PLAID", "msm", "average"),
-    #         ("Haptics", "msm", "average"),
-    #         ("FaceFour", "msm", "average"),
-    #         ("FaceFour", "dtw", "average"),
-    #         ("FaceFour", "sbd", "average"),
-    #     ],
-    # )
-    # plt.show()
+    plot_quality_trace(
+        df,
+        [
+            ("ACSF1", "msm", "ward"),
+            ("PLAID", "msm", "average"),
+            ("Haptics", "msm", "average"),
+            ("FaceFour", "msm", "average"),
+            ("FaceFour", "dtw", "average"),
+            ("FaceFour", "sbd", "average"),
+        ],
+    )
+    plt.show()
 
 
 if __name__ == "__main__":
