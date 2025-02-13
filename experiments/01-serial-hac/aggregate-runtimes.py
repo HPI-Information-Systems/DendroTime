@@ -18,7 +18,7 @@ from tqdm_joblib import tqdm_joblib
 
 DATA_FOLDER = Path("../data/datasets")
 RESULT_FOLDER = Path("results")
-N_JOBS = 4
+N_JOBS = -1
 
 
 @dataclass

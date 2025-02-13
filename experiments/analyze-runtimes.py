@@ -89,9 +89,10 @@ def plot_quality_trace(df, configs):
     df_static = df_static.sort_index()
 
     for dataset, distance, linkage in configs:
-        df_static.loc[("serial", dataset, distance, linkage), "ARI"] = (
-            compute_serial_quality(dataset, distance, linkage)
-        )
+        if pd.isna(df_static.loc[("serial", dataset, distance, linkage), "ARI"]):
+            df_static.loc[("serial", dataset, distance, linkage), "ARI"] = (
+                compute_serial_quality(dataset, distance, linkage)
+            )
     static_strategies = [
         s
         for s in baseline_strategies
@@ -233,7 +234,17 @@ def create_runtime_table(df, distance, linkage, threshold):
     # select distance and linkage
     # (might be able to remove if we have a small number of datasets)
     df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
-    df = df.drop(columns=["distance", "linkage", "phase", "ARI"])
+    df = df.drop(columns=["distance", "linkage", "phase"])
+
+    # select datasets
+    df_ari = df[df["strategy"] == "serial"]
+    datasets = df_ari.loc[
+        (df_ari["ARI"] >= 0.2) & (df_ari["runtime"] >= 30),
+        "dataset"
+    ].unique().tolist()
+    df_ari = df_ari[df_ari["dataset"].isin(datasets)].set_index("dataset")[["ARI"]]
+    df = df[df["dataset"].isin(datasets)]
+
     # compute runtime at quality threshold for dendrotime strategies
     dt_mask = df["strategy"].isin(dendrotime_strategies)
     df.loc[dt_mask, "runtime"] = df.loc[dt_mask, ["dataset", "strategy"]].apply(
@@ -252,11 +263,13 @@ def create_runtime_table(df, distance, linkage, threshold):
     # rows: datasets
     # columns: runtimes of serial, parallel, JET, 3 dendrotime strategies (for hwsim & ari)
     df = df.pivot(index="dataset", columns="strategy", values="runtime")
+    df = pd.merge(df, df_ari, left_index=True, right_index=True, how="inner")
+
     first_columns = [c for c in baseline_strategies if c in df.columns]
     df = df[first_columns + df.columns.drop(first_columns).tolist()]
     df = df.sort_values("approx_distance_ascending", ascending=True, na_position="last")
     df.columns = [strategy_name(c) for c in df.columns]
-    print("\nRuntime at hierarchy quality >= {threshold:.2f}:")
+    print(f"\nRuntime at hierarchy quality >= {threshold:.2f} for distance={distance} and linkage={linkage}:")
     with pd.option_context("display.max_rows", None):
         print(df)
 
@@ -305,6 +318,8 @@ def main():
 
     # create runtime comparison table
     create_runtime_table(df, distance="msm", linkage="average", threshold=0.8)
+    create_runtime_table(df, distance="dtw", linkage="complete", threshold=0.8)
+    create_runtime_table(df, distance="sbd", linkage="complete", threshold=0.8)
 
     # plot runtimes
     # plot_runtimes(df, distance="msm", linkage="average")
@@ -324,18 +339,19 @@ def main():
 
     # Haptics (faster, but just (sub-)linear convergence)
 
-    plot_quality_trace(
-        df,
-        [
-            ("ACSF1", "msm", "ward"),
-            ("PLAID", "msm", "average"),
-            ("Haptics", "msm", "average"),
-            ("FaceFour", "msm", "average"),
-            ("FaceFour", "dtw", "average"),
-            ("FaceFour", "sbd", "average"),
-        ],
-    )
-    plt.show()
+    # plot_quality_trace(
+    #     df,
+    #     [
+    #         ("ACSF1", "msm", "ward"),
+    #         ("PLAID", "msm", "average"),
+    #         # ("Haptics", "msm", "average"),
+    #         ("FaceFour", "msm", "average"),
+    #         ("FaceFour", "dtw", "average"),
+    #         ("FaceFour", "sbd", "average"),
+    #         ("HandOutlines", "msm", "average"),
+    #     ],
+    # )
+    # plt.show()
 
 
 if __name__ == "__main__":
