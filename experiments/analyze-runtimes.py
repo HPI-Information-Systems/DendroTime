@@ -53,11 +53,11 @@ def compute_serial_quality(dataset, distance, linkage):
         return np.nan
 
 
-def plot_quality_trace(df, configs):
+def plot_quality_trace(df, configs, show_ari=False):
     runtime_unit = "s"
     dynamic_strategies = [
         s for s in df["strategy"].unique().tolist() if s not in baseline_strategies
-    ]
+    ][::-1]
 
     # locate quality traces for dendrotime
     dfs = []
@@ -88,11 +88,12 @@ def plot_quality_trace(df, configs):
     df_static = df_static[["runtime", "ARI"]]
     df_static = df_static.sort_index()
 
-    for dataset, distance, linkage in configs:
-        if pd.isna(df_static.loc[("serial", dataset, distance, linkage), "ARI"]):
-            df_static.loc[("serial", dataset, distance, linkage), "ARI"] = (
-                compute_serial_quality(dataset, distance, linkage)
-            )
+    if show_ari:
+        for dataset, distance, linkage in configs:
+            if pd.isna(df_static.loc[("serial", dataset, distance, linkage), "ARI"]):
+                df_static.loc[("serial", dataset, distance, linkage), "ARI"] = (
+                    compute_serial_quality(dataset, distance, linkage)
+                )
     static_strategies = [
         s
         for s in baseline_strategies
@@ -100,22 +101,26 @@ def plot_quality_trace(df, configs):
     ]
 
     fig, axs = plt.subplots(
-        2,
+        2 if show_ari else 1,
         len(configs),
+        squeeze=False,
         sharex="col",
         sharey="row",
         constrained_layout=True,
-        figsize=(12, 4),
+        figsize=(12, 4 if show_ari else 2),
     )
+
     axs[0, 0].set_ylim(-0.05, 1.05)
     axs[0, 0].set_ylabel(measure_name_mapping["weightedHierarchySimilarity"])
-    axs[1, 0].set_ylim(-0.55, 1.05)
-    axs[1, 0].set_ylabel(measure_name_mapping["ari"])
     for i, (dataset, distance, linkage) in enumerate(configs):
         axs[0, i].set_title(f"{dataset_name(dataset)} ({distance}, {linkage})", fontsize=10)
         axs[0, i].grid(
             visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
         )
+        max_runtime = np.max(np.r_[
+            df_static.loc[(slice(None), dataset, distance, linkage), "runtime"].values,
+            df_qualities.loc[(slice(None), dataset, distance, linkage), "timestamp"].values
+        ])
         for strategy in dynamic_strategies:
             try:
                 group = df_qualities.loc[(strategy, dataset, distance, linkage)]
@@ -126,37 +131,13 @@ def plot_quality_trace(df, configs):
                 continue
             color = colors[strategy]
             axs[0, i].step(
-                group["timestamp"],
-                group["hierarchy-quality"],
+                np.r_[group["timestamp"], max_runtime],
+                np.r_[group["hierarchy-quality"], group["hierarchy-quality"].iloc[-1]],
                 where="post",
                 color=color,
                 lw=2,
                 label=strategy_name(strategy),
             )
-
-        axs[1, i].grid(
-            visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
-        )
-        for strategy in dynamic_strategies:
-            try:
-                group = df_qualities.loc[(strategy, dataset, distance, linkage)]
-            except KeyError:
-                print(
-                    f"Could not plot cluster quality for {strategy} - {dataset}-{distance}-{linkage}"
-                )
-                continue
-            color = colors[strategy]
-            axs[1, i].step(
-                group["timestamp"],
-                group["cluster-quality"],
-                where="post",
-                color=color,
-                lw=2,
-                label=strategy_name(strategy),
-            )
-            # ax.fill_between(
-            #     group["timestamp"], group["cluster-quality"], alpha=0.2, step="post"
-            # )
         for strategy in static_strategies:
             try:
                 entry = df_static.loc[(strategy, dataset, distance, linkage)]
@@ -164,16 +145,67 @@ def plot_quality_trace(df, configs):
                 print(
                     f"Could not plot static quality for {strategy} - {dataset}-{distance}-{linkage}"
                 )
-            axs[1, i].plot(
-                entry["runtime"],
-                entry["ARI"],
-                markersize=8,
-                marker=markers[strategy],
-                color=colors[strategy],
-                label=strategy_name(strategy),
+            if strategy == "JET":
+                axs[0, i].axvline(entry["runtime"], lw=2, ls="--", color=colors[strategy], label=strategy_name(strategy))
+
+            else:
+                axs[0, i].plot(
+                    entry["runtime"],
+                    1.0,
+                    markersize=8,
+                    marker=markers[strategy],
+                    color=colors[strategy],
+                    label=strategy_name(strategy),
+                )
+
+        axs[-1, i].set_xlabel(f"Runtime ({runtime_unit})")
+
+    # plot row of ARIs
+    if show_ari:
+        axs[1, 0].set_ylim(-0.55, 1.05)
+        axs[1, 0].set_ylabel(measure_name_mapping["ari"])
+
+        for i, (dataset, distance, linkage) in enumerate(configs):
+            axs[1, i].grid(
+                visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
             )
-        axs[1, i].set_xlabel(f"Runtime ({runtime_unit})")
-    handles, labels = axs[1, 0].get_legend_handles_labels()
+            for strategy in dynamic_strategies:
+                try:
+                    group = df_qualities.loc[(strategy, dataset, distance, linkage)]
+                except KeyError:
+                    print(
+                        f"Could not plot cluster quality for {strategy} - {dataset}-{distance}-{linkage}"
+                    )
+                    continue
+                color = colors[strategy]
+                axs[1, i].step(
+                    group["timestamp"],
+                    group["cluster-quality"],
+                    where="post",
+                    color=color,
+                    lw=2,
+                    label=strategy_name(strategy),
+                )
+                # ax.fill_between(
+                #     group["timestamp"], group["cluster-quality"], alpha=0.2, step="post"
+                # )
+            for strategy in static_strategies:
+                try:
+                    entry = df_static.loc[(strategy, dataset, distance, linkage)]
+                except KeyError:
+                    print(
+                        f"Could not plot static quality for {strategy} - {dataset}-{distance}-{linkage}"
+                    )
+                axs[1, i].plot(
+                    entry["runtime"],
+                    entry["ARI"],
+                    markersize=8,
+                    marker=markers[strategy],
+                    color=colors[strategy],
+                    label=strategy_name(strategy),
+                )
+
+    handles, labels = axs[0, 0].get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
@@ -339,19 +371,19 @@ def main():
 
     # Haptics (faster, but just (sub-)linear convergence)
 
-    # plot_quality_trace(
-    #     df,
-    #     [
-    #         ("ACSF1", "msm", "ward"),
-    #         ("PLAID", "msm", "average"),
-    #         # ("Haptics", "msm", "average"),
-    #         ("FaceFour", "msm", "average"),
-    #         ("FaceFour", "dtw", "average"),
-    #         ("FaceFour", "sbd", "average"),
-    #         ("HandOutlines", "msm", "average"),
-    #     ],
-    # )
-    # plt.show()
+    plot_quality_trace(
+        df,
+        [
+            ("ACSF1", "msm", "ward"),
+            ("PLAID", "msm", "average"),
+            # ("Haptics", "msm", "average"),
+            ("FaceFour", "msm", "average"),
+            ("FaceFour", "dtw", "average"),
+            ("FaceFour", "sbd", "average"),
+            ("HandOutlines", "msm", "average"),
+        ],
+    )
+    plt.show()
 
 
 if __name__ == "__main__":

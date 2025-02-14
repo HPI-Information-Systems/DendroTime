@@ -59,7 +59,7 @@ measure_name_mapping = {
     "averageAri": "Average ARI",
     "approxAverageAri": "Approx. average ARI",
     "hierarchySimilarity": "HierarchySimilarity",
-    "weightedHierarchySimilarity": "WeightedHierarchySimilarity",
+    "weightedHierarchySimilarity": "WHS",
     "labelChangesAt": "Prog. indicator",
 }
 baseline_strategies = ["serial", "parallel", "JET"]
