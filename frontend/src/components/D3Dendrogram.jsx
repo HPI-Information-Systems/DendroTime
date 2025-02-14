@@ -82,6 +82,7 @@ function D3Dendrogram({data, useEqualNodeDistance, showLabels = false}) {
   const tDuration = 200;
   const dx = 5;
   const vertMargin = dx;
+  const axisFontSize = "15px";
 
   const hierarchy = getHierarchyRoot(data);
   // optimize: useMemo
@@ -139,7 +140,8 @@ function D3Dendrogram({data, useEqualNodeDistance, showLabels = false}) {
     const xAxis = d3.select(`#${id}-axis`)
       // .transition().duration(tDuration)
       .attr("transform", `translate(0,${top + axisHeight/2})`)
-      .call(d3.axisTop(xScale));
+      .call(d3.axisTop(xScale))
+      .style("font-size", axisFontSize);
     const connection = d3.linkHorizontal().x(fx).y(fy);
 
 

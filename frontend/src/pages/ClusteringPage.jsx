@@ -190,9 +190,9 @@ function ClusteringPage() {
       <WidthProvider>
         <div className={"grid grid-cols-1 my-auto"}>
           {state.hierarchySimilarities.length === 0 ? (<></>) : (<>
-              <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
+              <h2 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mb-1 mx-auto">
                 Quality over Time
-              </h3>
+              </h2>
               <D3LineChart data={{
                 "steps": state.steps,
                 "timestamps": state.timestamps,
@@ -202,9 +202,9 @@ function ClusteringPage() {
               }} useTimestamps={useTimestamps}/>
           </>)}
           {!state.hierarchy.hierarchy || state.hierarchy.hierarchy.length === 0 ? (<></>) : (<>
-            <h3 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-2 mb-1 mx-auto">
+            <h2 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-4 mb-1 mx-auto">
               Dendrogram
-            </h3>
+            </h2>
             <D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>
           </>)}
           <div className="flex justify-center items-center my-1 mx-auto">

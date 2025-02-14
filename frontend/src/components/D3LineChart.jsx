@@ -11,6 +11,7 @@ function D3LineChart({data, useTimestamps}) {
   const axisHeight = 50;
   const legendWidth = 150;
   const tDuration = 200;
+  const axisFontSize = "15px";
 
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!
@@ -48,14 +49,15 @@ function D3LineChart({data, useTimestamps}) {
     const xAxis = d3.select(`#${id}-xaxis`);
     xAxis.attr("transform", `translate(0,${height - axisHeight/2})`)
       .transition().duration(tDuration)
-      .call(d3.axisBottom(xScale));
+      .call(d3.axisBottom(xScale))
+      .style("font-size", axisFontSize);
     // add axis label
     const xLabel = xAxis.select(".label").node() ?
       xAxis.select(".label").select("text")
       : xAxis.append("g").attr("class", "label").append("text");
     xLabel
       .attr("text-anchor", "start")
-      .attr("x", width-legendWidth-2*horizMargin + 10)
+      .attr("x", width-legendWidth-2*horizMargin + 25)
       .attr("dy", "10")
       .attr("fill", "currentColor")
       .text(useTimestamps? "Timestamps in ms" : "Steps");
@@ -66,7 +68,8 @@ function D3LineChart({data, useTimestamps}) {
       .range([height - axisHeight, 0]);
     const yAxis = d3.select(`#${id}-yaxis`)
       .attr("transform", `translate(0,${top + axisHeight/2})`)
-      .call(d3.axisLeft(yScale).ticks(5));
+      .call(d3.axisLeft(yScale).ticks(5))
+      .style("font-size", axisFontSize);
 
     const colorScale = d3.scaleOrdinal()
       .domain(allLabels)
