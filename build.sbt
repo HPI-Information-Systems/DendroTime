@@ -49,6 +49,19 @@ lazy val `runner` = project.in(file("dendrotime-runner"))
     run / baseDirectory := file(".")
   )
 
+lazy val `evaluator` = project.in(file("dendrotime-evaluator"))
+  .dependsOn(`dendrotime-clustering`, `dendrotime-io`)
+  .settings(
+    name := "DendroTime-Evaluator",
+    libraryDependencies ++= Seq(
+      "com.github.alexarchambault" %% "case-app" % "2.1.0-M29",
+    ),
+    Compile / mainClass := Some("de.hpi.fgis.dendrotime.evaluator.App"),
+    assembly / mainClass := Some("de.hpi.fgis.dendrotime.evaluator.App"),
+    assembly / assemblyOutputPath := file("experiments/DendroTime-Evaluator.jar"),
+    run / baseDirectory := file(".")
+  )
+
 lazy val `benchmarking` = project.in(file("dendrotime-benchmarking"))
   .dependsOn(`backend`)
   .enablePlugins(JmhPlugin)
