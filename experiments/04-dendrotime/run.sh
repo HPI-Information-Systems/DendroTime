@@ -9,10 +9,12 @@ distances=( "euclidean" "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" "ward" )
 failure_log_file="results/failures.csv"
 mkdir -p "results"
-echo "strategy,dataset,distance,linkage,code" > "${failure_log_file}"
+if [ ! -f "${failure_log_file}" ]; then
+  echo "strategy,dataset,distance,linkage,code" > "${failure_log_file}"
+fi
 
 # download datasets
-datasets=$(python download-all-datasets.py)
+datasets=$(python ../download_datasets.py --all --sorted)
 
 # run experiments one after the other
 for dataset in $datasets; do
@@ -22,7 +24,7 @@ for dataset in $datasets; do
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
       exit_code=0
-      java -Xmx16g -Dfile.encoding=UTF-8 \
+      java -Xmx32g -Dfile.encoding=UTF-8 \
         -Dlogback.configurationFile=../logback.xml \
         -Dconfig.file=application.conf \
         -jar ../DendroTime-runner.jar \

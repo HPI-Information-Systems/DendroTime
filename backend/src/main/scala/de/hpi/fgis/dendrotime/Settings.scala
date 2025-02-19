@@ -13,7 +13,7 @@ import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig
 import java.io.File
 import java.nio.file.Path
 import scala.concurrent.duration.FiniteDuration
-import scala.util.Using
+import scala.util.{Failure, Success, Try, Using}
 
 object Settings extends ExtensionId[Settings] {
 
@@ -32,6 +32,7 @@ class Settings private(config: Config) extends Extension {
   val resultsPath: Path = Path.of(config.getString(s"$namespace.results-path"))
   val groundTruthPath: Path = Path.of(config.getString(s"$namespace.ground-truth-path"))
 
+  val storeDistances: Boolean = config.getBoolean(s"$namespace.store-distances")
   val storeResults: Boolean = config.getBoolean(s"$namespace.store-results")
   def resolveResultsFolder(dataset: Dataset, params: DendroTimeParams): Path =
     resultsPath.resolve(
@@ -73,16 +74,16 @@ class Settings private(config: Config) extends Extension {
 
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
-    private def resolveSubConfig(path: String): Option[Config] = {
-      if config.hasPath(s"$internalNamespace.$path") then
-        try
-          Some(config.getConfig(s"$internalNamespace.$path"))
-        catch case _: ConfigException.WrongType =>
-          val reference = config.getString(s"$internalNamespace.$path")
-          Some(config.getConfig(s"$internalNamespace.$reference"))
-      else
-        None
-    }
+    private def resolveSubConfig(path: String): Option[Config] = Try[Option[Config]] {
+      if !config.getBoolean(s"$internalNamespace.$path") then None
+      else throw new RuntimeException("marker for recovery")
+    }.orElse(Try {
+      Some(config.getConfig(s"$internalNamespace.$path"))
+    }).orElse(Try {
+      val reference = config.getString(s"$internalNamespace.$path")
+      Some(config.getConfig(s"$internalNamespace.$reference"))
+    }).getOrElse(None)
+
     val hierarchySimilarityConfig: Option[HierarchySimilarityConfig] =
       resolveSubConfig("hierarchy-similarity").map(HierarchySimilarityConfig.fromConfig)
     val hierarchyQualityConfig: Option[HierarchySimilarityConfig] =

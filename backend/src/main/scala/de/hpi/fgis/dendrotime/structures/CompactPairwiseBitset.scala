@@ -14,7 +14,7 @@ object CompactPairwiseBitset {
    */
   def ofDim(n: Int): CompactPairwiseBitset = {
     val m = n * (n - 1) / 2
-    CompactPairwiseBitset(new mutable.BitSet(m), n, m)
+    new CompactPairwiseBitset(new mutable.BitSet(m), n, m)
   }
 
   /**

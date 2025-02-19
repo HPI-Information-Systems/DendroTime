@@ -15,7 +15,7 @@ import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
 
 
 object Clusterer {
-  
+
   private[clusterer] case object GetDistances extends ClustererProtocol.Command
 
   private case object ReportStatus extends ClustererProtocol.Command
@@ -112,11 +112,11 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
           // TODO: might slow down the system; check if necessary or if we already guarantee that approx distances are set first
           if !fullMask(t1, t2) then
             distances(t1, t2) = dist
-//          else
-//            ctx.log.warn(
-//              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance {}!",
-//              t1, t2, distances(t1, t2), dist
-//            )
+          else
+            ctx.log.warn(
+              "Distance between {} and {} was already set to {}; not overwriting with received approximate distance {}!",
+              t1, t2, distances(t1, t2), dist
+            )
         }
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
         if approxCount == distances.size then
@@ -141,6 +141,9 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         }
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
         if fullCount == distances.size then
+          ctx.log.debug("Received all full distances")
+          if fullMask.size != fullCount then
+            ctx.log.error("Full mask size {} does not match full count {}", fullMask.size, fullCount)
           coordinator ! Coordinator.FullFinished
           saveDistanceMatrix("full")
         if waiting then
@@ -187,7 +190,7 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
   private def progress(count: Int, n: Int): Int = (count.toDouble / n * 100).toInt
 
   private def saveDistanceMatrix(tpe: String): Unit = {
-    if settings.storeResults then
+    if settings.storeDistances then
       val datasetPath = settings.resolveResultsFolder(dataset, params)
       datasetPath.toFile.mkdirs()
       val file = datasetPath.resolve(s"$tpe-distances.csv").toFile

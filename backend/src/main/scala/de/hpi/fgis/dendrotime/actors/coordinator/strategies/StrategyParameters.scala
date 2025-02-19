@@ -8,6 +8,8 @@ import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
+import scala.collection.IndexedSeq
+
 object StrategyParameters {
   def apply(dataset: Dataset,
             params: DendroTimeParams,
@@ -25,7 +27,7 @@ object StrategyParameters {
                                                  eventReceiver: ActorRef[StrategyEvent],
                                                  ctx: ActorContext[StrategyProtocol.StrategyCommand],
                                                  stash: StashBuffer[StrategyProtocol.StrategyCommand],
-                                                 timeseriesIds: Seq[StrategyProtocol.TsId]
+                                                 timeseriesIds: IndexedSeq[Int]
                                                ): InternalStrategyParameters =
       InternalStrategyParameters(dataset, params, tsManager, clusterer, eventReceiver, ctx, stash, timeseriesIds)
   }
@@ -38,14 +40,14 @@ object StrategyParameters {
                                                              eventReceiver: ActorRef[StrategyEvent],
                                                              ctx: ActorContext[StrategyProtocol.StrategyCommand],
                                                              stash: StashBuffer[StrategyProtocol.StrategyCommand],
-                                                             timeseriesIds: Seq[StrategyProtocol.TsId]
+                                                             timeseriesIds: IndexedSeq[Int]
                                                            ) extends StrategyParameters {
 
     private[strategies] override def toInternal(
                                                  eventReceiver: ActorRef[StrategyEvent],
                                                  ctx: ActorContext[StrategyProtocol.StrategyCommand],
                                                  stash: StashBuffer[StrategyProtocol.StrategyCommand],
-                                                 timeseriesIds: Seq[StrategyProtocol.TsId]
+                                                 timeseriesIds: IndexedSeq[Int]
                                                ): InternalStrategyParameters = this
   }
 }
@@ -60,6 +62,6 @@ trait StrategyParameters {
                                       eventReceiver: ActorRef[StrategyEvent],
                                       ctx: ActorContext[StrategyProtocol.StrategyCommand],
                                       stash: StashBuffer[StrategyProtocol.StrategyCommand],
-                                      timeseriesIds: Seq[StrategyProtocol.TsId]
+                                      timeseriesIds: IndexedSeq[Int]
                                     ): StrategyParameters.InternalStrategyParameters
 }

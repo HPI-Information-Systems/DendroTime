@@ -140,16 +140,17 @@ class NNChainSpec extends AnyWordSpec with should.Matchers {
       )
     }
     "compare to reference for PGWZ dataset" when {
-      val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
-      val distances = PDist.apply(pairwiseDistances)
+      for distance <- Seq("dtw", "msm", "sbd") do
+        val pairwiseDistances = TestUtil.loadCSVFile(s"test-data/distance-matrix-PGWZ-$distance.csv")
+        val distances = PDist.apply(pairwiseDistances)
 
-      for linkage <- Seq("single", "complete", "average", "ward") do
-        s"using single $linkage" in {
-          val expectedHierarchy = TestUtil.loadHierarchy(s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-$linkage.csv")
-          val h = NNChain(distances, Linkage(linkage), adjustLabels = true)
-          h.size shouldEqual expectedHierarchy.size
-          h shouldEqual expectedHierarchy
-        }
+        for linkage <- Seq("single", "complete", "average", "ward") do
+          s"using $distance distance and $linkage linkage" in {
+            val expectedHierarchy = TestUtil.loadHierarchy(s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$distance-$linkage.csv")
+            val h = NNChain(distances, Linkage(linkage), adjustLabels = true)
+            h.size shouldEqual expectedHierarchy.size
+            h shouldEqual expectedHierarchy
+          }
     }
   }
 }

@@ -146,7 +146,7 @@ object OrderedPreClusteringWorkGenerator {
 
   def createInterClusterQueue(preClusters: Array[Array[Int]], preClusterMedoids: Array[Int], wDists: PDist): Array[(Int, Int)] = {
     val queue = preClusters.indices.combinations(2).map(pair => (pair(0), pair(1))).toArray
-    queue.sortInPlaceBy((i, j) => wDists.apply(preClusterMedoids(i), preClusterMedoids(j)))
+    queue.sortInPlaceBy((i, j) => wDists(preClusterMedoids(i), preClusterMedoids(j)))
     queue
   }
 

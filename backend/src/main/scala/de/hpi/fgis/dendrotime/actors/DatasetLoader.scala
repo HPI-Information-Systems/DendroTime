@@ -18,10 +18,10 @@ object DatasetLoader {
   case class LoadDataset(d: Dataset, replyTo: ActorRef[Response]) extends Command
 
   sealed trait Response
-  case class DatasetLoaded(id: Int, tsIds: Range) extends Response
+  case class DatasetLoaded(id: Int, indices: Range) extends Response
   case class DatasetNotLoaded(id: Int, reason: String) extends Response
   case class DatasetNTimeseries(n: Int) extends Response
-  case class NewTimeSeries(datasetId: Int, tsId: Int) extends Response
+  case class NewTimeSeries(datasetId: Int, tsIndex: Int) extends Response
 
   def apply(tsManager: ActorRef[TsmProtocol.Command]): Behavior[Command] = Behaviors.setup { ctx =>
     new DatasetLoader(ctx, tsManager).start()
@@ -52,7 +52,7 @@ private class DatasetLoader private (
         case _: Success[Unit] =>
           val count = idGen - lastId
           ctx.log.trace("Dataset d-{} loaded with {} instances", d.id, count)
-          replyTo ! DatasetLoaded(d.id, lastId until idGen)
+          replyTo ! DatasetLoaded(d.id, 0 until count)
         case Failure(e) =>
           ctx.log.error(s"Failed to load dataset d-${d.id}", e)
           replyTo ! DatasetNotLoaded(d.id, e.getMessage)
@@ -76,7 +76,7 @@ private class DatasetLoader private (
       override def processUnivariate(data: Array[Double], label: String): Unit = {
         val ts = LabeledTimeSeries(idGen, idx, data, label)
         tsManager ! TsmProtocol.AddTimeSeries(d.id, ts)
-        replyTo ! NewTimeSeries(datasetId = d.id, tsId = idGen)
+        replyTo ! NewTimeSeries(datasetId = d.id, tsIndex = idx)
         idGen += 1
         if idGen < 0 then
           throw new IllegalStateException(s"Too many time series, Int overflow detected (max integer value: ${Int.MaxValue})!")

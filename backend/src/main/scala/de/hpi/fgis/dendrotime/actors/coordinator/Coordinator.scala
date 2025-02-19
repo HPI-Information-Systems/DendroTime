@@ -14,6 +14,7 @@ import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.Status
 import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
+import scala.collection.IndexedSeq
 import scala.concurrent.duration.*
 
 
@@ -28,9 +29,9 @@ object Coordinator {
   case object Stop extends Command
 
   sealed trait TsLoadingCommand extends Command
-  case class DatasetHasNTimeseries(n: StrategyProtocol.TsId) extends TsLoadingCommand
-  case class NewTimeSeries(tsId: StrategyProtocol.TsId) extends TsLoadingCommand
-  case class AllTimeSeriesLoaded(ids: Set[StrategyProtocol.TsId]) extends TsLoadingCommand
+  case class DatasetHasNTimeseries(n: Int) extends TsLoadingCommand
+  case class NewTimeSeries(tsIdx: Int) extends TsLoadingCommand
+  case class AllTimeSeriesLoaded(indices: IndexedSeq[Int]) extends TsLoadingCommand
   case class FailedToLoadAllTimeSeries(cause: String) extends TsLoadingCommand
 
   sealed trait Response
@@ -101,25 +102,25 @@ private class Coordinator private[coordinator] (
 
 
   def start(): Behavior[MessageType] = {
-    tsManager ! TsmProtocol.GetTimeSeriesIds(Right(dataset), ctx.self)
+    tsManager ! TsmProtocol.GetTimeSeriesIndices(Right(dataset), ctx.self)
     reportTo ! ProcessingStarted(id, communicator)
     reportTo ! ProcessingStatus(id, Status.Initializing)
     workers ! WorkerProtocol.UseSupplier(ctx.self.narrow[StrategyProtocol.StrategyCommand])
 
-    initializing(Vector.empty)
+    initializing(0)
   }
 
-  private def initializing(tsIds: Seq[Int]): Behavior[MessageType] =
+  private def initializing(tsIds: Int): Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
-      case NewTimeSeries(tsId) =>
-        ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        workGenerator += tsId
+      case NewTimeSeries(tsIdx) =>
+        ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsIdx, dataset.id)
+        workGenerator += tsIdx
         if workGenerator.hasNext then
           stash.unstashAll(
-            initializing(tsIds :+ tsId)
+            initializing(tsIds + 1)
           )
         else
-          initializing(tsIds :+ tsId)
+          initializing(tsIds + 1)
 
       case DatasetHasNTimeseries(n) =>
         ctx.log.info("Dataset d-{} has {} time series, starting clusterer and SWITCHING TO LOADING STATE", dataset.id, n)
@@ -141,7 +142,7 @@ private class Coordinator private[coordinator] (
         Behaviors.same
 
       case StrategyProtocol.ReportStatus =>
-        ctx.log.info("[REPORT] Initializing, {} time series loaded, {}", tsIds.size, getBatchStats)
+        ctx.log.info("[REPORT] Initializing, {} time series loaded, {}", tsIds, getBatchStats)
         Behaviors.same
 
       case FailedToLoadAllTimeSeries(_) =>
@@ -154,26 +155,26 @@ private class Coordinator private[coordinator] (
         Behaviors.stopped
     }
 
-  private def loading(nTimeseries: Int, tsIds: Seq[Int], approxFinished: Boolean = false):  Behavior[MessageType] =
+  private def loading(nTimeseries: Int, tsIds: Int, approxFinished: Boolean = false):  Behavior[MessageType] =
     Behaviors.receiveMessagePartial {
-      case NewTimeSeries(tsId) =>
-        ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsId, dataset.id)
-        workGenerator += tsId
+      case NewTimeSeries(tsIdx) =>
+        ctx.log.debug("New time series ts-{} for dataset d-{} was loaded!", tsIdx, dataset.id)
+        workGenerator += tsIdx
         if workGenerator.hasNext then
           stash.unstashAll(
-            loading(nTimeseries, tsIds :+ tsId)
+            loading(nTimeseries, tsIds + 1)
           )
         else
-          loading(nTimeseries, tsIds :+ tsId)
+          loading(nTimeseries, tsIds + 1)
 
-      case AllTimeSeriesLoaded(allTsIds) =>
-        if allTsIds.size != tsIds.size || allTsIds.size != nTimeseries then
-          throw new IllegalStateException(f"Not all time series were loaded (${tsIds.size} of $nTimeseries)")
+      case AllTimeSeriesLoaded(indices) =>
+        if indices.size != tsIds || indices.size != nTimeseries then
+          throw new IllegalStateException(f"Not all time series were loaded ($tsIds of $nTimeseries)")
 
-        fullStrategy ! StrategyProtocol.AddTimeSeries(tsIds)
+        fullStrategy ! StrategyProtocol.AddTimeSeries(indices)
 
         // switch to approximating state
-        ctx.log.info("All {} time series loaded for dataset d-{}, SWITCHING TO APPROXIMATING STATE", allTsIds.size, dataset.id)
+        ctx.log.info("All {} time series loaded for dataset d-{}, SWITCHING TO APPROXIMATING STATE", indices.size, dataset.id)
         communicator ! Communicator.NewStatus(Status.Approximating)
         reportTo ! ProcessingStatus(id, Status.Approximating)
         if approxFinished then
@@ -199,7 +200,7 @@ private class Coordinator private[coordinator] (
         loading(nTimeseries, tsIds, approxFinished = true)
 
       case StrategyProtocol.ReportStatus =>
-        ctx.log.info("[REPORT] Loading, {}/{} time series loaded, {}", tsIds.size, nTimeseries, getBatchStats)
+        ctx.log.info("[REPORT] Loading, {}/{} time series loaded, {}", tsIds, nTimeseries, getBatchStats)
         Behaviors.same
 
       case FailedToLoadAllTimeSeries(_) =>

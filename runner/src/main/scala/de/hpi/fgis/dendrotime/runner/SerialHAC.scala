@@ -2,6 +2,7 @@ package de.hpi.fgis.dendrotime.runner
 
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.clustering.PDist
+import de.hpi.fgis.dendrotime.clustering.distances.Distance
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, computeHierarchy}
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
@@ -11,15 +12,20 @@ import de.hpi.fgis.dendrotime.model.StateModel.Status
 import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import java.io.File
+import java.util.concurrent.Executors
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
-class SerialHAC(settings: Settings) {
+class SerialHAC(settings: Settings, parallel: Boolean) {
+
   import settings.Distances.given
 
   private val runtimes = mutable.Map.empty[Status, Long]
+  private val name = if parallel then "ParallelHAC" else "SerialHAC"
 
   def run(dataset: Dataset, params: DendroTimeParams): Hierarchy = {
-    println(s"Running SerialHAC on dataset $dataset with parameters $params")
+    println(s"Running $name on dataset $dataset with parameters $params")
     val startTime = System.currentTimeMillis()
 
     println(s"  loading dataset ${dataset.id} ...")
@@ -37,13 +43,15 @@ class SerialHAC(settings: Settings) {
 
     println(s"  computing $m pairwise distances ...")
     val t0 = System.currentTimeMillis()
-    val dists = PDist(params.distance.pairwise(timeseries.map(_.data)), n)
+    val dists =
+      if parallel then computeDistancesParallel(params.distance, timeseries, settings.numberOfWorkers)
+      else computeDistancesSerial(params.distance, timeseries)
     val distanceDuration = System.currentTimeMillis() - t0
     runtimes(Status.Approximating) = 0L
     runtimes(Status.ComputingFullDistances) = distanceDuration
     println(s"  ... done in $distanceDuration ms")
 
-    println("  running SerialHAC ...")
+    println("  running HAC ...")
     val t1 = System.currentTimeMillis()
     val hierarchy = computeHierarchy(dists, params.linkage)
     val hacDuration = System.currentTimeMillis() - t1
@@ -52,11 +60,13 @@ class SerialHAC(settings: Settings) {
 
     val duration = System.currentTimeMillis() - startTime
     runtimes(Status.Finished) = duration
-    println(s"Finished SeriesHAC in $duration ms")
+    println(s"Finished $name in $duration ms")
 
     if settings.storeResults then
       val datasetPath = settings.resolveResultsFolder(dataset, params)
-      val resultFolder = datasetPath.resolve("serial")
+      val resultFolder =
+        if parallel then datasetPath.resolve("parallel")
+        else datasetPath.resolve("serial")
       resultFolder.toFile.mkdirs()
       val hierarchyFile = resultFolder.resolve("hierarchy.csv").toFile
       val settingsFile = resultFolder.resolve("config.json").toFile
@@ -64,5 +74,30 @@ class SerialHAC(settings: Settings) {
       App.storeRuntimes(runtimes, resultFolder)
       settings.writeJson(settingsFile)
     hierarchy
+  }
+
+  private def computeDistancesSerial(distance: Distance, timeseries: Array[LabeledTimeSeries]): PDist =
+    PDist(distance.pairwise(timeseries.map(_.data)), timeseries.length)
+
+  private def computeDistancesParallel(distance: Distance, timeseries: Array[LabeledTimeSeries], nThreads: Int): PDist = {
+    println(s"    using $nThreads threads")
+
+    given ExecutionContext = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(nThreads))
+
+    val n = timeseries.length
+    val futures = for
+      i <- 0 until n
+      j <- i + 1 until n
+    yield
+      Future {
+        (i, j) -> distance(timeseries(i).data, timeseries(j).data)
+      }
+
+    val distances = futures.map(Await.result(_, Duration.Inf))
+    val pdist = PDist.empty(n).mutable
+    distances.foreach { case ((i, j), d) =>
+      pdist(i, j) = d
+    }
+    pdist
   }
 }

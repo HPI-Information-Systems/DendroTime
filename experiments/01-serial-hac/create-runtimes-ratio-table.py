@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pandas as pd
 
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from plt_commons import distance_name_mapping
+
 RESULT_FOLDER = Path("results")
 OUTPUT_FILENAME = "runtimes-ratio-table.tex"
 
@@ -18,12 +21,6 @@ Dissimilarity Measure & Runtime Ratio \\\\
 \\bottomrule
 \\end{{tabular}}
 """
-distance_name_mapping = {
-    "euclidean": "Euclidean",
-    "dtw": "\\gls{dtw}",
-    "msm": "\\gls{msm}",
-    "sbd": "\\gls{sbd}",
-}
 
 
 def main():

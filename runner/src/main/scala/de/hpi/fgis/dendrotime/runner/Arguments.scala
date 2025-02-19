@@ -7,6 +7,7 @@ import caseapp.*
 case class Arguments(
                       dataset: String,
                       serial: Boolean = false,
+                      parallel: Boolean = false,
                       distance: String = "msm",
                       linkage: String = "ward",
                       strategy: String = "approx-distance-ascending",

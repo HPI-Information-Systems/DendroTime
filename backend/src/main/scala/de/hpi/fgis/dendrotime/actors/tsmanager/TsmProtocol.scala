@@ -14,11 +14,9 @@ object TsmProtocol {
 
   case class GetDatasetClassLabels(datasetId: Int, replyTo: ActorRef[DatasetClassLabelsResponse]) extends Command
 
-  case class GetTimeSeriesIds(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
+  case class GetTimeSeriesIndices(dataset: Either[Int, Dataset], replyTo: ActorRef[Coordinator.TsLoadingCommand]) extends Command
 
   case class GetTSLengths(datasetId: Int, replyTo: ActorRef[TSLengthsResponse]) extends Command
-
-  case class GetTSIndexMapping(datasetId: Int, replyTo: ActorRef[TSIndexMappingResponse]) extends Command
 
   private[tsmanager] case object ReportStatus extends Command
 
@@ -28,12 +26,10 @@ object TsmProtocol {
 
   case object DatasetClassLabelsNotFound extends DatasetClassLabelsResponse
 
-  case class TSLengthsResponse(lengths: Map[Int, Int])
-
-  case class TSIndexMappingResponse(mapping: Map[Int, Int])
+  case class TSLengthsResponse(lengths: IndexedSeq[Int])
 
   case class GetTimeSeries(dataset: Int, replyTo: ActorRef[GetTimeSeriesResponse]) extends Command
 
-  case class GetTimeSeriesResponse(timeseries: Map[Int, LabeledTimeSeries])
+  case class GetTimeSeriesResponse(timeseries: IndexedSeq[LabeledTimeSeries])
 
 }

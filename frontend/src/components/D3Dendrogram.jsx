@@ -49,7 +49,7 @@ function getHierarchyRoot(data) {
       };
     }
   }
-  
+
   // add non-reachable nodes to root
   const root = nodes[nodes.length - 1];
   reachable[nodes.length - 1] = true; // is the root and thus always reachable
@@ -73,13 +73,15 @@ function getHierarchyRoot(data) {
   return root;
 }
 
-function D3Dendrogram({data, useEqualNodeDistance}) {
+function D3Dendrogram({data, useEqualNodeDistance, showLabels = false}) {
   const id = useId().replaceAll(":", "");
   // fixed width of outer div, the height is dynamic on dataset size!
   const width = useContext(WidthContext);
   const horizMargin = 50;
   const axisHeight = 50;
   const tDuration = 200;
+  const dx = 5;
+  const vertMargin = dx;
 
   const hierarchy = getHierarchyRoot(data);
   // optimize: useMemo
@@ -89,8 +91,6 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
   /////////////////////////////////////////////////////////////////////////////
   // stateful drawing!!
   useEffect(() => {
-    const dx = 15;
-    const vertMargin = 2*dx;
     const dy = (width - 2*horizMargin) / (root.height);
 
     root.sort((a, b) => b.height - a.height || d3.ascending(a.id, b.id));
@@ -104,7 +104,7 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
 
     // Compute the extent of the tree. Note that x and y are swapped here
     // because in the tree layout, x is the breadth, but when displayed, the
-    // tree extends right rather than down.
+    // tree extends left rather than down.
     let top = Infinity;
     let bottom = -top;
     root.each(d => {
@@ -112,7 +112,7 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
       if (d.x < top) top = d.x;
     });
     // add space for the axis to the top
-    top -= axisHeight;
+    top -= axisHeight/2 + dx/2;
     const height = bottom - top + vertMargin;
     const viewPort = [-horizMargin, top, width, height]
       .toString()
@@ -162,6 +162,15 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
         .attr("stroke-opacity", 0.4)
         .attr("stroke-width", 1.5);
 
+    const addTextNode = (selection) => {
+      selection.append("text")
+        .attr("dy", "0.31em")
+        .attr("x", d => d.children ? -6 : 6)
+        .attr("text-anchor", d => d.children ? "end" : "start")
+        .text(d => d.data.id)
+        .attr("paint-order", "stroke");
+    };
+
     const nodes = d3.select(`#${id}-nodes`).selectAll("g")
       .data(root.descendants(), d => d? d.id: this.id)
       .join(
@@ -170,12 +179,13 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
           selection//.transition().duration(tDuration)
             .attr("transform", d => `translate(${fx(d)},${fy(d)})`)
             .attr("id", d => d.data.id);
-          selection.filter(d => !d.children).append("text")
-              .attr("dy", "0.31em")
-              .attr("x", d => d.children ? -6 : 6)
-              .attr("text-anchor", d => d.children ? "end" : "start")
-              .text(d => d.data.id)
-              .attr("paint-order", "stroke");
+          const leaves = selection.filter(d => !d.children);
+          if (showLabels) {
+            addTextNode(leaves);
+          } else {
+            leaves.on("mouseover", function () { addTextNode(d3.select(this)) });
+            leaves.on("mouseout", function () { d3.select(this).select("text").remove() });
+        }
           return selection;
         },
         update => update.transition().duration(tDuration)
@@ -196,7 +206,7 @@ function D3Dendrogram({data, useEqualNodeDistance}) {
   /////////////////////////////////////////////////////////////////////////////
 
   return (
-    <div className="text-sm border-4 border-blue-500 bg-gray-100">
+    <div className="text-sm mb-2">
       <svg id={id} width={width}>
         <g id={`${id}-axis`}/>
         <g id={`${id}-links`}/>

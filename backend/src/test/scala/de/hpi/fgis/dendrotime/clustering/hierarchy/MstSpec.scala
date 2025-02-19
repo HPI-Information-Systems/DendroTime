@@ -69,15 +69,19 @@ class MstSpec extends AnyWordSpec with should.Matchers {
         Hierarchy.Node(4, 0, 9, Double.PositiveInfinity, 6)
       )
     }
-    "compare to reference for PGWZ dataset" in {
-      val pairwiseDistances = TestUtil.loadCSVFile("test-data/distance-matrix-PGWZ-sbd.csv")
-      val expectedHierarchy = TestUtil.loadHierarchy("test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-sbd-single.csv")
-      val distances = PDist(pairwiseDistances)
-      val h = MST(distances, adjustLabels = true)
-      h.size shouldEqual expectedHierarchy.size
-
+    "compare to reference for PGWZ dataset" when {
       import TestUtil.ImplicitEqualities.given
-      h shouldEqual expectedHierarchy
+
+      for distance <- Seq("dtw", "msm", "sbd") do
+        s"using $distance distance" in {
+          val pairwiseDistances = TestUtil.loadCSVFile(s"test-data/distance-matrix-PGWZ-$distance.csv")
+          val expectedHierarchy = TestUtil.loadHierarchy(s"test-data/ground-truth/PickupGestureWiimoteZ/hierarchy-$distance-single.csv")
+          val distances = PDist(pairwiseDistances)
+          val h = MST(distances, adjustLabels = true)
+          h.size shouldEqual expectedHierarchy.size
+
+          h shouldEqual expectedHierarchy
+        }
     }
   }
 }

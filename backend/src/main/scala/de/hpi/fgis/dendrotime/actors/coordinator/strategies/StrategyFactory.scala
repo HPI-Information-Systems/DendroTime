@@ -10,6 +10,8 @@ import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 
+import scala.collection.IndexedSeq
+
 object StrategyFactory {
 
   def get(strategy: String): StrategyFactory = strategy.toLowerCase.strip().replace(" ", "-").replace("_", "-") match {
@@ -31,9 +33,9 @@ object StrategyFactory {
         timers.startTimerWithFixedDelay(ReportStatus, Settings(ctx.system).reportingInterval)
         Behaviors.withStash(stashSize) { stash =>
           Behaviors.receiveMessage {
-            case AddTimeSeries(timeseriesIds) =>
+            case AddTimeSeries(tsIds) =>
               stash.unstashAll(
-                get(strategy)(params.toInternal(eventReceiver, ctx, stash, timeseriesIds))
+                get(strategy)(params.toInternal(eventReceiver, ctx, stash, tsIds))
               )
             case m =>
               stash.stash(m)

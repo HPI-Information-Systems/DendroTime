@@ -31,11 +31,11 @@ object TimeSeriesManager {
       case DatasetLoader.DatasetNTimeseries(n) =>
         receivers.foreach(_ ! Coordinator.DatasetHasNTimeseries(n))
         Behaviors.same
-      case DatasetLoader.NewTimeSeries(_, tsId) =>
-        receivers.foreach(_ ! Coordinator.NewTimeSeries(tsId))
+      case DatasetLoader.NewTimeSeries(_, tsIndex) =>
+        receivers.foreach(_ ! Coordinator.NewTimeSeries(tsIndex))
         Behaviors.same
-      case DatasetLoader.DatasetLoaded(_, tsIds) =>
-        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(tsIds.toSet))
+      case DatasetLoader.DatasetLoaded(_, indices) =>
+        receivers.foreach(_ ! Coordinator.AllTimeSeriesLoaded(indices))
         Behaviors.stopped
       case DatasetLoader.DatasetNotLoaded(_, reason) =>
         receivers.foreach(_ ! Coordinator.FailedToLoadAllTimeSeries(reason))
@@ -81,19 +81,19 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
     case m @ GetTimeSeries(datasetId, replyTo) =>
       timeseries.get(datasetId) match {
         case Some(ts) =>
-          replyTo ! GetTimeSeriesResponse(ts)
+          replyTo ! GetTimeSeriesResponse(ts.values.toArray.sortBy(_.idx))
         case None =>
           ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
           stash.stash(m)
       }
       Behaviors.same
 
-    case GetTimeSeriesIds(Right(d), replyTo) =>
+    case GetTimeSeriesIndices(Right(d), replyTo) =>
       timeseries.get(d.id) match {
         case Some(ts) =>
           replyTo ! Coordinator.DatasetHasNTimeseries(ts.size)
-          ts.keys.foreach(replyTo ! Coordinator.NewTimeSeries(_))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(ts.keys.toSet)
+          ts.values.foreach(ts => replyTo ! Coordinator.NewTimeSeries(ts.idx))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(0 until ts.size)
           Behaviors.same
         case None =>
           handlers.get(d.id) match {
@@ -110,12 +110,12 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
           }
       }
 
-    case m@GetTimeSeriesIds(Left(datasetId), replyTo) =>
+    case m@GetTimeSeriesIndices(Left(datasetId), replyTo) =>
       timeseries.get(datasetId) match {
         case Some(ts) =>
           replyTo ! Coordinator.DatasetHasNTimeseries(ts.size)
-          ts.keys.foreach(replyTo ! Coordinator.NewTimeSeries(_))
-          replyTo ! Coordinator.AllTimeSeriesLoaded(ts.keys.toSet)
+          ts.values.foreach(ts => replyTo ! Coordinator.NewTimeSeries(ts.idx))
+          replyTo ! Coordinator.AllTimeSeriesLoaded(0 until ts.size)
         case None => handlers.get(datasetId) match {
           case Some(handler) =>
             ctx.log.debug("Dataset d-{} is currently being loaded, waiting for response", datasetId)
@@ -157,25 +157,8 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
         case None =>
           timeseries.get(datasetId) match {
             case Some(ts) =>
-              val lengths = ts.map((id, t) => id -> t.data.length)
+              val lengths = ts.values.toArray.sortBy(_.idx).map(_.data.length)
               replyTo ! TSLengthsResponse(lengths)
-            case None =>
-              ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
-              stash.stash(m)
-          }
-      }
-      Behaviors.same
-
-    case m @ GetTSIndexMapping(datasetId, replyTo) =>
-      handlers.get(datasetId) match {
-        case Some(_) =>
-          ctx.log.debug("Dataset d-{} is currently being loaded, stashing {}", datasetId, m)
-          stash.stash(m)
-        case None =>
-          timeseries.get(datasetId) match {
-            case Some(ts) =>
-              val mapping = ts.map((id, t) => id -> t.idx)
-              replyTo ! TSIndexMappingResponse(mapping)
             case None =>
               ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
               stash.stash(m)

@@ -1,12 +1,9 @@
 package de.hpi.fgis.dendrotime.actors.coordinator.strategies
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
-import akka.actor.typed.{ActorRef, Behavior, PostStop}
-import de.hpi.fgis.dendrotime.Settings
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{Behavior, PostStop}
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyParameters.InternalStrategyParameters
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.*
-import de.hpi.fgis.dendrotime.actors.worker.WorkerProtocol
-import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 object FCFSStrategy extends StrategyFactory {
   override def apply(params: InternalStrategyParameters): Behavior[StrategyCommand] =
