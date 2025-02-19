@@ -40,13 +40,16 @@ class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike w
         val timer = testKit.scheduler.scheduleWithFixedDelay(0 seconds, 200 millis) { () =>
           dendroTimeScheduler ! Scheduler.GetProgress(dataset.id, progressProbe.ref)
         }
-        val messages = progressProbe.fishForMessage(60 seconds) {
+        val messages = progressProbe.fishForMessage(20 seconds) {
           case ProgressMessage.CurrentProgress(Status.Finished, 100, _, _, _, _, _, _) =>
             timer.cancel()
             FishingOutcomes.complete
           case _ =>
             FishingOutcomes.continueAndIgnore
         }
+        testKit.stop(dendroTimeScheduler)
+        guardianProbe.expectTerminated(dendroTimeScheduler, 100 millis)
+
         messages.length should be > 0
         val finalMessage = messages.last
 
@@ -56,9 +59,6 @@ class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike w
         progress.state shouldBe Status.Finished
         progress.progress shouldBe 100
         progress.hierarchy shouldEqual gtHierarchy
-
-        testKit.stop(dendroTimeScheduler)
-        guardianProbe.expectTerminated(dendroTimeScheduler, 100 millis)
       case Failure(_: FileNotFoundException) =>
         cancel(s"Ground truth file not found: $gtFile")
       case Failure(e) =>

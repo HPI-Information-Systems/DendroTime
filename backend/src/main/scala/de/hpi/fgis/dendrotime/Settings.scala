@@ -119,7 +119,13 @@ class Settings private(config: Config) extends Extension {
     object SBD {
       private val internalNamespace = s"$namespace.distances.sbd"
 
-      given sbdOpts: SBDOptions = SBDOptions(config.getBoolean(s"$internalNamespace.standardize"))
+      private val localFftwCacheSize: Option[Int] =
+        if config.hasPath(s"$internalNamespace.local-fftw-cache-size") then
+          Some(config.getInt(s"$internalNamespace.local-fftw-cache-size"))
+        else
+          None
+
+      given sbdOpts: SBDOptions = SBDOptions(config.getBoolean(s"$internalNamespace.standardize"), localFftwCacheSize)
     }
 
     object DTW {
