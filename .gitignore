@@ -6,6 +6,7 @@ data
 **/target
 **/*.jar
 **/__pycache__
+.mypy_cache
 experiments/data
 experiments/results
 

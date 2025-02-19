@@ -31,8 +31,6 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     )
     # use relative runtime instead of millis since epoch
     df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
-    # convert millis to seconds
-    df["timestamp"] = df["timestamp"] / 1000
     df["index"] = df["index"].astype(int)
 
     return df

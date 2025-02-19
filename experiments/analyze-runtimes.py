@@ -245,51 +245,21 @@ def plot_runtimes(df, distance, linkage):
     return fig
 
 
-def runtime_at_quality(strategy, dataset, distance, linkage, threshold, measure):
-    try:
-        df = load_quality_trace(strategy, dataset, distance, linkage)
-        # use relative runtime instead of millis since epoch
-        df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
-        # convert millis to seconds
-        df["timestamp"] = df["timestamp"] / 1000
-        df["index"] = df["index"].astype(int)
-
-        return df.loc[df[measure] >= threshold, "timestamp"].iloc[0]
-    except FileNotFoundError:
-        print(
-            f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found"
-        )
-        return np.nan
-
-
 def create_runtime_table(df, distance, linkage, threshold):
     # select distance and linkage
     # (might be able to remove if we have a small number of datasets)
     df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
-    df = df.drop(columns=["distance", "linkage", "phase"])
+    df = df.drop(columns=["distance", "linkage"])
 
     # select datasets
     df_ari = df[df["strategy"] == "serial"]
-    datasets = df_ari.loc[
-        (df_ari["ARI"] >= 0.2) & (df_ari["runtime"] >= 30),
-        "dataset"
-    ].unique().tolist()
+    # datasets = df_ari.loc[
+    #     (df_ari["runtime"] >= 5*60),
+    #     "dataset"
+    # ].unique().tolist()
+    datasets = df_ari["dataset"].unique().tolist()
     df_ari = df_ari[df_ari["dataset"].isin(datasets)].set_index("dataset")[["ARI"]]
     df = df[df["dataset"].isin(datasets)]
-
-    # compute runtime at quality threshold for dendrotime strategies
-    dt_mask = df["strategy"].isin(dendrotime_strategies)
-    df.loc[dt_mask, "runtime"] = df.loc[dt_mask, ["dataset", "strategy"]].apply(
-        lambda x: runtime_at_quality(
-            x["strategy"],
-            x["dataset"],
-            distance,
-            linkage,
-            threshold,
-            "hierarchy-quality",
-        ),
-        axis=1,
-    )
 
     # table layout:
     # rows: datasets
@@ -299,11 +269,18 @@ def create_runtime_table(df, distance, linkage, threshold):
 
     first_columns = [c for c in baseline_strategies if c in df.columns]
     df = df[first_columns + df.columns.drop(first_columns).tolist()]
-    df = df.sort_values("approx_distance_ascending", ascending=True, na_position="last")
+    df = df.sort_values("parallel", ascending=True, na_position="last")
     df.columns = [strategy_name(c) for c in df.columns]
     print(f"\nRuntime at hierarchy quality >= {threshold:.2f} for distance={distance} and linkage={linkage}:")
     with pd.option_context("display.max_rows", None):
         print(df)
+
+    for c in (set(df.columns) - set(["parallel"])):
+        df[c] = (df[c] - df["parallel"]) / df["parallel"]
+    df["parallel"] = 0.0
+    df[["parallel", "JET", "fcfs", "ada", "precl"]].plot(kind="bar", figsize=(12, 6))
+    plt.title(f"Runtime at hierarchy quality >= {threshold:.2f} for distance={distance} and linkage={linkage}")
+    plt.show()
 
 
 def main():
@@ -328,7 +305,10 @@ def main():
 
     # load results from system execution
     df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
-    df_dendrotime = df_dendrotime[df_dendrotime["phase"] == "Finished"]
+    df_dendrotime["runtime"] = df_dendrotime["runtime_80"]
+    df_dendrotime = df_dendrotime.drop(columns=[
+        "runtime_80", "initializing", "approximating", "computingfulldistances", "finalizing", "finished"
+    ])
 
     # load results from parallel execution
     df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
