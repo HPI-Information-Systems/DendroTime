@@ -30,11 +30,11 @@ ThisBuild / assembly / test := {}
 lazy val `DendroTime` = project.in(file("."))
   .dependsOn(`backend`, `frontend`)
   .settings(
-    name := "DendroTime-Server",
+    name := "DendroTime",
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer")
   )
 
-lazy val `runner` = project.in(file("runner"))
+lazy val `runner` = project.in(file("dendrotime-runner"))
   .dependsOn(`backend`)
   .settings(
     name := "DendroTime-Runner",
@@ -49,14 +49,14 @@ lazy val `runner` = project.in(file("runner"))
     run / baseDirectory := file(".")
   )
 
-lazy val `benchmarking` = project.in(file("benchmarking"))
+lazy val `benchmarking` = project.in(file("dendrotime-benchmarking"))
   .dependsOn(`backend`)
   .enablePlugins(JmhPlugin)
 
-lazy val `backend` = project.in(file("backend"))
+lazy val `backend` = project.in(file("dendrotime-backend"))
   .dependsOn(`dendrotime-clustering` % "compile->compile;test->test", `dendrotime-io`)
   .settings(
-    name := "DendroTime",
+    name := "DendroTime-Server",
     libraryDependencies ++= Seq(
       // akka
       "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
@@ -78,7 +78,7 @@ lazy val `backend` = project.in(file("backend"))
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer"),
   )
 
-lazy val `frontend` = project.in(file("./frontend"))
+lazy val `frontend` = project.in(file("dendrotime-frontend"))
   .settings(
     name := "DendroTime-UI",
     Compile / resourceGenerators += buildFrontend.init
