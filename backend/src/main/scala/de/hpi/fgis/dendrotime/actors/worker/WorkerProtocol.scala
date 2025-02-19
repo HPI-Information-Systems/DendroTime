@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.actors.worker
 import akka.actor.typed.ActorRef
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 
 import scala.collection.AbstractIterator
 

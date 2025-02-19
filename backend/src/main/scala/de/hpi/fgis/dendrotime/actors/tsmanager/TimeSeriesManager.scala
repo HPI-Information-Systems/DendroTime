@@ -3,10 +3,11 @@ package de.hpi.fgis.dendrotime.actors.tsmanager
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import de.hpi.fgis.dendrotime.Settings
-import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
 import de.hpi.fgis.dendrotime.actors.DatasetLoader
+import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
+import de.hpi.fgis.dendrotime.io.TimeSeries
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 
 import scala.collection.AbstractIterator
 import scala.collection.immutable.{HashMap, Set}
@@ -46,8 +47,8 @@ object TimeSeriesManager {
 private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
                                          stash: StashBuffer[TsmProtocol.Command]) {
 
-  import TsmProtocol.*
   import TimeSeriesManager.*
+  import TsmProtocol.*
 
   private val loader = ctx.spawn(DatasetLoader(ctx.self), "ts-loader", DatasetLoader.props)
   ctx.watch(loader)

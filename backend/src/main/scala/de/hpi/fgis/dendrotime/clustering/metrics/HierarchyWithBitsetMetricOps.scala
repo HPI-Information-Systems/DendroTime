@@ -1,6 +1,6 @@
 package de.hpi.fgis.dendrotime.clustering.metrics
 
-import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset
+import de.hpi.fgis.dendrotime.clustering.hierarchy.HierarchyWithBitset
 
 object HierarchyWithBitsetMetricOps {
   def apply(hierarchy: HierarchyWithBitset): HierarchyWithBitsetMetricOps = new HierarchyWithBitsetMetricOps(hierarchy)

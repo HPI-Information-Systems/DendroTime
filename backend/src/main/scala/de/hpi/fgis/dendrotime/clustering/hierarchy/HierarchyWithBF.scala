@@ -1,7 +1,6 @@
-package de.hpi.fgis.dendrotime.structures
+package de.hpi.fgis.dendrotime.clustering.hierarchy
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
 
 
 object HierarchyWithBF {

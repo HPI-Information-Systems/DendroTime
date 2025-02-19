@@ -2,8 +2,8 @@ package de.hpi.fgis.dendrotime.actors.tsmanager
 
 import akka.actor.typed.ActorRef
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 object TsmProtocol {
   sealed trait Command

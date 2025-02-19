@@ -1,6 +1,6 @@
 package de.hpi.fgis.dendrotime.io
 
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 
 import java.io.*
 import java.nio.charset.Charset

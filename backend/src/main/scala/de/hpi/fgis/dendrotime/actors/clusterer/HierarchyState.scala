@@ -2,8 +2,8 @@ package de.hpi.fgis.dendrotime.actors.clusterer
 
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
-import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, QualityTrace}
-import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig as HSC
+import de.hpi.fgis.dendrotime.model.StateModel.ClusteringState
+import de.hpi.fgis.dendrotime.structures.{QualityTrace, HierarchySimilarityConfig as HSC}
 
 import scala.language.implicitConversions
 

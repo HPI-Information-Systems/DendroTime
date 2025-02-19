@@ -1,8 +1,8 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
 import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
-import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
-import de.hpi.fgis.dendrotime.structures.{HierarchyWithBF, HierarchyWithBitset, HierarchySimilarityConfig as HSC}
+import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, HierarchyWithBF, HierarchyWithBitset}
+import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig as HSC
 
 import scala.collection.BitSet
 

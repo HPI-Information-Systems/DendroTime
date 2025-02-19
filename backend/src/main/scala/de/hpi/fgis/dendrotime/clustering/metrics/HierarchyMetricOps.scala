@@ -1,8 +1,7 @@
 package de.hpi.fgis.dendrotime.clustering.metrics
 
 import de.hpi.fgis.bloomfilter.BloomFilter
-import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy}
-import de.hpi.fgis.dendrotime.structures.{HierarchyWithBF, HierarchyWithBitset}
+import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, HierarchyWithBF, HierarchyWithBitset}
 
 import scala.collection.{BitSet, mutable}
 import scala.reflect.ClassTag

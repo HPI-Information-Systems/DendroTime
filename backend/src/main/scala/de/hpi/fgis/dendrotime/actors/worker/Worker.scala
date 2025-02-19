@@ -1,15 +1,15 @@
 package de.hpi.fgis.dendrotime.actors.worker
 
+import akka.actor.typed.*
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop, Props}
-import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol.GetTimeSeriesResponse
+import de.hpi.fgis.dendrotime.io.TimeSeries
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.{LabeledTimeSeries, TimeSeries}
 import org.apache.commons.math3.util.FastMath
 
 object Worker {

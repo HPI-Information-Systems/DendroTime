@@ -23,9 +23,7 @@ object HierarchySimilarityConfig {
     override def name: String = "approxAverageAri"
   }
 
-  sealed trait WithBf extends HierarchySimilarityConfig {
-    def useBf: Boolean = true
-  }
+  sealed trait WithBf extends HierarchySimilarityConfig
   case class HierarchySimilarityWithBf(cardLowerBound: Int, cardUpperBound: Int) extends WithBf {
     override def name: String = "hierarchySimilarity"
   }
@@ -33,9 +31,7 @@ object HierarchySimilarityConfig {
     override def name: String = "weightedHierarchySimilarity"
   }
 
-  sealed trait WithBitset extends HierarchySimilarityConfig {
-    def useBf: Boolean = false
-  }
+  sealed trait WithBitset extends HierarchySimilarityConfig
   case class HierarchySimilarityWithBitset(cardLowerBound: Int, cardUpperBound: Int) extends WithBitset {
     override def name: String = "hierarchySimilarity"
   }

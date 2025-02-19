@@ -8,7 +8,7 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.Status
+import de.hpi.fgis.dendrotime.structures.Status
 
 import java.nio.file.Path
 

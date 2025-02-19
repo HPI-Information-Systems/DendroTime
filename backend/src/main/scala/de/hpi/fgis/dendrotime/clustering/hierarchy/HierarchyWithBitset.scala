@@ -1,6 +1,4 @@
-package de.hpi.fgis.dendrotime.structures
-
-import de.hpi.fgis.dendrotime.clustering.hierarchy.Hierarchy
+package de.hpi.fgis.dendrotime.clustering.hierarchy
 
 import scala.collection.{BitSet, mutable}
 

@@ -4,12 +4,12 @@ import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.Distance
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, computeHierarchy}
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.Status
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
+import de.hpi.fgis.dendrotime.structures.Status
 
 import java.io.File
 import java.util.concurrent.Executors

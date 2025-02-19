@@ -1,7 +1,7 @@
 package de.hpi.fgis.dendrotime.actors.clusterer
 
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.*
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.Communicator
 import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator
@@ -10,8 +10,7 @@ import de.hpi.fgis.dendrotime.clustering.{MutablePDist, PDist}
 import de.hpi.fgis.dendrotime.io.CSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.Status
-import de.hpi.fgis.dendrotime.structures.CompactPairwiseBitset
+import de.hpi.fgis.dendrotime.structures.{CompactPairwiseBitset, Status}
 
 
 object Clusterer {

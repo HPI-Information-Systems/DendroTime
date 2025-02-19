@@ -4,9 +4,9 @@ import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
 import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.io.TsParser
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
 
 import java.io.File
 import scala.collection.immutable.NumericRange

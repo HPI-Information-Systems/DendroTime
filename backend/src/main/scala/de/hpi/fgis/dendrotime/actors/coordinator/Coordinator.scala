@@ -11,7 +11,7 @@ import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
 import de.hpi.fgis.dendrotime.actors.worker.{Worker, WorkerProtocol}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.Status
+import de.hpi.fgis.dendrotime.structures.Status
 import de.hpi.fgis.dendrotime.structures.strategies.GrowableFCFSWorkGenerator
 
 import scala.collection.IndexedSeq

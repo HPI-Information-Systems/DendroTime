@@ -7,7 +7,8 @@ import de.hpi.fgis.dendrotime.actors.coordinator.Coordinator.Stop
 import de.hpi.fgis.dendrotime.actors.tsmanager.TimeSeriesManager
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
+import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
+import de.hpi.fgis.dendrotime.structures.Status
 
 import scala.util.{Failure, Success, Try}
 
