@@ -54,7 +54,7 @@ lazy val `benchmarking` = project.in(file("benchmarking"))
   .enablePlugins(JmhPlugin)
 
 lazy val `backend` = project.in(file("backend"))
-  .dependsOn(`bloom-filter`)
+  .dependsOn(`dendrotime-clustering` % "compile->compile;test->test", `dendrotime-io`)
   .settings(
     name := "DendroTime",
     libraryDependencies ++= Seq(
@@ -63,16 +63,11 @@ lazy val `backend` = project.in(file("backend"))
       "com.typesafe.akka" %% "akka-stream" % akkaVersion,
       "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
-      // fft
-      "net.java.dev.jna" % "jna" % "5.16.0",
       // math stuff
       "org.apache.commons" % "commons-math3" % "3.6.1",
 
       // logging
       "ch.qos.logback" % "logback-classic" % "1.5.16",
-
-      // csv parsing
-      "com.univocity" % "univocity-parsers" % "2.9.1",
 
       // test
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
@@ -105,6 +100,36 @@ lazy val buildFrontend = taskKey[Seq[File]]("Generate UI resources") := {
     to
   }
 }
+
+lazy val `dendrotime-clustering` = project.in(file("dendrotime-clustering"))
+  .dependsOn(`bloom-filter`, `dendrotime-io`)
+  .settings(
+    name := "dendrotime.clustering",
+    version := "0.1.0",
+    libraryDependencies ++= Seq(
+      // fft
+      "net.java.dev.jna" % "jna" % "5.16.0",
+      // math stuff
+      "org.apache.commons" % "commons-math3" % "3.6.1",
+      // test
+      "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
+      "org.scalacheck" %% "scalacheck" % "1.18.1" % Test
+    ),
+  )
+
+lazy val `dendrotime-io` = project.in(file("dendrotime-io"))
+  .dependsOn(`bloom-filter`)
+  .settings(
+    name := "dendrotime.io",
+    version := "0.1.0",
+    libraryDependencies ++= Seq(
+      // csv parsing
+      "com.univocity" % "univocity-parsers" % "2.9.1",
+      // test
+      "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
+      "org.scalacheck" %% "scalacheck" % "1.18.1" % Test
+    ),
+  )
 
 lazy val `bloom-filter` = project.in(file("bloom-filter"))
   .settings(

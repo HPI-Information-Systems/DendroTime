@@ -1,1 +1,0 @@
-{"id": "TimeSeriesHAC-dtw-ward", "status": "OK", "dataset": "Coffee", "estimator": "TimeSeriesHAC", "metric": "dtw", "linkage": "ward", "estimator_kwargs": {"linkage": "ward", "metric": "dtw", "n_clusters": 2}, "runtime_s": 0.327031928, "adjusted_rand_score": 0.35835277718857006}

@@ -1,1 +1,0 @@
-{"id": "TimeSeriesHAC-sbd-single", "status": "OK", "dataset": "Coffee", "estimator": "TimeSeriesHAC", "metric": "sbd", "linkage": "single", "estimator_kwargs": {"linkage": "single", "metric": "sbd", "n_clusters": 2}, "runtime_s": 0.269773547, "adjusted_rand_score": 0.0026486437117544982}

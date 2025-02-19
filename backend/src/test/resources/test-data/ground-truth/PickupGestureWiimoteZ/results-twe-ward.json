@@ -1,1 +1,0 @@
-{"id": "TimeSeriesHAC-twe-ward", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "twe", "linkage": "ward", "estimator_kwargs": {"linkage": "ward", "metric": "twe", "n_clusters": 10}, "runtime_s": 1.619712065, "adjusted_rand_score": 0.5067497403946002}

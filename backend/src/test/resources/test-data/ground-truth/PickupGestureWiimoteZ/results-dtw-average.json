@@ -1,1 +1,0 @@
-{"id": "TimeSeriesHAC-dtw-average", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "dtw", "linkage": "average", "estimator_kwargs": {"linkage": "average", "metric": "dtw", "n_clusters": 10}, "runtime_s": 0.296423202, "adjusted_rand_score": 0.25477340694732}

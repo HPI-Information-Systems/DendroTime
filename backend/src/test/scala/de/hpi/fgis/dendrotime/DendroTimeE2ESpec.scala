@@ -2,9 +2,11 @@ package de.hpi.fgis.dendrotime
 
 import akka.actor.testkit.typed.scaladsl.{FishingOutcomes, LogCapturing, ScalaTestWithActorTestKit}
 import de.hpi.fgis.dendrotime.actors.Scheduler
+import de.hpi.fgis.dendrotime.clustering.TestUtil
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
-import de.hpi.fgis.dendrotime.model.StateModel.{ProgressMessage, Status}
+import de.hpi.fgis.dendrotime.model.StateModel.ProgressMessage
+import de.hpi.fgis.dendrotime.structures.Status
 import org.scalatest.matchers.should
 import org.scalatest.wordspec.AnyWordSpecLike
 
@@ -29,9 +31,10 @@ class DendroTimeE2ESpec extends ScalaTestWithActorTestKit with AnyWordSpecLike w
        TestUtil.loadHierarchy(gtFile)
     } match {
       case Success(gtHierarchy) =>
+        val id = java.util.UUID.randomUUID().toString
         // start DendroTime
         val guardianProbe = createTestProbe[Scheduler.Response]()
-        val dendroTimeScheduler = spawn(Scheduler(), s"scheduler-${dataset.id}")
+        val dendroTimeScheduler = spawn(Scheduler(), s"scheduler-$id")
         dendroTimeScheduler ! Scheduler.StartProcessing(dataset, params, guardianProbe.ref)
         guardianProbe.expectMessageType[Scheduler.ProcessingStarted](100 millis)
 

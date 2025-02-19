@@ -1,1 +1,0 @@
-{"id": "TimeSeriesHAC-sbd-single", "status": "OK", "dataset": "PickupGestureWiimoteZ", "estimator": "TimeSeriesHAC", "metric": "sbd", "linkage": "single", "estimator_kwargs": {"linkage": "single", "metric": "sbd", "n_clusters": 10}, "runtime_s": 1.110166373, "adjusted_rand_score": 0.008059610705596108}
