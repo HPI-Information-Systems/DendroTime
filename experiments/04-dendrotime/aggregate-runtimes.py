@@ -24,7 +24,36 @@ def parse_experiment_name(f):
     return Experiment(*parts)
 
 
-def main():
+
+def load_quality_trace(strategy, dataset, distance, linkage):
+    df = pd.read_csv(
+        RESULT_FOLDER / f"{dataset}-{distance}-{linkage}-{strategy}" / "Finished-100" / "qualities.csv"
+    )
+    df["strategy"] = strategy
+    df["dataset"] = dataset
+    df["distance"] = distance
+    df["linkage"] = linkage
+    # use relative runtime instead of millis since epoch
+    df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
+    # convert millis to seconds
+    df["timestamp"] = df["timestamp"] / 1000
+    df["index"] = df["index"].astype(int)
+
+    return df
+
+
+def runtime_at_quality(strategy, dataset, distance, linkage, threshold, measure):
+    try:
+        df = load_quality_trace(strategy, dataset, distance, linkage)
+        return df.loc[df[measure] >= threshold, "timestamp"].iloc[0]
+    except FileNotFoundError:
+        print(
+            f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found"
+        )
+        return pd.NA
+
+
+def main(threshold=0.8):
     experiments = [f for f in RESULT_FOLDER.iterdir() if f.is_dir()]
     print(
         f"Processing results from {len(experiments)} experiments ...", file=sys.stderr
@@ -32,15 +61,18 @@ def main():
     entries = []
     for file in tqdm(experiments):
         exp = parse_experiment_name(file)
-        exp_runtimes = pd.read_csv(file / "serial" / "runtimes.csv")
-        for phase, runtime in exp_runtimes.itertuples(index=False):
-            entries.append(
-                (exp.dataset, exp.distance, exp.linkage, exp.strategy, phase, runtime)
-            )
-    df = pd.DataFrame(
-        entries,
-        columns=["dataset", "distance", "linkage", "strategy", "phase", "runtime"],
-    )
+        exp_runtimes = pd.read_csv(file / "Finished-100" / "runtimes.csv")
+        exp_runtimes["Phase"] = exp_runtimes["Phase"].str.lower()
+        series = exp_runtimes.set_index("Phase")["runtime"]
+        series["runtime_80"] = runtime_at_quality(
+            exp.strategy, exp.dataset, exp.distance, exp.linkage, threshold, "hierarchy-quality"
+        )
+        series["dataset"] = exp.dataset
+        series["distance"] = exp.distance
+        series["linkage"] = exp.linkage
+        series["strategy"] = exp.strategy
+        entries.append(series)
+    df = pd.DataFrame(entries)
     file = RESULT_FOLDER / "aggregated-runtimes.csv"
     if not file.exists():
         df.to_csv(RESULT_FOLDER / "aggregated-runtimes.csv", index=False)
