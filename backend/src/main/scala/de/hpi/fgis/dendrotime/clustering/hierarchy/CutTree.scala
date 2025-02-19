@@ -68,7 +68,7 @@ object CutTree {
       i += 1
     else
       val c1 = clusters(node.cId1 - nobs)
-      System.arraycopy(c1, 0, cluster, i, c1.length)
+      Array.copy(c1, 0, cluster, i, c1.length)
       i += c1.length
 
     if node.cId2 < nobs then
@@ -76,7 +76,7 @@ object CutTree {
       i += 1
     else
       val c2 = clusters(node.cId2 - nobs)
-      System.arraycopy(c2, 0, cluster, i, c2.length)
+      Array.copy(c2, 0, cluster, i, c2.length)
     cluster
   }
   

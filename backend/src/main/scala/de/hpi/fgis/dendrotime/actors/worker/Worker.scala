@@ -1,7 +1,8 @@
 package de.hpi.fgis.dendrotime.actors.worker
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, Props}
+import akka.actor.typed.{ActorRef, Behavior, DispatcherSelector, PostStop, Props}
+import de.hpi.fgis.dendrotime.Settings
 import de.hpi.fgis.dendrotime.actors.clusterer.ClustererProtocol
 import de.hpi.fgis.dendrotime.actors.coordinator.strategies.StrategyProtocol.DispatchWork
 import de.hpi.fgis.dendrotime.actors.tsmanager.TsmProtocol
@@ -60,7 +61,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
 
   private def idle(workSupplier: ActorRef[DispatchWork],
                    ts: IndexedSeq[LabeledTimeSeries],
-                   sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial {
+                   sendBatchStatistics: Boolean = true): Behavior[Command] = Behaviors.receiveMessagePartial[Command] {
     case UseSupplier(supplier) =>
       ctx.log.debug("Switching supplier to {}", supplier)
       idle(supplier, ts, sendBatchStatistics = false)
@@ -102,6 +103,13 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
           ctx.clusterer ! ClustererProtocol.FullDistance(tas, tbs, dists)
       }
       idle(workSupplier, ts)
+  } receiveSignal {
+    case (_, PostStop) =>
+      distanceMetric match {
+        case d: AutoCloseable => d.close()
+        case _ =>
+      }
+      Behaviors.same
   }
 
   @inline

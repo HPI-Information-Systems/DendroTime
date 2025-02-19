@@ -1,19 +1,15 @@
 package fftw3
 
 import com.sun.jna.*
+import fftw3.FFTW3Library as FFTW
+import fftw3.FFTW3Library.INSTANCE as fftw
+import fftw3.FFTWProvider.LocalCachingFFTWProvider
 
 import java.nio.IntBuffer
-import fftw3.FFTW3Library as FFTW
-import FFTW.INSTANCE as fftw
-
 import scala.util.Using
 
 
 object FFTWReal {
-
-  final type FFTWProvider = Array[Int] => FFTWReal
-
-  final given defaultFfftwProvider: FFTWProvider = new FFTWReal(_)
 
   private final val SIZE_OF_DOUBLE: Int = 8
 
@@ -41,7 +37,7 @@ object FFTWReal {
     for i <- b.indices do
       bPad(i) = b(b.length - i - 1)
 
-    Using.resource(fftProvider(Array(n))) { fft =>
+    def performFftw(fft: FFTWReal): Array[Double] = {
       // convert to Fourier space
       val sp1 = fft.forwardTransform(aPad)
       val sp2 = fft.forwardTransform(bPad)
@@ -52,6 +48,14 @@ object FFTWReal {
       // convert back to real space and remove padding
       val result = fft.backwardTransform(sp1)
       result.slice(0, na + nb - 1)
+    }
+
+    fftProvider match {
+      case p: LocalCachingFFTWProvider =>
+        // resource management is handled higher up
+        performFftw(p(n))
+      case p =>
+        Using.resource(p(n)) { performFftw }
     }
   }
 
@@ -103,7 +107,7 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
   /** number of doubles in reciprocal space array */
   val nRecip: Int = 2 * (dims.slice(0, rank - 1).product * (dims(rank - 1) / 2 + 1)) // fftw compresses last index
 
-  private val dimensions = dims.map(_.toDouble)
+  private val dimensionality = dims.map(_.toDouble).product
   private val inBytes = SIZE_OF_DOUBLE * n
   private val outBytes = SIZE_OF_DOUBLE * nRecip
 
@@ -118,7 +122,7 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
   private val planForward = fftw.synchronized {
     fftw.fftw_plan_dft_r2c(dims.length, IntBuffer.wrap(dims), inbuf, outbuf, flags | FFTW.FFTW_DESTROY_INPUT)
   }
-  private val planBackward = fftw.synchronized{
+  private val planBackward = fftw.synchronized {
     fftw.fftw_plan_dft_c2r(dims.length, IntBuffer.wrap(dims), outbuf, inbuf, flags | FFTW.FFTW_DESTROY_INPUT)
   }
 
@@ -162,10 +166,6 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
     fftw.fftw_execute(planForward)
     outbuf.rewind()
     outbuf.get(dst)
-
-    // continuum normalization: f(k) = \int dx^d f(x) e^(i k x)
-    val scale = dimensions.product / dims.product
-    for (i <- dst.indices) dst(i) *= scale
   }
 
   @inline
@@ -177,8 +177,11 @@ final class FFTWReal(dims: Array[Int], flags: Int = FFTW.FFTW_ESTIMATE) extends 
     inbuf.get(dst)
 
     // continuum normalization: f(x) = (2 Pi)^(-d) \int dk^d f(k) e^(- i k x)
-    val scale = 1 / dimensions.product
-    for (i <- dst.indices) dst(i) *= scale
+    val scale = 1 / dimensionality
+    var i = 0
+    while i < n do
+      dst(i) *= scale
+      i += 1
   }
 
   private def destroy(): Unit =
