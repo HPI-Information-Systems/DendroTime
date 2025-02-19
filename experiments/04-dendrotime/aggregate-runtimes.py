@@ -29,10 +29,6 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     df = pd.read_csv(
         RESULT_FOLDER / f"{dataset}-{distance}-{linkage}-{strategy}" / "Finished-100" / "qualities.csv"
     )
-    df["strategy"] = strategy
-    df["dataset"] = dataset
-    df["distance"] = distance
-    df["linkage"] = linkage
     # use relative runtime instead of millis since epoch
     df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
     # convert millis to seconds
@@ -46,9 +42,9 @@ def runtime_at_quality(strategy, dataset, distance, linkage, threshold, measure)
     try:
         df = load_quality_trace(strategy, dataset, distance, linkage)
         return df.loc[df[measure] >= threshold, "timestamp"].iloc[0]
-    except FileNotFoundError:
+    except (FileNotFoundError, KeyError) as e:
         print(
-            f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found"
+            f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found: {e}"
         )
         return pd.NA
 
@@ -62,8 +58,8 @@ def main(threshold=0.8):
     for file in tqdm(experiments):
         exp = parse_experiment_name(file)
         exp_runtimes = pd.read_csv(file / "Finished-100" / "runtimes.csv")
-        exp_runtimes["Phase"] = exp_runtimes["Phase"].str.lower()
-        series = exp_runtimes.set_index("Phase")["runtime"]
+        exp_runtimes["phase"] = exp_runtimes["phase"].str.lower()
+        series = exp_runtimes.set_index("phase")["runtime"]
         series["runtime_80"] = runtime_at_quality(
             exp.strategy, exp.dataset, exp.distance, exp.linkage, threshold, "hierarchy-quality"
         )
