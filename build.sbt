@@ -50,7 +50,7 @@ lazy val `runner` = project.in(file("dendrotime-runner"))
   )
 
 lazy val `evaluator` = project.in(file("dendrotime-evaluator"))
-  .dependsOn(`dendrotime-clustering`, `dendrotime-io`)
+  .dependsOn(`dendrotime-clustering`, `dendrotime-io`, `bloom-filter`)
   .settings(
     name := "DendroTime-Evaluator",
     libraryDependencies ++= Seq(
@@ -147,7 +147,7 @@ lazy val `dendrotime-io` = project.in(file("dendrotime-io"))
 lazy val `bloom-filter` = project.in(file("bloom-filter"))
   .settings(
     name := "bloom-filter",
-    version := "0.14.0",
+    version := "0.14.1",
     libraryDependencies ++= Seq(
       // math stuff
       "org.apache.commons" % "commons-math3" % "3.6.1",

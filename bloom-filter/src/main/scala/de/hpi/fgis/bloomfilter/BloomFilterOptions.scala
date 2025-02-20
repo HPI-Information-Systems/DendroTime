@@ -21,5 +21,5 @@ object BloomFilterOptions {
   }
 
   /** Standard bloom filter with 64-bit Murmurhash and a false positive rate of 0.01. */
-//  given DEFAULT_OPTIONS: BloomFilterOptions = BloomFilterOptions(BFHashSize.BFH64, 0.01)
+  final val DEFAULT_OPTIONS: BloomFilterOptions = BloomFilterOptions(BFHashSize.BFH64, 0.01)
 }
