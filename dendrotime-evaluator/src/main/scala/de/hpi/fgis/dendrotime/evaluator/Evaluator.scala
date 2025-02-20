@@ -1,11 +1,9 @@
 package de.hpi.fgis.dendrotime.evaluator
 
+import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.bloomfilter.BloomFilterOptions.DEFAULT_OPTIONS
-import de.hpi.fgis.bloomfilter.{BloomFilter, BloomFilterOptions}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, HierarchyWithBF, HierarchyWithBitset}
 import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
-import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyWithBFMetricOps.given
-import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyWithBitsetMetricOps.given
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVReader
 
 import scala.util.Using
@@ -17,12 +15,18 @@ object Evaluator {
 class Evaluator private(args: CommonArguments) {
   private val predHierarchy = HierarchyCSVReader.parse(args.predHierarchyPath)
   private val targetHierarchy = HierarchyCSVReader.parse(args.targetHierarchyPath)
-  require(predHierarchy.n == targetHierarchy.n, "Hierarchies must have the same number of nodes")
+  require(
+    predHierarchy.n == targetHierarchy.n,
+    s"Hierarchies must have the same number of nodes (${args.predHierarchyPath} vs. ${args.targetHierarchyPath})"
+  )
   private val n = predHierarchy.n
+
   given BloomFilterOptions = DEFAULT_OPTIONS
 
   def ariAt(k: Int): Unit = {
-    Console.withOut(System.err) { println(s"Computing ARI at k = $k") }
+    Console.withOut(System.err) {
+      println(s"Computing ARI at k = $k")
+    }
     val targetClasses = CutTree(targetHierarchy, k)
     println(predHierarchy.ari(targetClasses))
   }
@@ -50,31 +54,35 @@ class Evaluator private(args: CommonArguments) {
   def hierarchySimilarity(useBloomFilters: Boolean, cardinalityLowerBound: Int, cardinalityUpperBound: Int): Unit = {
     val result =
       if useBloomFilters then
+        import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyWithBFMetricOps.given
+
         Using.Manager { use =>
-          val hierarchyBF = createHierarchyWithBF(predHierarchy)(using use)
-          hierarchyBF.similarity(targetHierarchy, cardinalityLowerBound, cardinalityUpperBound)
+          val (predHbf, targetHbf) = createHierarchyWithBFs(predHierarchy, targetHierarchy)(using use)
+          predHbf.similarity(targetHbf, cardinalityLowerBound, cardinalityUpperBound)
         }.get
       else
-        HierarchyWithBitset(predHierarchy).similarity(targetHierarchy, cardinalityLowerBound, cardinalityUpperBound)
+        predHierarchy.similarity(targetHierarchy, cardinalityLowerBound, cardinalityUpperBound)
     println(result)
   }
 
   def weightedHierarchySimilarity(useBloomFilters: Boolean): Unit = {
     val result =
       if useBloomFilters then
+        import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyWithBFMetricOps.given
+
         Using.Manager { use =>
-          val hierarchyBF = createHierarchyWithBF(predHierarchy)(using use)
-          hierarchyBF.weightedSimilarity(targetHierarchy)
+          val (predHbf, targetHbf) = createHierarchyWithBFs(predHierarchy, targetHierarchy)(using use)
+          predHbf.weightedSimilarity(targetHbf)
         }.get
       else
-        HierarchyWithBitset(predHierarchy).weightedSimilarity(targetHierarchy)
+        predHierarchy.weightedSimilarity(targetHierarchy)
     println(result)
   }
 
-  private def createHierarchyWithBF(hierarchy: Hierarchy)(using use: Using.Manager): HierarchyWithBF = {
-    val initialBfs = Array.tabulate(n)(i =>
-      use(BloomFilter[Int](n + n - 1) += i)
-    )
-    use(HierarchyWithBF.fromHierarchy(hierarchy, initialBfs))
+  private def createHierarchyWithBFs(h1: Hierarchy, h2: Hierarchy)(using use: Using.Manager): (HierarchyWithBF, HierarchyWithBF) = {
+    val initialBfs = use(BFHolder.initialBfs(n))
+    val hbf1 = use(HierarchyWithBF.fromHierarchy(h1, initialBfs.bfs))
+    val hbf2 = use(HierarchyWithBF.fromHierarchy(h2, initialBfs.bfs))
+    (hbf1, hbf2)
   }
 }

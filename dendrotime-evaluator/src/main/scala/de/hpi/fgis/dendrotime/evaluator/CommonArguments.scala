@@ -2,15 +2,16 @@ package de.hpi.fgis.dendrotime.evaluator
 
 import caseapp.*
 
-@AppName("DendroTime Evaluator")
-@ProgName("evaluator")
-case class Arguments(
-                      predHierarchyPath: String,
-                      targetHierarchyPath: String,
-                    )
 
-object Arguments {
-  given Parser[Arguments] = Parser.derive
+case class CommonArguments(
+                            @Name("prediction")
+                            predHierarchyPath: String,
+                            @Name("target")
+                            targetHierarchyPath: String,
+                          )
 
-  given Help[Arguments] = Help.derive
+object CommonArguments {
+  given Parser[CommonArguments] = Parser.derive
+
+  given Help[CommonArguments] = Help.derive
 }
