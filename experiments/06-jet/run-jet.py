@@ -73,7 +73,7 @@ def compute_whs(dataset, distance, data_folder):
     ]
     try:
         whs = float(subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip())
-    except Error as e:
+    except Exception as e:
         whs = np.nan
     return whs
 

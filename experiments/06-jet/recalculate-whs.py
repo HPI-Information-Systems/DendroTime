@@ -35,13 +35,14 @@ def compute_whs(dataset, distance):
     ]
     try:
         whs = float(subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip())
-    except Error as e:
+    except Exception as e:
         whs = np.nan
     return whs
 
 
 def main():
     df = pd.read_csv(RESULT_FOLDER / "results.csv")
+    df["distance"] = np.tile(["sbd", "msm", "dtw"], df.shape[0] // 3)
     df = df.set_index(["dataset", "distance"])
 
     configurations = df.index.values
