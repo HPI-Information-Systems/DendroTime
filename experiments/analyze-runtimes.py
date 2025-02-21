@@ -85,7 +85,7 @@ def plot_quality_trace(df, configs, show_ari=False):
         df_static[["dataset", "distance", "linkage"]].isin(checker).all(axis=1)
     ]
     df_static = df_static.set_index(["strategy", "dataset", "distance", "linkage"])
-    df_static = df_static[["runtime", "ARI"]]
+    df_static = df_static[["runtime", "ARI", "whs"]]
     df_static = df_static.sort_index()
 
     if show_ari:
@@ -146,8 +146,14 @@ def plot_quality_trace(df, configs, show_ari=False):
                     f"Could not plot static quality for {strategy} - {dataset}-{distance}-{linkage}"
                 )
             if strategy == "JET":
-                axs[0, i].axvline(entry["runtime"], lw=2, ls="--", color=colors[strategy], label=strategy_name(strategy))
-
+                axs[0, i].plot(
+                    entry["runtime"],
+                    entry["whs"],
+                    markersize=8,
+                    marker=markers[strategy],
+                    color=colors[strategy],
+                    label=strategy_name(strategy),
+                )
             else:
                 axs[0, i].plot(
                     entry["runtime"],
@@ -245,7 +251,7 @@ def plot_runtimes(df, distance, linkage):
     return fig
 
 
-def create_runtime_table(df, distance, linkage, threshold):
+def create_runtime_table(df, distance, linkage):
     # select distance and linkage
     # (might be able to remove if we have a small number of datasets)
     df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
@@ -261,30 +267,171 @@ def create_runtime_table(df, distance, linkage, threshold):
     df_ari = df_ari[df_ari["dataset"].isin(datasets)].set_index("dataset")[["ARI"]]
     df = df[df["dataset"].isin(datasets)]
 
+    # extract JET qualities
+    df_jet = df[df["strategy"] == "JET"]
+    df_jet = df_jet[df_jet["dataset"].isin(datasets)].set_index("dataset")[["whs"]]
+    df_jet.columns = ["JET WHS"]
+
     # table layout:
     # rows: datasets
     # columns: runtimes of serial, parallel, JET, 3 dendrotime strategies (for hwsim & ari)
     df = df.pivot(index="dataset", columns="strategy", values="runtime")
     df = pd.merge(df, df_ari, left_index=True, right_index=True, how="inner")
+    df = pd.merge(df, df_jet, left_index=True, right_index=True, how="inner")
 
     first_columns = [c for c in baseline_strategies if c in df.columns]
     df = df[first_columns + df.columns.drop(first_columns).tolist()]
     df = df.sort_values("parallel", ascending=True, na_position="last")
     df.columns = [strategy_name(c) for c in df.columns]
-    print(f"\nRuntime at hierarchy quality >= {threshold:.2f} for distance={distance} and linkage={linkage}:")
+    print(f"\nRuntime at hierarchy quality >= 0.8 for distance={distance} and linkage={linkage}:")
     with pd.option_context("display.max_rows", None):
         print(df)
 
+    df = df.dropna(axis=0, how="any")
+    df = df[df["parallel"] >= 5*60]
     for c in (set(df.columns) - set(["parallel"])):
         df[c] = (df[c] - df["parallel"]) / df["parallel"]
-    df["parallel"] = 0.0
-    df[["parallel", "JET", "fcfs", "ada", "precl"]].plot(kind="bar", figsize=(12, 6))
-    plt.title(f"Runtime at hierarchy quality >= {threshold:.2f} for distance={distance} and linkage={linkage}")
+    index = np.arange(df.shape[0])
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6), constrained_layout=True)
+    for i, strategy in enumerate(["JET", "fcfs", "ada", "precl"]):
+        ax.bar(index + i/5, df[strategy], width=1/5, align="edge", color=colors[strategy], label=strategy_name(strategy))
+    ax.set_xticks(index + 0.5)
+    ax.set_xticklabels(df.index, rotation=45, ha="right")
+    ax.legend()
+    ax.set_ylabel("Relative runtime to parallel strategy")
+    ax.set_title(f"Runtime at hierarchy quality >= 0.8 for distance={distance} and linkage={linkage}")
+    plt.show()
+
+
+def plot_jet_whs_qualities(df):
+    plt.figure()
+    ax = plt.gca()
+    df = df[df["linkage"] == "ward"]
+    labels = []
+    for i, (distance, group) in enumerate(df.groupby("distance")):
+        data = group["whs"].values
+        data = data[~np.isnan(data)]
+        ax.boxplot(
+            data,
+            positions=[i],
+            widths=0.6,
+            whis=(0, 100),
+            meanline=True,
+            showmeans=True,
+            sym="",
+            label=distance
+        )
+        labels.append(distance)
+    ax.axhline(0.8, color="red", ls="--", lw=2)
+    ax.set_xticks([0, 1, 2])
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("WHS")
+    ax.set_ylim(0, 1)
+    ax.set_title("JET WHS (Ward linkage)")
+    plt.show()
+
+
+def compare_ada_precl(df, df_data):
+    df_data = df_data.set_index("dataset")
+    df = df[df["distance"] != "euclidean"]
+    # s_parallel = df[df["strategy"] == "parallel"].set_index(["dataset", "distance", "linkage"])["runtime"]
+    df = df[df["strategy"].isin(["approx_distance_ascending", "pre_clustering"])]
+    df = df.pivot(index=["dataset", "distance", "linkage"], columns="strategy", values="runtime")
+    df = df[df["approx_distance_ascending"] > 60]
+    # for c in df.columns:
+    #     df[c] = (df[c] - s_parallel) / s_parallel
+    df["n_instances"] = df.index.get_level_values("dataset").map(df_data["n_instances"])
+    df["m_ts_length"] = df.index.get_level_values("dataset").map(df_data["time_series_length"])
+    df["n:m ratio"] = df["n_instances"] / df["m_ts_length"]
+    df["speedup"] = (df["pre_clustering"] - df["approx_distance_ascending"]) / df["pre_clustering"]
+    # df = df.drop(columns=["approx_distance_ascending", "pre_clustering", "n_instances", "m_ts_length"])
+
+    distances = df.index.get_level_values("distance").unique()
+    linkages = df.index.get_level_values("linkage").unique()
+
+    print("Ada faster than precl for single linkage?")
+    with pd.option_context("display.max_rows", None):
+        print(df.loc[(slice(None), slice(None), "single")].groupby(["dataset"])["speedup"].mean())
+    # --> single: almost always ada faster than precl (only 4 exceptions for now!)
+    print("Ada faster than precl for sbd distance?")
+    with pd.option_context("display.max_rows", None):
+        print(df.loc[(slice(None), "sbd", slice(None))].groupby(["dataset"])["speedup"].mean())
+    # --> sbd distance: precl faster for 7/60 datasets, otherwise ada (~90%)
+
+    df_tmp = df[(df["pre_clustering"] < df["approx_distance_ascending"]) & (df["speedup"] < -0.05)]
+    for distance in distances:
+        for linkage in linkages:
+            precl_faster = df_tmp.loc[(slice(None), distance, linkage)].shape[0]
+            ada_faster = df.loc[(slice(None), distance, linkage)].shape[0] - precl_faster
+            print(f"precl faster than ada for {distance} - {linkage}: ({precl_faster} vs. {ada_faster})")
+            print(df_tmp.loc[(slice(None), distance, linkage)].sort_values("n:m ratio"))
+    # --> no real correlation
+    return
+
+    # ada and precl vs n
+    # fig, axs = plt.subplots(len(distances), len(linkages), figsize=(12, 8), constrained_layout=True)
+    # for i, distance in enumerate(distances):
+    #     for j, linkage in enumerate(linkages):
+    #         ax = axs[i, j]
+    #         data = df.loc[(slice(None), distance, linkage)]
+    #         ax.scatter(data["n_instances"], data["approx_distance_ascending"], label="ada", color=colors["ada"])
+    #         ax.scatter(data["n_instances"], data["pre_clustering"], label="precl", color=colors["precl"])
+    #         ax.set_title(f"{distance} - {linkage}")
+    #         # ax.set_xscale("log")
+    #         # ax.set_yscale("log")
+    #         ax.set_xlabel("n")
+    #         ax.set_ylabel("runtime")
+    #         ax.legend()
+
+    # # ada and precl vs m
+    # fig, axs = plt.subplots(len(distances), len(linkages), figsize=(12, 8), constrained_layout=True)
+    # for i, distance in enumerate(distances):
+    #     for j, linkage in enumerate(linkages):
+    #         ax = axs[i, j]
+    #         data = df.loc[(slice(None), distance, linkage)]
+    #         ax.scatter(data["m_ts_length"], data["approx_distance_ascending"], label="ada", color=colors["ada"])
+    #         ax.scatter(data["m_ts_length"], data["pre_clustering"], label="precl", color=colors["precl"])
+    #         ax.set_title(f"{distance} - {linkage}")
+    #         # ax.set_xscale("log")
+    #         # ax.set_yscale("log")
+    #         ax.set_xlabel("m")
+    #         ax.set_ylabel("runtime")
+    #         ax.legend()
+
+    # speedup vs n:m ratio
+    fig, axs = plt.subplots(len(distances), len(linkages), figsize=(12, 8), constrained_layout=True)
+    for i, distance in enumerate(distances):
+        for j, linkage in enumerate(linkages):
+            ax = axs[i, j]
+            data = df.loc[(slice(None), distance, linkage)]
+            ax.scatter(data["n:m ratio"], data["speedup"])
+            ax.set_title(f"{distance} - {linkage}")
+            # ax.set_xscale("log")
+            # ax.set_yscale("log")
+            ax.set_xlabel("n:m ratio")
+            ax.set_ylabel("speedup")
+
+    # 3d plot
+    # df = df[df.notna().all(axis=1)]
+    # fig, axs = plt.subplots(len(distances), len(linkages), figsize=(12, 8), constrained_layout=True, subplot_kw={"projection": "3d"})
+    # for i, distance in enumerate(distances):
+    #     for j, linkage in enumerate(linkages):
+    #         ax = axs[i, j]
+    #         data = df.loc[(slice(None), distance, linkage)]
+    #         ax.scatter(data["n_instances"], data["m_ts_length"], data["speedup"], cmap="inferno")
+    #         ax.set_title(f"{distance} - {linkage}")
+    #         # ax.set_xscale("log")
+    #         # ax.set_yscale("log")
+    #         ax.set_xlabel("n")
+    #         ax.set_ylabel("m")
+    #         ax.set_zlabel("speedup")
     plt.show()
 
 
 def main():
-    max_datasets = 135
+    df_data = pd.read_csv("data/datasets.csv")
+    max_datasets = df_data.shape[0]
 
     # load results from serial execution
     df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
@@ -296,6 +443,7 @@ def main():
     df_jet = pd.read_csv("06-jet/results/results.csv")
     df_jet["strategy"] = "JET"
     df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
+    df_jet.replace(-1, np.nan, inplace=True)
     dfs = []
     for l in ["single", "complete", "average", "ward"]:
         df = df_jet.copy()
@@ -328,13 +476,19 @@ def main():
     )
     print(df_datasets)
 
+    # plot JET WHS qualities
+    # plot_jet_whs_qualities(df_jet)
+
     # create runtime comparison table
-    create_runtime_table(df, distance="msm", linkage="average", threshold=0.8)
-    create_runtime_table(df, distance="dtw", linkage="complete", threshold=0.8)
-    create_runtime_table(df, distance="sbd", linkage="complete", threshold=0.8)
+    # create_runtime_table(df, distance="msm", linkage="average")
+    # create_runtime_table(df, distance="dtw", linkage="complete")
+    # create_runtime_table(df, distance="sbd", linkage="complete")
 
     # plot runtimes
     # plot_runtimes(df, distance="msm", linkage="average")
+
+    # analyze ada precl performance difference
+    compare_ada_precl(df, df_data)
 
     # create example runtime-quality traces
     # FaceAll (JET surprisingly good??)
@@ -351,18 +505,18 @@ def main():
 
     # Haptics (faster, but just (sub-)linear convergence)
 
-    plot_quality_trace(
-        df,
-        [
-            ("ACSF1", "msm", "ward"),
-            ("PLAID", "msm", "average"),
-            # ("Haptics", "msm", "average"),
-            ("FaceFour", "msm", "average"),
-            ("FaceFour", "dtw", "average"),
-            ("FaceFour", "sbd", "average"),
-            ("HandOutlines", "msm", "average"),
-        ],
-    )
+    # plot_quality_trace(
+    #     df,
+    #     [
+    #         ("ACSF1", "msm", "ward"),
+    #         ("PLAID", "msm", "average"),
+    #         # ("Haptics", "msm", "average"),
+    #         ("FaceFour", "msm", "average"),
+    #         ("FaceFour", "dtw", "average"),
+    #         ("FaceFour", "sbd", "average"),
+    #         ("HandOutlines", "msm", "average"),
+    #     ],
+    # )
     plt.show()
 
 
