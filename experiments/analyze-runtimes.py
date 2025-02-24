@@ -226,6 +226,7 @@ def plot_quality_trace(df, configs, show_ari=False):
 def plot_runtimes(df, distance, linkage):
     # select distance and linkage
     df = df[(df["distance"] == distance) & (df["linkage"] == linkage)]
+    df = df.dropna(subset=["runtime"], axis=0, how="any")
 
     fig, ax = plt.subplots()
     ax.set_title(f"Runtime comparison for {distance} and {linkage}")
@@ -474,21 +475,22 @@ def main():
         .size()
         .reset_index(name="counts")
     )
-    print(df_datasets)
+    with pd.option_context("display.max_rows", None):
+        print(df_datasets)
 
     # plot JET WHS qualities
     # plot_jet_whs_qualities(df_jet)
 
     # create runtime comparison table
-    # create_runtime_table(df, distance="msm", linkage="average")
-    # create_runtime_table(df, distance="dtw", linkage="complete")
-    # create_runtime_table(df, distance="sbd", linkage="complete")
+    create_runtime_table(df, distance="msm", linkage="average")
+    create_runtime_table(df, distance="dtw", linkage="complete")
+    create_runtime_table(df, distance="sbd", linkage="complete")
 
     # plot runtimes
     # plot_runtimes(df, distance="msm", linkage="average")
 
     # analyze ada precl performance difference
-    compare_ada_precl(df, df_data)
+    # compare_ada_precl(df, df_data)
 
     # create example runtime-quality traces
     # FaceAll (JET surprisingly good??)
