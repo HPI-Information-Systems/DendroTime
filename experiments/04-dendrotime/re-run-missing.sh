@@ -46,6 +46,5 @@ for dataset in $datasets; do
   done
 done
 
-# create tar file
 echo ""
 echo "FINISHED!"

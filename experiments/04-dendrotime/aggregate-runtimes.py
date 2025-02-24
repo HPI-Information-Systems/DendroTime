@@ -36,18 +36,25 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     return df
 
 
-def runtime_at_quality(strategy, dataset, distance, linkage, threshold, measure):
+def runtime_at_quality(strategy, dataset, distance, linkage, thresholds, measure):
     try:
         df = load_quality_trace(strategy, dataset, distance, linkage)
-        return df.loc[df[measure] >= threshold, "timestamp"].iloc[0]
-    except (FileNotFoundError, KeyError) as e:
+        bins = {}
+        for t in thresholds:
+            try:
+                bins[t] = df.loc[df[measure] >= t, "timestamp"].iloc[0]
+            except (IndexError, KeyError) as e:
+                bins[t] = pd.NA
+        return bins
+    except FileNotFoundError as e:
         print(
             f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found: {e}"
         )
-        return pd.NA
+        return {t: pd.NA for t in thresholds}
 
 
-def main(threshold=0.8):
+def main():
+    thresholds = [0.1*i for i in range(1, 10)]
     experiments = [f for f in RESULT_FOLDER.iterdir() if f.is_dir()]
     print(
         f"Processing results from {len(experiments)} experiments ...", file=sys.stderr
@@ -58,13 +65,15 @@ def main(threshold=0.8):
         exp_runtimes = pd.read_csv(file / "Finished-100" / "runtimes.csv")
         exp_runtimes["phase"] = exp_runtimes["phase"].str.lower()
         series = exp_runtimes.set_index("phase")["runtime"]
-        series["runtime_80"] = runtime_at_quality(
-            exp.strategy, exp.dataset, exp.distance, exp.linkage, threshold, "hierarchy-quality"
-        )
         series["dataset"] = exp.dataset
         series["distance"] = exp.distance
         series["linkage"] = exp.linkage
         series["strategy"] = exp.strategy
+        runtimes = runtime_at_quality(
+            exp.strategy, exp.dataset, exp.distance, exp.linkage, thresholds, "hierarchy-quality"
+        )
+        for t in thresholds:
+            series[f"runtime_{t}"] = runtimes[t]
         entries.append(series)
     df = pd.DataFrame(entries)
     file = RESULT_FOLDER / "aggregated-runtimes.csv"
