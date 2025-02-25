@@ -52,6 +52,7 @@ def _evaluate_clustering(exp, file):
 
 def extract_results(file):
     exp = _parse_experiment_name(file)
+    exp.strategy = "parallel"
     exp_runtimes = pd.read_csv(file / "parallel" / "runtimes.csv")
     ari = _evaluate_clustering(exp, file)
     entries = []
