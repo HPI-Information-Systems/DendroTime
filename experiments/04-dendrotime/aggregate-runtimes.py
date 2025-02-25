@@ -73,7 +73,7 @@ def main():
             exp.strategy, exp.dataset, exp.distance, exp.linkage, thresholds, "hierarchy-quality"
         )
         for t in thresholds:
-            series[f"runtime_{t:.1d}"] = runtimes[t]
+            series[f"runtime_{t:.1f}"] = runtimes[t]
         entries.append(series)
     df = pd.DataFrame(entries)
     file = RESULT_FOLDER / "aggregated-runtimes.csv"

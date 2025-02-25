@@ -144,7 +144,7 @@ def main(show_jet_variance=False, include_euclidean=False):
             )
 
             # add plots for all strategies
-            for strategy in ["approx_distance_ascending", "pre_clustering", "fcfs"]:
+            for strategy in ["fcfs", "pre_clustering", "approx_distance_ascending"]:
                 color = colors[strategy]
                 runtimes = np.r_[
                     df_filtered.loc[strategy, ("runtime", "mean")], [max_runtime]
