@@ -19,7 +19,7 @@ datasets=$(python ../download_datasets.py --test)
 
 # run experiments in n_jobs subprocesses
 mkdir -p results
-for dataset in "${datasets[@]}"; do
+for dataset in $datasets; do
   for distance in "${distances[@]}"; do
     for linkage in "${linkages[@]}"; do
       echo ""
