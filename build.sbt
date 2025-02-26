@@ -118,7 +118,6 @@ lazy val `dendrotime-clustering` = project.in(file("dendrotime-clustering"))
   .dependsOn(`bloom-filter`, `dendrotime-io`)
   .settings(
     name := "dendrotime.clustering",
-    version := "0.1.0",
     libraryDependencies ++= Seq(
       // fft
       "net.java.dev.jna" % "jna" % "5.16.0",
@@ -134,7 +133,6 @@ lazy val `dendrotime-io` = project.in(file("dendrotime-io"))
   .dependsOn(`bloom-filter`)
   .settings(
     name := "dendrotime.io",
-    version := "0.1.0",
     libraryDependencies ++= Seq(
       // csv parsing
       "com.univocity" % "univocity-parsers" % "2.9.1",

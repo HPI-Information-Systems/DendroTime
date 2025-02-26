@@ -6,7 +6,7 @@ trait FFTWProvider extends (Int => FFTWReal)
 
 object FFTWProvider {
   /** `FFTWReal.fftwConvolve` takes care of closing the created instances automatically! */
-  final given defaultFfftwProvider: FFTWProvider = n => new FFTWReal(Array(n))
+  final given defaultFfftwProvider: FFTWProvider = DefaultFftwProvider
 
   def localCaching(cacheSize: Int): FFTWProvider = new LocalCachingFFTWProvider(cacheSize)
 
@@ -15,6 +15,14 @@ object FFTWProvider {
   private case object Empty extends CacheEntry
 
   private final case class Occupied(size: Int, fftw: FFTWReal) extends CacheEntry
+
+  /** Default FFTW provider that creates a new instance for each call.
+   * This is safe to use in all circumstances because `FFTWReal.fftwConvolve` takes care of disposing the resources. */
+  private object DefaultFftwProvider extends FFTWProvider {
+    override def apply(size: Int): FFTWReal = new FFTWReal(Array(size))
+
+    override def toString(): String = "DefaultFftwProvider"
+  }
 
   /** This class is not thread-safe, but still needs to be correctly disposed of! */
   final class LocalCachingFFTWProvider private[FFTWProvider](cacheSize: Int) extends FFTWProvider with AutoCloseable {
@@ -66,5 +74,7 @@ object FFTWProvider {
       }
       lut.clear()
     }
+
+    override def toString: String = s"LocalCachingFFTWProvider(cacheSize=$cacheSize)"
   }
 }

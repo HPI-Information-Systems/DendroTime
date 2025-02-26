@@ -44,8 +44,8 @@ class SerialHAC(settings: Settings, parallel: Boolean) {
     println(s"  computing $m pairwise distances ...")
     val t0 = System.currentTimeMillis()
     val dists =
-      if parallel then computeDistancesParallel(params.distance, timeseries, settings.numberOfWorkers)
-      else computeDistancesSerial(params.distance, timeseries)
+      if parallel then computeDistancesParallel(params, timeseries, settings.numberOfWorkers)
+      else computeDistancesSerial(params, timeseries)
     val distanceDuration = System.currentTimeMillis() - t0
     runtimes(Status.Approximating) = 0L
     runtimes(Status.ComputingFullDistances) = distanceDuration
@@ -76,28 +76,29 @@ class SerialHAC(settings: Settings, parallel: Boolean) {
     hierarchy
   }
 
-  private def computeDistancesSerial(distance: Distance, timeseries: Array[LabeledTimeSeries]): PDist =
+  private def computeDistancesSerial(params: DendroTimeParams, timeseries: Array[LabeledTimeSeries]): PDist = {
+    val distance = params.distance
     PDist(distance.pairwise(timeseries.map(_.data)), timeseries.length)
+  }
 
-  private def computeDistancesParallel(distance: Distance, timeseries: Array[LabeledTimeSeries], nThreads: Int): PDist = {
+  private def computeDistancesParallel(params: DendroTimeParams, timeseries: Array[LabeledTimeSeries], nThreads: Int): PDist = {
     println(s"    using $nThreads threads")
 
     given ExecutionContext = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(nThreads))
 
+    val localDistance = ThreadLocal.withInitial[Distance](() => params.distance)
     val n = timeseries.length
+    val pdist = PDist.empty(n).mutable
     val futures = for
       i <- 0 until n
       j <- i + 1 until n
     yield
       Future {
-        (i, j) -> distance(timeseries(i).data, timeseries(j).data)
+        val distance = localDistance.get()
+        pdist(i, j) = distance(timeseries(i).data, timeseries(j).data)
       }
 
-    val distances = futures.map(Await.result(_, Duration.Inf))
-    val pdist = PDist.empty(n).mutable
-    distances.foreach { case ((i, j), d) =>
-      pdist(i, j) = d
-    }
+    Await.ready(Future.sequence(futures), Duration.Inf)
     pdist
   }
 }

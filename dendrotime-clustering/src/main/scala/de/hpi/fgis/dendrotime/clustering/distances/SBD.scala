@@ -103,7 +103,7 @@ class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE, localFftwCacheSize
     FastMath.abs(1.0 - a.max / b)
   }
 
-  override def toString: String = s"SBD(standardize=$standardize)"
+  override def toString: String = s"SBD(standardize=$standardize, fftwProvider=$fftwProvider)"
 
   override def close(): Unit = {
     fftwProvider match {
