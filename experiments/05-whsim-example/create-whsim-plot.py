@@ -32,7 +32,7 @@ def parse_args(args):
         "--linkage",
         type=str,
         default="average",
-        choices=["single", "complete", "average", "weighted"],
+        choices=["single", "complete", "average", "weighted", "ward"],
         help="Linkage method",
     )
     parser.add_argument(

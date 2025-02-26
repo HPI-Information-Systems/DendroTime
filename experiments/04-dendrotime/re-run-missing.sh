@@ -7,7 +7,7 @@ strategy="${1-approx-distance-ascending}"
 
 # ignore sbd because we compute them in another job
 distances=( "euclidean" "dtw" "msm" )
-linkages=( "single" "complete" "average" "ward" )
+linkages=( "single" "complete" "average" "weighted" "ward" )
 failure_log_file="results/${strategy}-failures.csv"
 mkdir -p "results"
 if [ ! -f "${failure_log_file}" ]; then

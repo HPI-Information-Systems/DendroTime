@@ -13,7 +13,7 @@ n_jobs=$((mem_jobs < N ? mem_jobs : N))
 echo "Running $n_jobs jobs in parallel"
 
 distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "ward" )
+linkages=( "single" "complete" "average" "weighted" "ward" )
 # download test datasets
 datasets=$(python ../download_datasets.py --test)
 

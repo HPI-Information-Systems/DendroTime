@@ -70,7 +70,7 @@ object SBD {
  * val dist = sbd(x, y)
  * ```
  */
-class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE, localFftwCacheSize: Option[Int]) extends Distance with AutoCloseable {
+class SBD(val standardize: Boolean = SBD.DEFAULT_STANDARDIZE, localFftwCacheSize: Option[Int] = None) extends Distance with AutoCloseable {
 
   given fftwProvider: FFTWProvider = localFftwCacheSize match {
     case Some(cacheSize) => FFTWProvider.localCaching(cacheSize)

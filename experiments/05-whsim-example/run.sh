@@ -2,7 +2,7 @@
 
 set -eo pipefail  # trace exit code of failed piped commands
 
-distances=( "euclidean" "dtw" "msm" "sbd" )
+distances=( "dtw" "msm" "sbd" )
 linkages=( "single" "complete" "average" )
 strategies=( "fcfs" "approx-distance-ascending" "pre-clustering" )
 # download datasets

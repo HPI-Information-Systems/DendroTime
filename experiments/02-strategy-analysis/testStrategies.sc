@@ -4,16 +4,16 @@
 //> using repository m2local
 //> using repository https://repo.akka.io/maven
 //> using dep de.hpi.fgis:progress-bar_3:0.1.0
-//> using dep de.hpi.fgis:dendrotime_3:0.0.1+16-a4da4ce5+20250113-1608
+//> using dep de.hpi.fgis:dendrotime-io_3:0.0.3+0-ba4b48a3+20250226-1727
+//> using dep de.hpi.fgis:dendrotime-clustering_3:0.0.3+0-ba4b48a3+20250226-1727
+//> using dep de.hpi.fgis:dendrotime-server_3:0.0.3+0-ba4b48a3+20250226-1727
 import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.{DTW, Distance, MSM, Minkowsky, SBD}
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage, computeHierarchy}
 import de.hpi.fgis.dendrotime.clustering.metrics.SupervisedClustering
 import de.hpi.fgis.dendrotime.clustering.metrics.HierarchyMetricOps.given
+import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
 import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
-import de.hpi.fgis.dendrotime.model.TimeSeriesModel.LabeledTimeSeries
-import de.hpi.fgis.dendrotime.structures.*
-import de.hpi.fgis.dendrotime.structures.HierarchyWithBitset.given
 import de.hpi.fgis.dendrotime.structures.strategies.*
 import de.hpi.fgis.dendrotime.structures.strategies.ApproxDistanceWorkGenerator.Direction
 import de.hpi.fgis.progressbar.{ProgressBar, ProgressBarFormat}
@@ -289,12 +289,8 @@ val strategies: mutable.Map[String, WorkGenerator[Int]] = mutable.Map(
   "shortestTs" -> ShortestTsWorkGenerator(
     timeseries.zipWithIndex.map((ts, i) => i -> ts.data.length).toMap
   ),
-  "approxAscending" -> ApproxDistanceWorkGenerator(
-    timeseries.indices.zipWithIndex.toMap, approxDists, Direction.Ascending
-  ),
-  "approxDescending" -> ApproxDistanceWorkGenerator(
-    timeseries.indices.zipWithIndex.toMap, approxDists, Direction.Descending
-  ),
+  "approxAscending" -> ApproxDistanceWorkGenerator(approxDists, Direction.Ascending),
+  "approxDescending" -> ApproxDistanceWorkGenerator(approxDists, Direction.Descending),
   "approxFullError" -> ApproxFullErrorWorkGenerator(timeseries.indices.zipWithIndex.toMap),
 )
 println(s"Executing all strategies for dataset $dataset with $n time series")

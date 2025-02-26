@@ -12,7 +12,7 @@ RESULT_FOLDER = Path("results")
 
 def main():
     distances = ("euclidean", "dtw", "msm", "sbd")
-    linkages = ("single", "complete", "average", "ward")
+    linkages = ("single", "complete", "average", "weighted", "ward")
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(DATA_FOLDER)
 

@@ -3,7 +3,7 @@
 set -eo pipefail  # trace exit code of failed piped commands
 
 distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "ward" )
+linkages=( "single" "complete" "average" "weighted" "ward" )
 # download datasets
 # datasets=$(python ../download_datasets.py --all --sorted)
 datasets="edeniss20182020_co2_anomalies
