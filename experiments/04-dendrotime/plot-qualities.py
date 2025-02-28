@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import measure_name_mapping, colors
+from plt_commons import measure_name_mapping, colors, strategy_name
 
 
 def parse_args(args):
@@ -38,13 +38,18 @@ def parse_args(args):
         "--strategy",
         type=str,
         default="approx-distance-ascending",
-        choices=["pre-clustering", "approx-distance-ascending"],
+        choices=["pre-clustering", "approx-distance-ascending", "fcfs"],
         help="Strategy name",
     )
     parser.add_argument(
         "--use-runtime",
         action="store_true",
         help="Use runtime instead of computational steps as x-axis.",
+    )
+    parser.add_argument(
+        "--include-ari",
+        action="store_true",
+        help="Include ARI in the plot.",
     )
 
     return parser.parse_args(args)
@@ -53,6 +58,7 @@ def parse_args(args):
 def main(sys_args):
     args = parse_args(sys_args)
     use_runtime = args.use_runtime
+    include_ari = args.include_ari
     if args.resultfile is not None:
         results_file = Path(args.resultfile)
     elif args.dataset is None:
@@ -70,7 +76,7 @@ def main(sys_args):
     if not results_file.exists():
         raise FileNotFoundError(f"Result file {results_file} not found!")
 
-    plot_results(results_file, use_runtime)
+    plot_results(results_file, use_runtime, include_ari)
 
 
 def extract_measures_from_config(config_file):
@@ -83,7 +89,7 @@ def extract_measures_from_config(config_file):
     return mapping
 
 
-def plot_results(results_file, use_runtime=False):
+def plot_results(results_file, use_runtime=False, include_ari=False):
     # experiment details
     parts = results_file.parent.parent.stem.split("-")
     dataset = parts[0]
@@ -120,17 +126,41 @@ def plot_results(results_file, use_runtime=False):
     else:
         df = df.set_index("index").drop(columns=["timestamp"])
 
+    if not include_ari:
+        df = df.drop(columns=["cluster-quality"])
+
     aucs = df.sum(axis=0) / df.shape[0]
     print(aucs)
 
-    plt.figure()
-    plt.title(f"{dataset}: {strategy} strategy with {distance}-{linkage}")
-    plt.axvline(
+    fig = plt.figure(figsize=(5, 3))
+    plt.tight_layout()
+    ax = plt.gca()
+    # ax.set_title(f"{dataset}: {strategy_name(strategy)} strategy with {distance.upper()} and {linkage}")
+    ax.grid(True, which="major", axis="y", ls=":", lw=1)
+    ax.axvline(
         x=df.index[middle],
         color="gray",
         linestyle="--",
         label="Approx. $\\rightarrow$ Exact",
     )
+
+    # WHS
+    ax.step(
+        df.index,
+        df["hierarchy-quality"],
+        where="post",
+        label=measures["hierarchy-quality"],
+        color=colors["hierarchy-quality"],
+        lw=2,
+    )
+    ax.fill_between(
+        df.index,
+        df["hierarchy-quality"],
+        alpha=0.2,
+        step="post",
+        color=colors["hierarchy-quality"],
+    )
+    df = df.drop(columns=["hierarchy-quality"])
     for measurement in df.columns:
         plt.plot(
             df.index,
@@ -140,15 +170,15 @@ def plot_results(results_file, use_runtime=False):
             color=colors[measurement],
         )
 
-    if use_runtime:
-        plt.xlabel(f"Runtime ({runtime_unit})")
-    else:
-        plt.xlabel("Computational steps")
-    plt.ylabel("Quality")
-    plt.ylim(-0.05, 1.05)
 
-    plt.legend(ncol=2)
-    plt.savefig(
+    if use_runtime:
+        ax.set_xlabel(f"Runtime ({runtime_unit})")
+    else:
+        ax.set_xlabel("Computational steps")
+    ax.set_ylabel("Quality")
+    ax.set_ylim(0.0, 1.05)
+    ax.legend()
+    fig.savefig(
         figures_dir / f"solutions-{dataset}-{distance}-{linkage}-{strategy}.pdf",
         bbox_inches="tight",
     )

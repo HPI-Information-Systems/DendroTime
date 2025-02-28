@@ -454,9 +454,9 @@ def main():
 
     # load results from system execution
     df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
-    df_dendrotime["runtime"] = df_dendrotime["runtime_80"]
+    df_dendrotime["runtime"] = df_dendrotime["runtime_0.8"]
     df_dendrotime = df_dendrotime.drop(columns=[
-        "runtime_80", "initializing", "approximating", "computingfulldistances", "finalizing", "finished"
+        "runtime_0.8", "initializing", "approximating", "computingfulldistances", "finalizing", "finished"
     ])
 
     # load results from parallel execution

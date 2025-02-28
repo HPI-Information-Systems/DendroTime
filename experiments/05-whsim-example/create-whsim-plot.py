@@ -127,7 +127,7 @@ def plot_results(results_file):
     print(f"Runtime AUC={runtime_auc:0.2f}")
     print(f"Step AUC={step_auc:0.2f}")
 
-    fig, axs = plt.subplots(1, 2, figsize=(7, 3), sharey="all")
+    fig, axs = plt.subplots(1, 2, figsize=(7, 2), sharey="all")
 
     # runtime plot
     axs[0].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
@@ -154,7 +154,7 @@ def plot_results(results_file):
     )
     axs[0].text(
         0.6 * df["timestamp"].max(),
-        0.5,
+        0.25,
         f"AUC: {runtime_auc:.2f}",
         fontweight="bold",
     )
@@ -187,7 +187,7 @@ def plot_results(results_file):
     )
     axs[1].text(
         0.6 * df["index"].max(),
-        0.5,
+        0.25,
         f"AUC: {step_auc:.2f}",
         fontweight="bold",
     )
@@ -199,7 +199,7 @@ def plot_results(results_file):
         labels,
         ncol=len(handles),
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.01),
+        bbox_to_anchor=(0.5, 1.06),
     )
     plt.savefig(
         f"whsim-{dataset}-{distance}-{linkage}-{strategy}.pdf",

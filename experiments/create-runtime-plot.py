@@ -9,7 +9,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name
 
 
-def main(show_jet_variance=False, include_euclidean=False):
+def main(show_jet_variance=False, include_euclidean=False, include_weighted=False):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
     # df_serial["strategy"] = "serial"
@@ -71,6 +71,8 @@ def main(show_jet_variance=False, include_euclidean=False):
     if not include_euclidean:
         distances = sorted(set(distances) - {"euclidean"})
     linkages = sorted(df["linkage"].unique().tolist())
+    if not include_weighted:
+        linkages = sorted(set(linkages) - {"weighted"})
 
     # use right y ticks and labels for this plot
     plt.rcParams["ytick.right"] = plt.rcParams["ytick.labelright"] = True
@@ -145,6 +147,9 @@ def main(show_jet_variance=False, include_euclidean=False):
 
             # add plots for all strategies
             for strategy in ["fcfs", "pre_clustering", "approx_distance_ascending"]:
+                if strategy not in df_filtered.index.get_level_values("strategy"):
+                    print(f"Skipping {strategy} for {distance}-{linkage}")
+                    continue
                 color = colors[strategy]
                 runtimes = np.r_[
                     df_filtered.loc[strategy, ("runtime", "mean")], [max_runtime]
