@@ -5,7 +5,7 @@ import de.hpi.fgis.dendrotime.clustering.PDist
 import de.hpi.fgis.dendrotime.clustering.distances.Distance
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{Hierarchy, computeHierarchy}
 import de.hpi.fgis.dendrotime.io.TimeSeries.LabeledTimeSeries
-import de.hpi.fgis.dendrotime.io.TsParser
+import de.hpi.fgis.dendrotime.io.{CSVWriter, TsParser}
 import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
@@ -51,6 +51,15 @@ class SerialHAC(settings: Settings, parallel: Boolean) {
     runtimes(Status.Approximating) = 0L
     runtimes(Status.ComputingFullDistances) = distanceDuration
     println(s"  ... done in $distanceDuration ms")
+
+    if settings.storeResults && settings.storeDistances then
+      val datasetPath = settings.resolveResultsFolder(dataset, params)
+      val resultFolder =
+        if parallel then datasetPath.resolve("parallel")
+        else datasetPath.resolve("serial")
+      resultFolder.toFile.mkdirs()
+      val distsFile = resultFolder.resolve("distances.csv").toFile
+      CSVWriter.write(distsFile, dists.matrixView)
 
     println("  running HAC ...")
     val t1 = System.currentTimeMillis()

@@ -36,6 +36,9 @@ trait PDist extends Iterable[Double] {
   /** Extract pairwise distance vector of a subset of objects. */
   def subPDistOf(indices: scala.collection.Seq[Int]): PDist = PDist.subPDistOf(this, indices)
 
+  /** Convert to a quadratic distance matrix. */
+  def matrixView: IndexedSeq[IndexedSeq[Double]] = new PDist.PDistMatrixView(this)
+
   override def knownSize: Int = length
 }
 
@@ -148,5 +151,21 @@ object PDist {
     override def toString: String = s"""Pairwise distances of $n observations:\n${distances.mkString(", ")}"""
     
     override def iterator: Iterator[Double] = distances.iterator
+  }
+
+  /** 2D view into the PDist vector. Allocates a row-view object on each access. */
+  private final class PDistMatrixView private[PDist](pdist: PDist) extends IndexedSeq[IndexedSeq[Double]] {
+
+    override def apply(i: Int): IndexedSeq[Double] = new IndexedSeq[Double] {
+      override def apply(j: Int): Double = {
+        if (i == j) 0.0
+        else if (i < j) pdist(i, j)
+        else pdist(j, i)
+      }
+
+      override def length: Int = pdist.n
+    }
+
+    override def length: Int = pdist.n
   }
 }

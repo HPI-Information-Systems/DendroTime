@@ -1,4 +1,5 @@
 import sys
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,23 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--show-jet-variance",
+        action="store_true",
+        help="Show variance of JET runtime and WHS",
+    )
+    parser.add_argument(
+        "--include-euclidean", action="store_true", help="Include euclidean distance"
+    )
+    parser.add_argument(
+        "--include-weighted", action="store_true", help="Include weighted linkage"
+    )
+    return parser.parse_args()
+
 
 
 def main(show_jet_variance=False, include_euclidean=False, include_weighted=False):
@@ -226,4 +244,9 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(
+        show_jet_variance=args.show_jet_variance,
+        include_euclidean=args.include_euclidean,
+        include_weighted=args.include_weighted,
+    )

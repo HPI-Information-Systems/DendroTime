@@ -194,14 +194,6 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
       datasetPath.toFile.mkdirs()
       val file = datasetPath.resolve(s"$tpe-distances.csv").toFile
       ctx.log.info("Saving {} distance matrix to file to {}", tpe, file)
-      val matrix = Array.ofDim[Double](distances.n, distances.n)
-      var i = 0
-      while i < distances.n do
-        var j = 0
-        while j < distances.n do
-          matrix(i)(j) = distances(i, j)
-          j += 1
-        i += 1
-      CSVWriter.write(file, matrix)
+      CSVWriter.write(file, distances.matrixView)
   }
 }
