@@ -10,6 +10,7 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.structures.Status
+import de.hpi.fgis.dendrotime.structures.strategies.FCFSWorkGenerator
 
 import java.io.File
 import java.util.concurrent.Executors
@@ -86,17 +87,25 @@ class SerialHAC(settings: Settings, parallel: Boolean) {
 
     given ExecutionContext = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(nThreads))
 
-    val localDistance = ThreadLocal.withInitial[Distance](() => params.distance)
     val n = timeseries.length
+    // 1000 batches per thread with batchSize:
+    val batchSize = Math.max((n * (n - 1) / 2) / (1000 * nThreads), 1)
+
+    val localDistance = ThreadLocal.withInitial[Distance](() => params.distance)
     val pdist = PDist.empty(n).mutable
-    val futures = for
-      i <- 0 until n
-      j <- i + 1 until n
-    yield
-      Future {
+    val pairGenerator = new FCFSWorkGenerator[Int](0 until n)
+    val futures = mutable.ArrayBuffer.empty[Future[Unit]]
+
+    while pairGenerator.hasNext do
+      val pairs = pairGenerator.nextBatch(batchSize)
+      futures += Future {
         val distance = localDistance.get()
-        pdist(i, j) = distance(timeseries(i).data, timeseries(j).data)
+        for (i, j) <- pairs do
+          pdist(i, j) = distance(timeseries(i).data, timeseries(j).data)
       }
+
+    println(s"      batch size = $batchSize")
+    println(s"      # batches = ${futures.length}")
 
     Await.ready(Future.sequence(futures), Duration.Inf)
     pdist
