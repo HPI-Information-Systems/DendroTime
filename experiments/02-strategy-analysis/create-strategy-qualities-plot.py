@@ -17,7 +17,7 @@ ariQualityMeasures = ("ari", "ariAt", "averageAri", "approxAverageAri")
 selected_strategies = (
     "preClustering",
     "approxAscending",
-    "approxFullError",
+    # "approxFullError",
     "shortestTs",
     "fcfs",
 )
@@ -33,12 +33,18 @@ def parse_args(args):
         type=str,
         help="The folder containing the strategy and trace CSV files to analyze.",
     )
+    parser.add_argument(
+        "--fit-distribution",
+        action="store_true",
+        help="Fit a skewed normal distribution to the AUCs of random strategies.",
+    )
     return parser.parse_args(args)
 
 
 def main(sys_args):
     args = parse_args(sys_args)
     results_folder = Path(args.resultfolder)
+    fit_distribution = args.fit_distribution
 
     parts = results_folder.stem.split("-")
     distance = parts[-3]
@@ -48,32 +54,50 @@ def main(sys_args):
 
     strategy_files = list(results_folder.glob("strategies-*.csv"))
     strategy_files.sort()
-    # parse result file name for dataset, n, and seed
-    if len(strategy_files) < 1:
+    n = len(strategy_files)
+    if n < 1:
         raise ValueError("There are no 'strategies-*.csv'-files in the result folder!")
 
     fig, axs = plt.subplots(
-        1,
-        len(strategy_files),
-        sharey="all",
-        figsize=(int(1.3 * len(strategy_files)), 3),
+        2,
+        int(np.ceil(n / 2)),
+        sharex="all",
+        figsize=(10, 2),
         squeeze=False,
+        constrained_layout=True,
     )
-    axs = axs.flatten()
-    for i, results_file in enumerate(strategy_files):
+    for k, results_file in enumerate(strategy_files):
         filename = results_file.stem
-        plot_results(results_folder, filename, quality_measure, ax=axs[i])
+        i = int(k / (n/2))
+        j = int(k % (n/2))
+        plot_results(results_folder, filename, quality_measure, fit_distribution, ax=axs[i, j])
 
-    handles, labels = axs[0].get_legend_handles_labels()
+    if quality_measure == "weightedHierarchySimilarity":
+        legend_title = "WHS-S-AUC"
+    else:
+        legend_title = f"{quality_measure} AUC"
+
+    handles, labels = axs[0, 0].get_legend_handles_labels()
+    # fig.legend(
+    #     handles,
+    #     labels,
+    #     loc="lower center",
+    #     ncol=len(labels),
+    #     bbox_to_anchor=(0.5, -0.15),
+    #     borderpad=0.25,
+    #     handletextpad=0.4,
+    #     columnspacing=0.75,
+    #     title=legend_title,
+    # )
     fig.legend(
         handles,
         labels,
-        loc="lower center",
-        ncol=len(labels),
-        bbox_to_anchor=(0.5, -0.11),
-        borderpad=0.5,
-        handletextpad=0.25,
-        columnspacing=0.75,
+        title=legend_title,
+        loc="center left",
+        ncol=1,
+        bbox_to_anchor=(1, 0.5),
+        borderpad=0.25,
+        handletextpad=0.4,
     )
 
     figures_dir = results_folder.parent.parent
@@ -85,7 +109,7 @@ def main(sys_args):
     # plt.show()
 
 
-def plot_results(result_dir, filename, quality_measure="ari", ax=None):
+def plot_results(result_dir, filename, quality_measure="ari", fit_distribution=False, ax=None):
     parts = filename.split("-")
     suffix = "-".join(parts[1:])
     tracesPath = result_dir / f"traces-{suffix}.csv"
@@ -122,16 +146,17 @@ def plot_results(result_dir, filename, quality_measure="ari", ax=None):
     # select random strategies and fit distribution
     random_strategy_indices = [i for i in df.index if i not in df_strategies["index"]]
     random_aucs = aucs.loc[random_strategy_indices]
-    try:
-        a, loc, scale = skewnorm.fit(random_aucs.values, loc=0.5, method="MLE")
-        print(
-            "  skewnorm distribution for random orderings: "
-            f"{a=:.2f}, {loc=:.2f}, {scale=:.2f}"
-        )
-    except Exception as e:
-        print(f"  error fitting skewnorm distribution: {e}")
-        a, loc, scale = 0, 0.5, 0.5
-    dist = skewnorm(a, loc, scale)
+    if fit_distribution:
+        try:
+            a, loc, scale = skewnorm.fit(random_aucs.values, loc=0.5, method="MLE")
+            print(
+                "  skewnorm distribution for random orderings: "
+                f"{a=:.2f}, {loc=:.2f}, {scale=:.2f}"
+            )
+        except Exception as e:
+            print(f"  error fitting skewnorm distribution: {e}")
+            a, loc, scale = 0, 0.5, 0.5
+        dist = skewnorm(a, loc, scale)
 
     # construct plot
     # - histogram of random strategies
@@ -141,20 +166,21 @@ def plot_results(result_dir, filename, quality_measure="ari", ax=None):
         bins=histogram_bins,
         stacked=False,
         color="lightgray",
-        orientation="horizontal",
+        orientation="vertical",
         label="Random strategies",
         ax=ax,
     )
     # - fitted distribution for random strategies
-    y = np.linspace(-0.5, 1.0, 1000)
-    ax.plot(
-        dist.pdf(y),
-        y,
-        linestyle="-",
-        lw=2,
-        color="gray",
-        label="Skewed normal distribution\nfor random strategies",
-    )
+    if fit_distribution:
+        x = np.linspace(0, 1.0, 1000)
+        ax.plot(
+            x,
+            dist.pdf(x),
+            linestyle="-",
+            lw=2,
+            color="gray",
+            label="Skewed normal\ndistribution (random)",
+        )
     # - AUCs of selected strategies
     for strategy in selected_strategies:
         row = df_strategies.loc[df_strategies["strategy"] == strategy]
@@ -163,17 +189,24 @@ def plot_results(result_dir, filename, quality_measure="ari", ax=None):
         strategy = row["strategy"].item()
         auc = row["auc"].item()
         color = colors[strategy]
-        ax.axhline(
-            y=auc, linestyle="--", lw=2, color=color, label=strategy_name(strategy)
+        ax.axvline(
+            x=auc, linestyle="--", lw=2, color=color, label=strategy_name(strategy)
         )
     # - configure axis
     ax.set_title(dataset_name(dataset), fontsize=10)
     if quality_measure in ariQualityMeasures:
-        ax.set_ylim(-0.55, 1.05)
+        ax.set_xlim(-0.55, 1.05)
     else:
-        ax.set_ylim(-0.05, 1.05)
-    ax.set_ylabel(f"{quality_measure} AUC")
-    ax.axes.get_xaxis().set_visible(False)
+        ax.set_xlim(-0.05, 1.05)
+    # if quality_measure == "weightedHierarchySimilarity":
+    #     ax.set_xlabel("WHS-S-AUC")
+    # else:
+    #     ax.set_xlabel(f"{quality_measure} AUC")
+    ax.axes.get_yaxis().set_visible(False)
+    spines = ax.spines
+    spines["top"].set_visible(False)
+    spines["right"].set_visible(False)
+    spines["left"].set_visible(False)
 
 
 if __name__ == "__main__":

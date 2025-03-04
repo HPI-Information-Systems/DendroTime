@@ -69,6 +69,26 @@ def computeApproxDistances(distance: Distance, ts: Array[LabeledTimeSeries], n: 
   approxDists
 }
 
+def computeTimedExactDistances(distance: Distance, ts: Array[LabeledTimeSeries]): (PDist, Array[Long]) = {
+  val dists = PDist.empty(n).mutable
+  val runtimes = Array.ofDim[Long](n * (n - 1) / 2)
+
+  var i = 0
+  var j = 1
+  while i < n - 1 && j < n do
+    val ts1 = ts(i)
+    val ts2 = ts(j)
+    val (result, duration) = timed { distance(ts1.data, ts2.data) }
+    dists(i, j) = result
+    runtimes(PDist.index(i, j, n)) = duration
+    j += 1
+    if j == n then
+      i += 1
+      j = i + 1
+
+  dists -> runtimes
+}
+
 def timed[T](f: => T): (T, Long) = {
   val t0 = System.nanoTime()
   val result = f
@@ -188,7 +208,7 @@ println(s"... done in ${System.currentTimeMillis() - t0} ms")
 println("Computing pairwise distances ...")
 val t1 = System.currentTimeMillis()
 val approxDists = computeApproxDistances(distance, timeseries, n)
-val dists = PDist(distance.pairwise(timeseries.map(_.data)), n)
+val (dists, distRuntimes) = computeTimedExactDistances(distance, timeseries)
 println(s"... done in ${System.currentTimeMillis() - t1} ms")
 
 // prepare ground truth
@@ -199,42 +219,76 @@ val targetClasses =
   if qualityMeasure == "ariAt" then CutTree(targetHierarchy, 20)
   else timeseries.map(_.label.toInt)
 
-def calcQuality(h: Hierarchy): Double = qualityMeasure match {
-  case "ari" => h.ari(targetClasses)
-  case "ariAt" => h.ari(targetClasses)
-  case "averageAri" => h.averageARI(targetLabels)
-  case "approxAverageAri" => h.approxAverageARI(targetLabels)
-  case "labelChangesAt" => h.labelChangesAt(targetHierarchy)
-  case "hierarchySimilarity" => h.similarity(targetHierarchy)
-  case "weightedHierarchySimilarity" => h.weightedSimilarity(targetHierarchy)
+class QualityTracker(expectedSize: Int) {
+
+  private val _qualities = new mutable.ArrayBuffer[Double](expectedSize)
+  private val _runtimes = new mutable.ArrayBuffer[Long](expectedSize)
+  private var runtimeSum = 0L
+  private var lastTimestamp = System.currentTimeMillis()
+
+  // initialize
+  _qualities += calcQuality(approxHierarchy)
+  _runtimes += 0L
+
+  private def calcQuality(h: Hierarchy): Double = qualityMeasure match {
+    case "ari" => h.ari(targetClasses)
+    case "ariAt" => h.ari(targetClasses)
+    case "averageAri" => h.averageARI(targetLabels)
+    case "approxAverageAri" => h.approxAverageARI(targetLabels)
+    case "labelChangesAt" => h.labelChangesAt(targetHierarchy)
+    case "hierarchySimilarity" => h.similarity(targetHierarchy)
+    case "weightedHierarchySimilarity" => h.weightedSimilarity(targetHierarchy)
+  }
+
+  def addRuntime(i: Int, j: Int): Unit = {
+    runtimeSum += distRuntimes(PDist.index(i, j, n))
+  }
+
+  def calcAndAdd(h: Hierarchy): Unit = {
+    val quality = calcQuality(h)
+    val timestamp = System.currentTimeMillis()
+    _qualities += quality
+    _runtimes += runtimeSum + (timestamp - lastTimestamp)
+//    runtimeSum = 0L
+    lastTimestamp = timestamp
+  }
+
+  def auc: Double = {
+    // compute area under the curve respecting the irregular time steps (step function with trapezoidal integration):
+    val runtimes = _runtimes.map(_ - _runtimes.head)
+    val diffs = runtimes.zip(runtimes.tail).map((t1, t2) => t2 - t1)
+    val auc = _qualities.tail.zip(diffs).map((q, d) => q * d).sum / runtimes.last
+    auc
+  }
+
+  def qualities: Array[Double] = _qualities.toArray
+  def timestamps: Array[Long] = _runtimes.toArray
+  def indices: IndexedSeq[Int] = _runtimes.indices
 }
 
-def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], Array[Double]) = {
+def executeStaticStrategy(strategy: Iterator[(Int, Int)]): (Array[(Int, Int)], QualityTracker) = {
   val order = Array.ofDim[(Int, Int)](m)
-  val similarities = mutable.ArrayBuilder.make[Double]
-  similarities.sizeHint(Math.min(maxHierarchySimilarities, m) + 2)
+  val qualityTracker = new QualityTracker(Math.min(maxHierarchySimilarities, m) + 2)
   val wDists = approxDists.mutableCopy
-  similarities += calcQuality(approxHierarchy)
 
   var k = 0
   while strategy.hasNext do
     val (i, j) = strategy.next()
     wDists(i, j) = dists(i, j)
-    val hierarchy = computeHierarchy(wDists, linkage)
     order(k) = (i, j)
+    qualityTracker.addRuntime(i, j)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += calcQuality(hierarchy)
+      val hierarchy = computeHierarchy(wDists, linkage)
+      qualityTracker.calcAndAdd(hierarchy)
     k += 1
 
-  order -> similarities.result()
+  order -> qualityTracker
 }
 
-def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[(Int, Int)], Array[Double]) = {
+def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[(Int, Int)], QualityTracker) = {
   val order = Array.ofDim[(Int, Int)](m)
-  val similarities = mutable.ArrayBuilder.make[Double]
-  similarities.sizeHint(Math.min(maxHierarchySimilarities, m) + 2)
+  val qualityTracker = new QualityTracker(Math.min(maxHierarchySimilarities, m) + 2)
   val wDists = approxDists.mutableCopy
-  similarities += calcQuality(approxHierarchy)
 
   var k = 0
   while strategy.hasNext do
@@ -244,20 +298,19 @@ def executeDynamicStrategy(strategy: ApproxFullErrorWorkGenerator[Int]): (Array[
     wDists(i, j) = dist
     strategy.updateError(i, j, error)
     order(k) = (i, j)
-    val hierarchy = computeHierarchy(wDists, linkage)
+    qualityTracker.addRuntime(i, j)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += calcQuality(hierarchy)
+      val hierarchy = computeHierarchy(wDists, linkage)
+      qualityTracker.calcAndAdd(hierarchy)
     k += 1
 
-  order -> similarities.result()
+  order -> qualityTracker
 }
 
-def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerator[Int]): (Array[(Int, Int)], Array[Double]) = {
+def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerator[Int]): (Array[(Int, Int)], QualityTracker) = {
   val order = Array.ofDim[(Int, Int)](m)
-  val similarities = mutable.ArrayBuilder.make[Double]
-  similarities.sizeHint(Math.min(maxHierarchySimilarities, m) + 2)
+  val qualityTracker = new QualityTracker(Math.min(maxHierarchySimilarities, m) + 2)
   val wDists = approxDists.mutableCopy
-  similarities += calcQuality(approxHierarchy)
   val strategy = strategyFactory(wDists)
 
   var k = 0
@@ -275,12 +328,13 @@ def executePreClusterStrategy(strategyFactory: PDist => PreClusteringWorkGenerat
         wDists(pair._1, pair._2) = dist
     }
     order(k) = (i, j)
-    val hierarchy = computeHierarchy(wDists, linkage)
+    qualityTracker.addRuntime(i, j)
     if k % hierarchyCalcFactor == 0 || k == m-1 then
-      similarities += calcQuality(hierarchy)
+      val hierarchy = computeHierarchy(wDists, linkage)
+      qualityTracker.calcAndAdd(hierarchy)
     k += 1
 
-  order -> similarities.result()
+  order -> qualityTracker
 }
 
 // compute all orderings
@@ -300,12 +354,12 @@ println(s"  n pairs = ${n*(n-1)/2}")
 // execute 1000 random orderings
 val pb = ProgressBar.forTotal(orderingSamples + strategies.size + 1)
 val fcfsOrder = FCFSWorkGenerator(0 until n).toArray
-val randomQualities = Array.ofDim[Array[Double]](orderingSamples)
+val randomQualityTracker = Array.ofDim[QualityTracker](orderingSamples)
 var i = 0
 while i < orderingSamples do
   fcfsOrder.shuffleInPlace(rng)
-  val (_, quality) = executeStaticStrategy(fcfsOrder.iterator)
-  randomQualities(i) = quality
+  val (_, tracker) = executeStaticStrategy(fcfsOrder.iterator)
+  randomQualityTracker(i) = tracker
   pb.step()
   i += 1
 
@@ -343,7 +397,7 @@ pb.finish()
 
 val names = namesIt.toArray
 val (orders, qualities, durations) = resultsIt.toArray.unzip3
-val aucs = qualities.map(sim => sim.sum / sim.length)
+val aucs = qualities.map(_.auc)
 for i <- names.indices do
   println(f"  ${names(i)} (${aucs(i)}%.2f) in ${durations(i)} ms")
 println()
@@ -351,5 +405,7 @@ println()
 println(s"Computed qualities for all orderings, storing to CSVs ...")
 val results = names.zipWithIndex.map((name, i) => name -> (i, aucs(i), durations(i), orders(i))).toMap
 writeStrategiesToCsv(results, resultFolder + s"strategies-$dataset-$seed.csv")
-CSVWriter.write(resultFolder + s"traces-$dataset-$seed.csv", qualities ++ randomQualities)
+val traces = qualities ++ randomQualityTracker
+CSVWriter.write(resultFolder + s"traces-$dataset-$seed.csv", traces.map(_.qualities))
+CSVWriter.write(resultFolder + s"timestamps-$dataset-$seed.csv", traces.map(_.timestamps))
 println("Done!")
