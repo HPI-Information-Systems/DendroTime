@@ -78,7 +78,7 @@ def extract_measures_from_config(config_file):
     return mapping
 
 
-def plot_results(results_file):
+def plot_results(results_file, include_steps=False):
     # experiment details
     parts = results_file.parent.parent.stem.split("-")
     dataset = parts[0]
@@ -127,7 +127,9 @@ def plot_results(results_file):
     print(f"Runtime AUC={runtime_auc:0.2f}")
     print(f"Step AUC={step_auc:0.2f}")
 
-    fig, axs = plt.subplots(1, 2, figsize=(7, 2), sharey="all")
+    n_cols = 2 if include_steps else 1
+    fig, axs = plt.subplots(1, n_cols, squeeze=False, figsize=(3.5*n_cols, 2), sharey="all")
+    axs = axs[0, :]
 
     # runtime plot
     axs[0].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
@@ -163,35 +165,36 @@ def plot_results(results_file):
     axs[0].set_ylabel("Quality")
 
     # step plot
-    axs[1].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
-    axs[1].axvline(
-        x=change_point,
-        color="gray",
-        linestyle="--",
-        label="Approx. $\\rightarrow$ Exact",
-    )
-    axs[1].step(
-        df["index"],
-        df["hierarchy-quality"],
-        where="post",
-        label=measure_name_mapping[measures["hierarchy-quality"]],
-        color=cm(2),
-        lw=2,
-    )
-    axs[1].fill_between(
-        df["index"],
-        df["hierarchy-quality"],
-        alpha=0.2,
-        step="post",
-        color=cm(2),
-    )
-    axs[1].text(
-        0.6 * df["index"].max(),
-        0.25,
-        f"AUC: {step_auc:.2f}",
-        fontweight="bold",
-    )
-    axs[1].set_xlabel("Computational steps")
+    if include_steps:
+        axs[1].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
+        axs[1].axvline(
+            x=change_point,
+            color="gray",
+            linestyle="--",
+            label="Approx. $\\rightarrow$ Exact",
+        )
+        axs[1].step(
+            df["index"],
+            df["hierarchy-quality"],
+            where="post",
+            label=measure_name_mapping[measures["hierarchy-quality"]],
+            color=cm(2),
+            lw=2,
+        )
+        axs[1].fill_between(
+            df["index"],
+            df["hierarchy-quality"],
+            alpha=0.2,
+            step="post",
+            color=cm(2),
+        )
+        axs[1].text(
+            0.6 * df["index"].max(),
+            0.25,
+            f"AUC: {step_auc:.2f}",
+            fontweight="bold",
+        )
+        axs[1].set_xlabel("Computational steps")
 
     handles, labels = axs[0].get_legend_handles_labels()
     fig.legend(
