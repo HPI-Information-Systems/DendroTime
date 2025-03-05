@@ -5,6 +5,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 import pandas as pd
+import numpy as np
 
 from dataclasses import dataclass
 
@@ -36,21 +37,40 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     return df
 
 
-def runtime_at_quality(strategy, dataset, distance, linkage, thresholds, measure):
+def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, max_runtime):
     try:
         df = load_quality_trace(strategy, dataset, distance, linkage)
-        bins = {}
+        # compute runtime for each threshold
+        runtimes = {}
         for t in thresholds:
             try:
-                bins[t] = df.loc[df[measure] >= t, "timestamp"].iloc[0]
+                runtimes[t] = df.loc[df[measure] >= t, "timestamp"].iloc[0]
             except (IndexError, KeyError) as e:
-                bins[t] = pd.NA
-        return bins
-    except FileNotFoundError as e:
+                runtimes[t] = pd.NA
+
+        # compute WHS-R-AUC
+        x = np.r_[df["timestamp"], max_runtime]
+        y = np.r_[df[measure], 1]
+        whs_runtime_auc = np.sum(y * np.diff(x, 1, prepend=0)) / np.max(x)
+        return runtimes, whs_runtime_auc
+    except (FileNotFoundError, KeyError) as e:
         print(
             f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found: {e}"
         )
-        return {t: pd.NA for t in thresholds}
+        return {t: np.nan for t in thresholds}, np.nan
+
+
+def save(df, overwrite=False):
+    file = RESULT_FOLDER / "aggregated-runtimes.csv"
+    if not file.exists() or overwrite:
+        df.to_csv(RESULT_FOLDER / "aggregated-runtimes.csv", index=False)
+    else:
+        print("  File already exists, adding new results to end.", file=sys.stderr)
+        df_old = pd.read_csv(file)
+        df_new = pd.concat([df_old, df], ignore_index=True)
+        df_new.to_csv(file, index=False)
+        df = df_new
+    return df
 
 
 def main():
@@ -60,7 +80,7 @@ def main():
         f"Processing results from {len(experiments)} experiments ...", file=sys.stderr
     )
     entries = []
-    for file in tqdm(experiments):
+    for file in tqdm(experiments, desc="Collecting runtimes", file=sys.stderr):
         exp = parse_experiment_name(file)
         exp_runtimes = pd.read_csv(file / "Finished-100" / "runtimes.csv")
         exp_runtimes["phase"] = exp_runtimes["phase"].str.lower()
@@ -69,21 +89,23 @@ def main():
         series["distance"] = exp.distance
         series["linkage"] = exp.linkage
         series["strategy"] = exp.strategy
-        runtimes = runtime_at_quality(
-            exp.strategy, exp.dataset, exp.distance, exp.linkage, thresholds, "hierarchy-quality"
-        )
-        for t in thresholds:
-            series[f"runtime_{t:.1f}"] = runtimes[t]
         entries.append(series)
     df = pd.DataFrame(entries)
-    file = RESULT_FOLDER / "aggregated-runtimes.csv"
-    if not file.exists():
-        df.to_csv(RESULT_FOLDER / "aggregated-runtimes.csv", index=False)
-    else:
-        print("  File already exists, adding new results to end.", file=sys.stderr)
-        df_old = pd.read_csv(file)
-        df_new = pd.concat([df_old, df], ignore_index=True)
-        df_new.to_csv(file, index=False)
+    df = save(df)
+
+    s_max_runtime = df.groupby(["dataset", "distance", "linkage"])["finished"].max()
+    df = df.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
+    for (dataset, distance, linkage, strategy) in tqdm(df.index, desc="Assessing qualities", file=sys.stderr):
+        max_runtime = s_max_runtime.loc[(dataset, distance, linkage)]
+        runtimes, whs_r_auc = assess_quality(
+            strategy, dataset, distance, linkage, thresholds=thresholds,
+            measure="hierarchy-quality", max_runtime=max_runtime
+        )
+        for t in thresholds:
+            df.loc[(dataset, distance, linkage, strategy), f"runtime_{t:.1f}"] = runtimes[t]
+        df.loc[(dataset, distance, linkage, strategy), "whs_r_auc"] = whs_r_auc
+    df = df.reset_index()
+    save(df, overwrite=True)
     print("... done.", file=sys.stderr)
 
 
