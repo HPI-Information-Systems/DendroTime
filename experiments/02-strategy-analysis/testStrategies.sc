@@ -76,10 +76,12 @@ def computeTimedExactDistances(distance: Distance, ts: Array[LabeledTimeSeries])
   var i = 0
   var j = 1
   while i < n - 1 && j < n do
+    val t0 = System.nanoTime()
     val ts1 = ts(i)
     val ts2 = ts(j)
-    val (result, duration) = timed { distance(ts1.data, ts2.data) }
+    val result = distance(ts1.data, ts2.data)
     dists(i, j) = result
+    val duration = System.nanoTime() - t0
     runtimes(PDist.index(i, j, n)) = duration
     j += 1
     if j == n then
@@ -130,7 +132,7 @@ val options: Map[String, String] = parseOptions(
     "linkage" -> "ward",
     "qualityMeasure" -> "weightedHierarchySimilarity",
     "nRandom" -> "1000",
-    "maxHierarchySimilarities" -> "15000"
+    "maxHierarchySimilarities" -> "10000"
   )
 )
 val validMeasures = Seq(
@@ -142,7 +144,7 @@ val usage = "Usage: script <dataset> --resultFolder <resultFolder> --dataFolder 
   "--linkage <ward|single|complete|average|weighted> " +
   s"--qualityMeasure <${validMeasures.mkString("|")}> " +
   "--nRandom [number (default=1000)] " +
-  "--maxHierarchySimilarities [number (default=15000)]"
+  "--maxHierarchySimilarities [number (default=10000)]"
 
 ///////////////////////////////////////////////////////////
 val distanceName = options("distance").toLowerCase.strip
@@ -224,7 +226,7 @@ class QualityTracker(expectedSize: Int) {
   private val _qualities = new mutable.ArrayBuffer[Double](expectedSize)
   private val _runtimes = new mutable.ArrayBuffer[Long](expectedSize)
   private var runtimeSum = 0L
-  private var lastTimestamp = System.currentTimeMillis()
+  private var lastTimestamp = System.nanoTime()
 
   // initialize
   _qualities += calcQuality(approxHierarchy)
@@ -246,10 +248,10 @@ class QualityTracker(expectedSize: Int) {
 
   def calcAndAdd(h: Hierarchy): Unit = {
     val quality = calcQuality(h)
-    val timestamp = System.currentTimeMillis()
+    val timestamp = System.nanoTime()
+    runtimeSum += (timestamp - lastTimestamp)
     _qualities += quality
-    _runtimes += runtimeSum + (timestamp - lastTimestamp)
-//    runtimeSum = 0L
+    _runtimes += Math.floorDiv(runtimeSum, 1_000_000)
     lastTimestamp = timestamp
   }
 
