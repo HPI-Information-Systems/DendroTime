@@ -38,6 +38,11 @@ def parse_args(args):
         action="store_true",
         help="Fit a skewed normal distribution to the AUCs of random strategies.",
     )
+    parser.add_argument(
+        "--legend-right",
+        action="store_true",
+        help="Place the legend to the right of the plot, instead on the bottom.",
+    )
     return parser.parse_args(args)
 
 
@@ -45,6 +50,7 @@ def main(sys_args):
     args = parse_args(sys_args)
     results_folder = Path(args.resultfolder)
     fit_distribution = args.fit_distribution
+    legend_right = args.legend_right
 
     parts = results_folder.stem.split("-")
     distance = parts[-3]
@@ -62,7 +68,7 @@ def main(sys_args):
         2,
         int(np.ceil(n / 2)),
         sharex="all",
-        figsize=(10, 2),
+        figsize=(8, 1.5),
         squeeze=False,
         constrained_layout=True,
     )
@@ -78,32 +84,35 @@ def main(sys_args):
         legend_title = f"{quality_measure} AUC"
 
     handles, labels = axs[0, 0].get_legend_handles_labels()
-    # fig.legend(
-    #     handles,
-    #     labels,
-    #     loc="lower center",
-    #     ncol=len(labels),
-    #     bbox_to_anchor=(0.5, -0.15),
-    #     borderpad=0.25,
-    #     handletextpad=0.4,
-    #     columnspacing=0.75,
-    #     title=legend_title,
-    # )
-    fig.legend(
-        handles,
-        labels,
-        title=legend_title,
-        loc="center left",
-        ncol=1,
-        bbox_to_anchor=(1, 0.5),
-        borderpad=0.25,
-        handletextpad=0.4,
-    )
+    if legend_right:
+        legend = fig.legend(
+            handles,
+            labels,
+            title=legend_title,
+            loc="center left",
+            ncol=1,
+            bbox_to_anchor=(1, 0.5),
+            borderpad=0.25,
+            handletextpad=0.4,
+        )
+    else:
+        legend = fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            ncol=len(labels),
+            bbox_to_anchor=(0.5, 0.0),
+            borderpad=0.25,
+            handletextpad=0.4,
+            columnspacing=0.75,
+            title=legend_title,
+        )
 
     figures_dir = results_folder.parent.parent
     fig.savefig(
         figures_dir / f"strategy-qualities-{distance}-{linkage}.pdf",
         bbox_inches="tight",
+        bbox_extra_artists=(legend,),
     )
     # plt.tight_layout()
     # plt.show()

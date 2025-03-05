@@ -50,10 +50,10 @@ echo "Results are stored in 02-strategy-analysis-results.tar.gz"
 
 # create plots for some configurations
 # - msm with ward-linkage
-python create-strategy-qualities-plot.py results/msm-ward-weightedHierarchySimilarity
+python create-strategy-qualities-plot.py results/msm-ward-weightedHierarchySimilarity --fit-distribution --legend-right
 # - msm with average-linkage
-python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity
+python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --fit-distribution --legend-right
 # - sbd with average-linkage
-python create-strategy-qualities-plot.py results/sbd-average-weightedHierarchySimilarity
+python create-strategy-qualities-plot.py results/sbd-average-weightedHierarchySimilarity --fit-distribution --legend-right
 # - dtw with average-linkage
-python create-strategy-qualities-plot.py results/dtw-average-weightedHierarchySimilarity
+python create-strategy-qualities-plot.py results/dtw-average-weightedHierarchySimilarity --fit-distribution --legend-right
