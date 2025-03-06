@@ -65,6 +65,10 @@ lazy val `evaluator` = project.in(file("dendrotime-evaluator"))
     name := "DendroTime-Evaluator",
     libraryDependencies ++= Seq(
       "com.github.alexarchambault" %% "case-app" % "2.1.0-M29",
+
+      // logging
+      "org.slf4j" % "slf4j-api" % "2.0.17",
+      "ch.qos.logback" % "logback-classic" % "1.5.17",
     ),
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.evaluator.App"),
     assembly / mainClass := Some("de.hpi.fgis.dendrotime.evaluator.App"),
@@ -90,7 +94,7 @@ lazy val `backend` = project.in(file("dendrotime-backend"))
       "org.apache.commons" % "commons-math3" % "3.6.1",
 
       // logging
-      "ch.qos.logback" % "logback-classic" % "1.5.16",
+      "ch.qos.logback" % "logback-classic" % "1.5.17",
 
       // test
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,

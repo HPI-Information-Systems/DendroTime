@@ -6,7 +6,7 @@ import de.hpi.fgis.dendrotime.evaluator.{CommonArguments, Evaluator}
 
 case class HierarchySimilarityOptions(
                                        @Recurse common: CommonArguments,
-                                       useBloomFilters: Boolean = true,
+                                       noBloomFilters: Boolean = false,
                                        cardinalityLowerBound: Int = 3,
                                        cardinalityUpperBound: Int = 1
                                      )
@@ -17,6 +17,6 @@ object HierarchySimilarity extends Command[HierarchySimilarityOptions] {
 
   def run(options: HierarchySimilarityOptions, args: RemainingArgs): Unit =
     Evaluator(options.common).hierarchySimilarity(
-      options.useBloomFilters, options.cardinalityLowerBound, options.cardinalityUpperBound
+      !options.noBloomFilters, options.cardinalityLowerBound, options.cardinalityUpperBound
     )
 }
