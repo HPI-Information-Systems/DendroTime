@@ -13,7 +13,7 @@ private[clusterer] object HierarchyCalculator {
   sealed trait Command
   case class ComputeHierarchy(index: Int, distances: PDist) extends Command
   case class GroundTruthLoaded(gtHierarchy: Option[Hierarchy], gtClassLabels: Option[Array[String]]) extends Command
-  case object ReportRuntime extends Command
+  private case object ReportRuntime extends Command
 
   def apply(clusterer: ActorRef[ClustererProtocol.Command],
             communicator: ActorRef[Communicator.Command],
@@ -62,7 +62,8 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
   private def running(): Behavior[Command] = Behaviors.receiveMessage[Command] {
     case ComputeHierarchy(index, distances) =>
-      computeHierarchy(state, index, distances)
+      computeHierarchy(index, distances)
+      communicator ! NewHierarchy(state.toClusteringState)
       clusterer ! Clusterer.GetDistances
       Behaviors.same
 
@@ -91,11 +92,10 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
       Behaviors.stopped
   }
 
-  private def computeHierarchy(state: HierarchyState, index: Int, distances: PDist): Unit = {
+  private def computeHierarchy(index: Int, distances: PDist): Unit = {
     val start = System.currentTimeMillis()
     val h = hierarchy.computeHierarchy(distances, params.linkage)
     state.newHierarchy(index, h)
     runtime += System.currentTimeMillis() - start
-    communicator ! NewHierarchy(state.toClusteringState)
   }
 }

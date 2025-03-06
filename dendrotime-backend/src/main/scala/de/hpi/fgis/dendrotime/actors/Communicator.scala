@@ -55,14 +55,16 @@ private class Communicator private(ctx: ActorContext[Communicator.Command],
         // set all previous progresses to 100
         for k <- progress.keys if k < newStatus do
           progress(k) = 100
-        ctx.log.debug("Updating progress bc. state change to {}: {}", newStatus, progress)
+        ctx.log.debug("Updating progress bc. state changed to {}: {}", newStatus, progress)
         running(newStatus, clusteringState)
 
       case ProgressUpdate(s, p) =>
+        ctx.log.debug("Received progress update for {}: {}", s, p)
         progress.update(s, p)
         running(status, clusteringState)
 
       case NewHierarchy(state) =>
+        ctx.log.debug("Received new hierarchy with last index {}!", state.qualityTrace.indices.last)
         running(status, state)
 
       case GetProgress(replyTo) =>

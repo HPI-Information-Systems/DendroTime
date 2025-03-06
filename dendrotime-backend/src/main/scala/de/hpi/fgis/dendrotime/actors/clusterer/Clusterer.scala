@@ -118,38 +118,33 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
             )
         }
         communicator ! Communicator.ProgressUpdate(Status.Approximating, progress(approxCount, distances.size))
+        val nextBehavior = nextWithHCDispatch(reg, waiting)
         if approxCount == distances.size then
           coordinator ! Coordinator.ApproxFinished
+          ctx.log.debug("Received all approx distances")
           // FIXME: copy?
           reg.foreach {
             _ ! DistanceMatrix(distances)
           }
           saveDistanceMatrix("approx")
-        if waiting then
-          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
-          running(reg, hasWork = false, waiting = false)
-        else
-          running(reg, hasWork = true, waiting = false)
+        nextBehavior
 
       case m : DistanceResult =>
-        ctx.log.trace("Received {} new full distance", m.size)
+        ctx.log.trace("Received {} new full distances", m.size)
         fullCount += m.size
         m.foreach { (t1, t2, dist) =>
           distances(t1, t2) = dist
           fullMask.add(t1, t2)
         }
         communicator ! Communicator.ProgressUpdate(Status.ComputingFullDistances, progress(fullCount, distances.size))
+        val nextBehavior = nextWithHCDispatch(reg, waiting)
         if fullCount == distances.size then
+          coordinator ! Coordinator.FullFinished
           ctx.log.debug("Received all full distances")
           if fullMask.size != fullCount then
             ctx.log.error("Full mask size {} does not match full count {}", fullMask.size, fullCount)
-          coordinator ! Coordinator.FullFinished
           saveDistanceMatrix("full")
-        if waiting then
-          calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
-          running(reg, hasWork = false, waiting = false)
-        else
-          running(reg, hasWork = true, waiting = false)
+        nextBehavior
 
       case GetCurrentDistanceMatrix(replyTo) =>
         replyTo ! DistanceMatrix(distances)
@@ -185,6 +180,13 @@ private class Clusterer private(ctx: ActorContext[ClustererProtocol.Command],
         running(reg - ref.unsafeUpcast[DistanceMatrix], hasWork, waiting)
         Behaviors.same
     }
+
+  private def nextWithHCDispatch(reg: Set[ActorRef[DistanceMatrix]], waiting: Boolean): Behavior[Command] =
+    if waiting then
+      calculator ! HierarchyCalculator.ComputeHierarchy(approxCount + fullCount, distances)
+      running(reg, hasWork = false, waiting = false)
+    else
+      running(reg, hasWork = true, waiting = false)
 
   private def progress(count: Int, n: Int): Int = (count.toDouble / n * 100).toInt
 
