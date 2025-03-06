@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.structures.strategies
 import de.hpi.fgis.dendrotime.clustering.PDist
 
 import java.io.File
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
@@ -11,7 +12,7 @@ import scala.util.Using
 
 object OrderedPreClusteringWorkGenerator {
   class IntraClusterGen[T : Numeric](clusterIds: Array[T]) extends WorkGenerator[T] with FCFSMixin[T] {
-    override protected val tsIds: IndexedSeq[T] = clusterIds
+    override protected val tsIds: IndexedSeq[T] = ArraySeq.unsafeWrapArray(clusterIds)
   }
 
   class PreClusterIntraClusterGen(preClusters: Array[Array[Int]], n: Int) extends WorkGenerator[Int] {
@@ -58,7 +59,7 @@ object OrderedPreClusteringWorkGenerator {
   }
 
   class PreClusterMedoidPairGenerator(preClusterMedoids: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
-    override protected val tsIds: IndexedSeq[Int] = preClusterMedoids
+    override protected val tsIds: IndexedSeq[Int] = ArraySeq.unsafeWrapArray(preClusterMedoids)
   }
 
   class InterClusterGen[T : Numeric](cluster1Ids: Array[T], cluster2Ids: Array[T], medoid1: T, medoid2: T) extends WorkGenerator[T] {
@@ -187,6 +188,7 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
 
   import OrderedPreClusteringWorkGenerator.*
 
+  private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
   private val reverseMapping: Map[Int, T] = mapping.map(_.swap)
   private val n = mapping.size
   private val preClusterMedoids = Array.fill[Int](preClusters.length){-1}
@@ -212,7 +214,6 @@ class OrderedPreClusteringWorkGenerator[T: Numeric : ClassTag](
     else
       nextState
   }
-  private val debugMessages = mutable.ArrayBuffer.empty[(Int, String, String)]
 
   override def sizeIds: Int = n
 

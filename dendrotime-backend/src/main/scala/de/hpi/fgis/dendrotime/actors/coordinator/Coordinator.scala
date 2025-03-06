@@ -295,6 +295,7 @@ private class Coordinator private[coordinator] (
 
   } receiveSignal {
     case (_, Terminated(`communicator`)) =>
+      ctx.unwatch(communicator)
       ctx.log.debug("Communicator is finished, shutting down coordinator!")
       reportTo ! ProcessingEnded(id)
       Behaviors.stopped

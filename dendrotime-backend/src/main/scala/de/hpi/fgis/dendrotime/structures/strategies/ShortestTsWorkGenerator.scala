@@ -1,5 +1,6 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 object ShortestTsWorkGenerator {
@@ -11,6 +12,6 @@ class ShortestTsWorkGenerator[T : Numeric : ClassTag](lengths: Map[T, Int]) exte
   override protected val tsIds: IndexedSeq[T] = {
     val idLengths = lengths.iterator.toArray
     idLengths.sortInPlaceBy(_._2)
-    idLengths.map(_._1)
+    ArraySeq.unsafeWrapArray(idLengths.map(_._1))
   }
 }

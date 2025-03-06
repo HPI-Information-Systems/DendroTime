@@ -72,6 +72,7 @@ object HierarchyState {
     private var hierarchyQualityState: Option[HierarchyQualityState] = None
     private var gtClasses: Option[Array[Int]] = None
     private val traceBuilder: QualityTrace.QualityTraceBuilder = QualityTrace.newBuilder
+    traceBuilder.addStep(0, 0.0)
 
     override def computations: Int = ops
 

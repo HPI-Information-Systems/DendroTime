@@ -4,6 +4,7 @@ import org.apache.commons.math3.special.Gamma
 
 import scala.collection.{IndexedSeq, mutable}
 import scala.reflect.ClassTag
+import org.apache.commons.math3.util.FastMath
 
 object SupervisedClustering {
 
@@ -133,9 +134,9 @@ object SupervisedClustering {
       // by preserving the sign.
       var denominator = normalizer - emi
       if denominator < 0 then
-        denominator = Math.min(denominator, -Double.MinPositiveValue)
+        denominator = FastMath.min(denominator, -Double.MinPositiveValue)
       else
-        denominator = Math.max(denominator, Double.MinPositiveValue)
+        denominator = FastMath.max(denominator, Double.MinPositiveValue)
       (mi - emi) / denominator
   }
 
@@ -150,7 +151,7 @@ object SupervisedClustering {
     if pi.length == 1 || pj.length == 1 then
       0.0
     else
-      val outerLogSum = Math.log(pi.sum) + Math.log(pj.sum)
+      val outerLogSum = FastMath.log(pi.sum.toDouble) + FastMath.log(pj.sum.toDouble)
       val mis =
         for
           i <- 0 until nClasses
@@ -158,13 +159,13 @@ object SupervisedClustering {
           j <- 0 until nClusters
           if nzy(j) != 0
         yield
-          val outer = -Math.log(pi(i) * pj(j)) + outerLogSum
+          val outer = -FastMath.log((pi(i) * pj(j)).toDouble) + outerLogSum
           val v = contingency(i)(j)
           // should be guaranteed != 0
-          val logNm = Math.log(v)
+          val logNm = FastMath.log(v.toDouble)
           val nm = v / sum
-          val result = nm * (logNm - Math.log(sum)) + nm * outer
-          if Math.abs(result) < Double.MinPositiveValue then
+          val result = nm * (logNm - FastMath.log(sum.toDouble)) + nm * outer
+          if FastMath.abs(result) < Double.MinPositiveValue then
             0.0
           else
             result

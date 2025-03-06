@@ -82,7 +82,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
     case m @ GetTimeSeries(datasetId, replyTo) =>
       timeseries.get(datasetId) match {
         case Some(ts) =>
-          replyTo ! GetTimeSeriesResponse(ts.values.toArray.sortBy(_.idx))
+          replyTo ! GetTimeSeriesResponse(ts.values.toIndexedSeq.sortBy(_.idx))
         case None =>
           ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)
           stash.stash(m)
@@ -158,7 +158,7 @@ private class TimeSeriesManager private (ctx: ActorContext[TsmProtocol.Command],
         case None =>
           timeseries.get(datasetId) match {
             case Some(ts) =>
-              val lengths = ts.values.toArray.sortBy(_.idx).map(_.data.length)
+              val lengths = ts.values.toIndexedSeq.sortBy(_.idx).map(_.data.length)
               replyTo ! TSLengthsResponse(lengths)
             case None =>
               ctx.log.warn("Dataset d-{} not yet loaded, optimistically stashing {}", datasetId, m)

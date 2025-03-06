@@ -113,7 +113,7 @@ private class Worker private(ctx: WorkerContext, datasetId: Int, params: DendroT
   }
 
   @inline
-  private def computeEstimates(medoids: (Int, Int), ids1: Seq[Int], ids2: Seq[Int], dist: Double): (Array[Int], Array[Int], Array[Double]) = {
+  private def computeEstimates(medoids: (Int, Int), ids1: Array[Int], ids2: Array[Int], dist: Double): (Array[Int], Array[Int], Array[Double]) = {
     val (m1, m2) = medoids
     val n = ids1.length * ids2.length - 1
     val id1 = Array.ofDim[Int](n)

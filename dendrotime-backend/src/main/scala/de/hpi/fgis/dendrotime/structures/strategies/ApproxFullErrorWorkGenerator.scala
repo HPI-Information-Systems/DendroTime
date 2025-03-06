@@ -3,6 +3,7 @@ package de.hpi.fgis.dendrotime.structures.strategies
 import de.hpi.fgis.dendrotime.structures.MeanErrorTracker
 import org.apache.commons.math3.util.FastMath
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
@@ -73,7 +74,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
       tsIds.sortInPlaceBy(id => -errors(id))
       sortNecessary = false
 
-    val nextPair = nextLargestErrorPair(tsIds)
+    val nextPair = nextLargestErrorPair(ArraySeq.unsafeWrapArray(tsIds))
     count += 1
     var result = (idMap(nextPair._1), idMap(nextPair._2))
     if result._2 < result._1 then
@@ -89,7 +90,7 @@ class ApproxFullErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], idM
     val buf = mutable.ArrayBuilder.make[(T, T)]
     buf.sizeHint(maxN)
     while buf.length < n && hasNext do
-      val pair = nextLargestErrorPair(tsIds)
+      val pair = nextLargestErrorPair(ArraySeq.unsafeWrapArray(tsIds))
       var mappedPair = (idMap(pair._1), idMap(pair._2))
       if mappedPair._2 < mappedPair._1 then
         mappedPair = mappedPair.swap

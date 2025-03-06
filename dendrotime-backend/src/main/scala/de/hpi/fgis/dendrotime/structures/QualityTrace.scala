@@ -4,10 +4,10 @@ import scala.collection.mutable
 
 final case class QualityTrace private(
                                        indices: Seq[Int],
-                                       timestamps: Seq[Long],
-                                       similarities: Seq[Double],
-                                       gtSimilarities: Seq[Double],
-                                       clusterQualities: Seq[Double],
+                                       timestamps: IndexedSeq[Long],
+                                       similarities: IndexedSeq[Double],
+                                       gtSimilarities: IndexedSeq[Double],
+                                       clusterQualities: IndexedSeq[Double],
                                      ) {
   def hasGtSimilarities: Boolean = gtSimilarities.nonEmpty
 
@@ -75,15 +75,15 @@ object QualityTrace {
     }
 
     def result(): QualityTrace = QualityTrace(
-      indices = nComputations.toArray,
-      timestamps = timestamps.toArray,
+      indices = nComputations.toSeq,
+      timestamps = timestamps.toIndexedSeq,
       similarities =
-        val x = similarities.toArray
+        val x = similarities.toIndexedSeq
         val max = x.max
         if max <= 1.0 then x
         else x.map(_ / max),
-      gtSimilarities = gtSimilarities.toArray,
-      clusterQualities = clusterQualities.toArray
+      gtSimilarities = gtSimilarities.toIndexedSeq,
+      clusterQualities = clusterQualities.toIndexedSeq
     )
 
     def clear(): Unit = {

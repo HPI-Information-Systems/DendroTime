@@ -5,6 +5,7 @@ import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Linkage,
 
 import java.io.File
 import scala.annotation.tailrec
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.util.Using
 
@@ -58,7 +59,7 @@ object RecursivePreClusteringStrategy {
   }
 
   private class IntraClusterGen(clusterIds: Array[Int]) extends WorkGenerator[Int] with FCFSMixin[Int] {
-    override protected val tsIds: IndexedSeq[Int] = clusterIds
+    override protected val tsIds: IndexedSeq[Int] = ArraySeq.unsafeWrapArray(clusterIds)
   }
 
   private enum State {

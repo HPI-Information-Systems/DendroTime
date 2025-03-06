@@ -1,5 +1,6 @@
 package de.hpi.fgis.dendrotime.structures.strategies
 
+import scala.collection.immutable.ArraySeq
 import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
 
@@ -36,7 +37,7 @@ class ApproxDiffTsErrorWorkGenerator[T: Numeric : ClassTag](tsIds: Array[Int], a
         s"ApproxDiffTsErrorWorkGenerator has no (more) work {i=$i/$sizeTuples}"
       )
 
-    val result = nextLargestErrorPair(tsIds)
+    val result = nextLargestErrorPair(ArraySeq.unsafeWrapArray(tsIds))
     i += 1
     val pair = (idMap(result._1), idMap(result._2))
     if pair._2 < pair._1 then

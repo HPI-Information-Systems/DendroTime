@@ -25,7 +25,17 @@ ThisBuild / Test / logBuffered := false
 // enable test coverage collection (instruments compiled code: just turn on if coverage is desired!)
 //ThisBuild / coverageEnabled := true
 
+// disable test execution during assembly
 ThisBuild / assembly / test := {}
+
+// enable compile warnings
+ThisBuild / scalacOptions ++= Seq(
+  "-deprecation",
+  "-feature",
+  "-unchecked",
+  "-Ysafe-init",
+)
+ThisBuild / javacOptions += "-Xlint:deprecation"
 
 lazy val `DendroTime` = project.in(file("."))
   .dependsOn(`backend`, `frontend`)
@@ -86,7 +96,6 @@ lazy val `backend` = project.in(file("dendrotime-backend"))
       "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % scalaTestVersion % Test
     ),
-    javacOptions += "-Xlint:deprecation",
     javaOptions ++= Seq("-Xmx2G", "-Dfile.encoding=UTF-8"),
     Compile / mainClass := Some("de.hpi.fgis.dendrotime.DendroTimeServer"),
   )
@@ -153,16 +162,15 @@ lazy val `bloom-filter` = project.in(file("bloom-filter"))
       "org.scalatest" %% "scalatest" % scalaTestVersion % Test,
       "org.scalacheck" %% "scalacheck" % "1.18.1" % Test
     ),
-    scalacOptions ++= Seq(
-      "-rewrite",
+    scalacOptions := Seq(
       "-deprecation",
-      "-source:future-migration",
-      "-explaintypes",
       "-feature",
+      "-explain-types",
+      "-source:future-migration",
+      "-rewrite",
       "-Xtarget:12",
       "-language:postfixOps",
     ),
-    javacOptions += "-Xlint:deprecation",
     // testing settings
     Test / javaOptions += "-Xmx1G",
     Test / fork := true,

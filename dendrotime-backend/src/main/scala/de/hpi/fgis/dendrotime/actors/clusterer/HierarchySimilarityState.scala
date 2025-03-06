@@ -5,6 +5,7 @@ import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, Hierarch
 import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig as HSC
 
 import scala.collection.BitSet
+import scala.language.implicitConversions
 
 trait HierarchySimilarityState {
   def computeSimilarity(hierarchy: Hierarchy): Double
