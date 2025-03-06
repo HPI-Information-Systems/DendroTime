@@ -38,7 +38,7 @@ final class HierarchyWithBitsetMetricOps(hierarchyBitset: HierarchyWithBitset)
   def weightedSimilarity(other: HierarchyWithBitset): Double = {
     val n = hierarchyBitset.length
     // compute pairwise similarities between clusters
-    val sims = pairwiseClusterSimilarities(hierarchyBitset.clusters, other.clusters)
+    val sims = pairwiseClusterSimilarities(hierarchyBitset.clusters, other.clusters, JaccardSimilarity.apply)
     // find matches greedily (because Jaccard similarity is symmetric)
     val similaritySum = sumGreedyMatchedDists(sims)
     similaritySum / n

@@ -4,6 +4,7 @@ import de.hpi.fgis.bloomfilter.BloomFilter
 import de.hpi.fgis.dendrotime.clustering.hierarchy.{CutTree, Hierarchy, HierarchyWithBF, HierarchyWithBitset}
 
 import scala.collection.{BitSet, mutable}
+import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.Using
 
@@ -289,7 +290,7 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
   def weightedSimilarity(other: HierarchyWithBitset)(using conv: Conversion[Hierarchy, HierarchyWithBitset]): Double = {
     val n = hierarchy.size
     // compute pairwise similarities between clusters
-    val sims = pairwiseClusterSimilarities(hierarchy.clusters, other.clusters)
+    val sims = pairwiseClusterSimilarities(hierarchy.clusters, other.clusters, JaccardSimilarity.apply)
     // find matches greedily (because Jaccard similarity is symmetric)
     val similaritySum = sumGreedyMatchedDists(sims)
     similaritySum / n
@@ -312,14 +313,14 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
     Using.resource(conv(hierarchy)) { h =>
       val n = h.length
       // compute pairwise similarities between clusters
-      val sims = pairwiseClusterSimilarities(h.clusters, other.clusters)
+      val sims = pairwiseClusterSimilarities(h.clusters, other.clusters, JaccardSimilarity.apply)
       // find matches greedily (because Jaccard similarity is symmetric)
       val similaritySum = sumGreedyMatchedDists(sims)
       similaritySum / n
     }
   }
 
-  protected def pairwiseClusterSimilarities[T <: BitSet | BloomFilter[Int]](clusters1: Array[T], clusters2: Array[T]): Array[Array[Double]] = {
+  protected def pairwiseClusterSimilarities[T <: BitSet | BloomFilter[Int]](clusters1: Array[T], clusters2: Array[T], similarityFunc: (T, T) => Double): Array[Array[Double]] = {
     require(clusters1.length == clusters2.length, s"Both hierarchies must have the same number of clusters (${clusters1.length} != ${clusters2.length})")
     val n = clusters1.length
     val sims = Array.ofDim[Double](n, n)
@@ -327,12 +328,10 @@ trait HierarchyMetricOps(hierarchy: Hierarchy) {
     while i < n do
       var j = i
       while j < n do
-        val d = (clusters1(i), clusters2(j)) match
-          case (x: BloomFilter[Int] @unchecked, y: BloomFilter[Int] @unchecked) => JaccardSimilarity(x, y)
-          case (x: BitSet, y: BitSet) => JaccardSimilarity(x, y)
+        val d = similarityFunc(clusters1(i), clusters2(j))
         sims(i)(j) = d
-        if i != j then
-          sims(j)(i) = d
+        // if i == j, this overwrites the diagonal element, but that's fine and avoids a branch in the inner hot loop
+        sims(j)(i) = d
         j += 1
       i += 1
     sims

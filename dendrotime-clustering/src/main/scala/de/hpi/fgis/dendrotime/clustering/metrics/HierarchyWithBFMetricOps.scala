@@ -37,7 +37,7 @@ final class HierarchyWithBFMetricOps(hierarchyBf: HierarchyWithBF) extends Hiera
   def weightedSimilarity(other: HierarchyWithBF): Double = {
     val n = hierarchyBf.length
     // compute pairwise similarities between clusters
-    val sims = pairwiseClusterSimilarities(hierarchyBf.clusters, other.clusters)
+    val sims = pairwiseClusterSimilarities(hierarchyBf.clusters, other.clusters, JaccardSimilarity.apply)
     // find matches greedily (because Jaccard similarity is symmetric)
     val similaritySum = sumGreedyMatchedDists(sims)
     similaritySum / n

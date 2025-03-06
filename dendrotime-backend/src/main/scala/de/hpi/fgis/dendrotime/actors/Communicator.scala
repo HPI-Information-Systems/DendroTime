@@ -8,7 +8,7 @@ import de.hpi.fgis.dendrotime.io.hierarchies.HierarchyCSVWriter
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, ProgressMessage}
-import de.hpi.fgis.dendrotime.structures.Status
+import de.hpi.fgis.dendrotime.structures.{QualityTrace, Status}
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -97,28 +97,42 @@ private class Communicator private(ctx: ActorContext[Communicator.Command],
     HierarchyCSVWriter.write(hierarchyFile, clusteringState.hierarchy)
 
     // write qualities
+    val trace = clusteringState.qualityTrace
     val qualityFile = destination.resolve("qualities.csv").toFile
-    val dims = 3 + clusteringState.qualityTrace.hasClusterQualities.toInt + clusteringState.qualityTrace.hasGtSimilarities.toInt
-    val header = Array.ofDim[String](dims)
-    val matrix = Array.ofDim[Array[Double]](dims)
-    header(0) = "index"
-    matrix(0) = clusteringState.qualityTrace.indices.map(_.toDouble).toArray
-    header(1) = "timestamp"
-    matrix(1) = clusteringState.qualityTrace.timestamps.map(_.toDouble).toArray
-    header(2) = "hierarchy-similarity"
-    matrix(2) = clusteringState.qualityTrace.similarities.toArray
-    if clusteringState.qualityTrace.hasGtSimilarities && clusteringState.qualityTrace.hasClusterQualities then
-      header(3) = "hierarchy-quality"
-      matrix(3) = clusteringState.qualityTrace.gtSimilarities.toArray
-      header(4) = "cluster-quality"
-      matrix(4) = clusteringState.qualityTrace.clusterQualities.toArray
-    else if clusteringState.qualityTrace.hasClusterQualities then
-      header(3) = "cluster-quality"
-      matrix(3) = clusteringState.qualityTrace.clusterQualities.toArray
-    else if clusteringState.qualityTrace.hasGtSimilarities then
-      header(3) = "hierarchy-quality"
-      matrix(3) = clusteringState.qualityTrace.gtSimilarities.toArray
+    val dims = 3 + trace.hasClusterQualities.toInt + trace.hasGtSimilarities.toInt
+    val header = mkHeader(trace)
+    val matrix = Array.ofDim[Double](trace.size, dims)
 
-    CSVWriter.write(qualityFile, matrix.transpose, header)
+    for i <- 0 until trace.size do
+      val row = Array.ofDim[Double](dims)
+      row(0) = trace.indices(i).toDouble
+      row(1) = trace.timestamps(i).toDouble
+      row(2) = trace.similarities(i)
+      var offset = 3
+      if trace.hasGtSimilarities then
+        row(offset) = trace.gtSimilarities(i)
+        offset += 1
+      if trace.hasClusterQualities then
+        row(offset) = trace.clusterQualities(i)
+      matrix(i) = row
+
+    CSVWriter.write(qualityFile, matrix, header)
+  }
+
+  private def mkHeader(trace: QualityTrace): Array[String] = {
+    val dims = 3 + trace.hasClusterQualities.toInt + trace.hasGtSimilarities.toInt
+    val header = Array.ofDim[String](dims)
+    var i = 0
+
+    def add(name: String): Unit =
+      header(i) = name
+      i += 1
+
+    add("index")
+    add("timestamp")
+    add("hierarchy-similarity")
+    if trace.hasGtSimilarities then add("hierarchy-quality")
+    if trace.hasClusterQualities then add("cluster-quality")
+    header
   }
 }
