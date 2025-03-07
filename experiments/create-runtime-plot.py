@@ -21,13 +21,20 @@ def parse_args():
         "--include-euclidean", action="store_true", help="Include euclidean distance"
     )
     parser.add_argument(
-        "--include-weighted", action="store_true", help="Include weighted linkage"
+        "--include-ward", action="store_true", help="Include ward linkage"
+    )
+    parser.add_argument(
+        "--disable-variances", action="store_true", help="Disable variance plotting"
     )
     return parser.parse_args()
 
 
 
-def main(show_jet_variance=False, include_euclidean=False, include_weighted=False):
+def main(show_jet_variance=False,
+         include_euclidean=False,
+         include_ward=False,
+         disable_variances=False
+         ):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
     # df_serial["strategy"] = "serial"
@@ -85,12 +92,14 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
             parallel_runtime = np.nan
         df.loc[group.index, "runtime"] = group["runtime"] / parallel_runtime
 
-    distances = sorted(df["distance"].unique().tolist())
+    distances = set(df["distance"].unique().tolist())
     if not include_euclidean:
-        distances = sorted(set(distances) - {"euclidean"})
-    linkages = sorted(df["linkage"].unique().tolist())
-    if not include_weighted:
-        linkages = sorted(set(linkages) - {"weighted"})
+        distances = set(distances) - {"euclidean"}
+    distances = sorted(distances)
+    linkages = set(df["linkage"].unique())
+    if not include_ward:
+        linkages = linkages - {"ward"}
+    linkages = sorted(linkages)
 
     # use right y ticks and labels for this plot
     plt.rcParams["ytick.right"] = plt.rcParams["ytick.labelright"] = True
@@ -100,7 +109,7 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
         len(distances),
         len(linkages),
         figsize=(8, 3),
-        sharex="col",
+        sharex="none",
         sharey="none",
         constrained_layout=True,
     )
@@ -133,6 +142,15 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
 
     # add plots
     for i, distance in enumerate(distances):
+        # aggregate WHS and runtime over datasets to get a single point for JET
+        # JET only supports ward linkage, so broadcast to all linkages
+        df_jet = df[
+            (df["linkage"] == "ward")
+            & (df["distance"] == distance)
+            & (df["strategy"] == "JET")
+        ]
+        df_jet = df_jet[["whs", "runtime"]].agg(["mean", "std"], axis=0)
+
         for j, linkage in enumerate(linkages):
             ax = axs[i, j]
 
@@ -148,14 +166,6 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
                 .reset_index()
                 .set_index("strategy")
             )
-
-            # aggregate WHS and runtime over datasets to get a single point for JET
-            df_jet = df[
-                (df["linkage"] == linkage)
-                & (df["distance"] == distance)
-                & (df["strategy"] == "JET")
-            ]
-            df_jet = df_jet[["whs", "runtime"]].agg(["mean", "std"], axis=0)
 
             # get maximum runtime for scaling and extending strategy lines to right
             max_runtime = max(
@@ -175,19 +185,20 @@ def main(show_jet_variance=False, include_euclidean=False, include_weighted=Fals
                 stddevs = np.r_[df_filtered.loc[strategy, ("runtime", "std")], [0.0]]
                 whss = np.r_[df_filtered.loc[strategy, "whs"], [1.0]]
                 ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
-                ax.fill_betweenx(
-                    whss, runtimes - stddevs, runtimes + stddevs, color=color, alpha=0.1
-                )
-                # ax.errorbar(
-                #     runtimes,
-                #     whss,
-                #     xerr=stddevs,
-                #     label=strategy_name(strategy),
-                #     color=color,
-                #     lw=2,
-                #     elinewidth=1,
-                #     capsize=2,
-                # )
+                if not disable_variances:
+                    ax.fill_betweenx(
+                        whss, runtimes - stddevs, runtimes + stddevs, color=color, alpha=0.1
+                    )
+                    # ax.errorbar(
+                    #     runtimes,
+                    #     whss,
+                    #     xerr=stddevs,
+                    #     label=strategy_name(strategy),
+                    #     color=color,
+                    #     lw=2,
+                    #     elinewidth=1,
+                    #     capsize=2,
+                    # )
 
             # add plot for parallel
             strategy = "parallel"
@@ -248,5 +259,6 @@ if __name__ == "__main__":
     main(
         show_jet_variance=args.show_jet_variance,
         include_euclidean=args.include_euclidean,
-        include_weighted=args.include_weighted,
+        include_ward=args.include_ward,
+        disable_variances=args.disable_variances,
     )
