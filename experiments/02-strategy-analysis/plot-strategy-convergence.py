@@ -106,10 +106,8 @@ def main(sys_args):
             trace_y = np.r_[traces[index, :], 1.0]
             indices = np.arange(trace_x.shape[0])
 
-            runtime_auc = (
-                trace_y * np.diff(trace_x, 1, prepend=0)
-            ).sum() / trace_x.max()
-            step_auc = (trace_y * np.diff(indices, 1, prepend=0)).sum() / indices.max()
+            runtime_auc = (trace_y[:-1] * np.diff(trace_x, 1)).sum() / trace_x.max()
+            step_auc = (trace_y[:-1] * np.diff(indices, 1)).sum() / indices.max()
             print(
                 f"{strategy.ljust(16)}   {auc:.02f}    {runtime_auc:0.2f} {step_auc:0.2f}"
             )

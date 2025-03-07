@@ -51,7 +51,7 @@ def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, ma
         # compute WHS-R-AUC
         x = np.r_[df["timestamp"], max_runtime]
         y = np.r_[df[measure], 1]
-        whs_runtime_auc = np.sum(y * np.diff(x, 1, prepend=0)) / np.max(x)
+        whs_runtime_auc = np.sum(y[:-1] * np.diff(x, 1)) / max_runtime
         return runtimes, whs_runtime_auc
     except (FileNotFoundError, KeyError) as e:
         print(

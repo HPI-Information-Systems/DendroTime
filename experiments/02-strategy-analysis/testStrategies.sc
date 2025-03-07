@@ -259,7 +259,7 @@ class QualityTracker(expectedSize: Int) {
     // compute area under the curve respecting the irregular time steps (step function with trapezoidal integration):
     val runtimes = _runtimes.map(_ - _runtimes.head)
     val diffs = runtimes.zip(runtimes.tail).map((t1, t2) => t2 - t1)
-    val auc = _qualities.tail.zip(diffs).map((q, d) => q * d).sum / runtimes.last
+    val auc = _qualities.init.zip(diffs).map((q, d) => q * d).sum / runtimes.last
     auc
   }
 
