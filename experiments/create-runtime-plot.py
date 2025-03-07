@@ -9,6 +9,12 @@ import pandas as pd
 sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name
 
+selected_strategies = (
+    "approx_distance_ascending",
+    "pre_clustering",
+    "fcfs",
+)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -128,7 +134,7 @@ def main(show_jet_variance=False,
         for j in range(axs.shape[1]):
             # helper grid line:
             axs[i, j].axvline(x=1, color="lightgray", ls="--", lw=1)
-            axs[i, j].set_ylim(-0.05, 1.05)
+            axs[i, j].set_ylim(-0.05, 1.1)
             axs[i, j].set_yticks([0.0, 0.5, 1.0])
             axs[i, j].set_yticklabels([])
             axs[i, j].yaxis.set_label_position("right")
@@ -174,7 +180,7 @@ def main(show_jet_variance=False,
             )
 
             # add plots for all strategies
-            for strategy in ["fcfs", "pre_clustering", "approx_distance_ascending"]:
+            for strategy in selected_strategies[::-1]:
                 if strategy not in df_filtered.index.get_level_values("strategy"):
                     print(f"Skipping {strategy} for {distance}-{linkage}")
                     continue
@@ -203,12 +209,13 @@ def main(show_jet_variance=False,
             # add plot for parallel
             strategy = "parallel"
             color = colors[strategy]
-            ax.plot(
+            ax.scatter(
                 df_filtered.loc[strategy, ("runtime", "mean")],
                 df_filtered.loc[strategy, "whs"],
                 label=strategy_name(strategy),
                 color=color,
                 marker=markers[strategy],
+                zorder=2.5,
             )
 
             # add plot for JET
@@ -228,12 +235,13 @@ def main(show_jet_variance=False,
                     capsize=2,
                 )
             else:
-                ax.plot(
+                ax.scatter(
                     df_jet.loc["mean", "runtime"],
                     df_jet.loc["mean", "whs"],
                     label=strategy_name(strategy),
                     color=color,
                     marker=markers[strategy],
+                    zorder=2.5,
                 )
 
     # add legend
@@ -241,9 +249,12 @@ def main(show_jet_variance=False,
     legend = fig.legend(
         handles,
         labels,
-        loc="upper center",
+        loc="lower center",
         ncol=len(handles),
-        bbox_to_anchor=(0.5, -0.05),
+        bbox_to_anchor=(0.5, 1.0),
+        borderpad=0.25,
+        handletextpad=0.4,
+        columnspacing=0.75,
     )
     fig.savefig(
         "mean-runtime-qualities.pdf", bbox_inches="tight", bbox_extra_artists=[legend]

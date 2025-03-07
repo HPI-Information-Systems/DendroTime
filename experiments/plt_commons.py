@@ -23,10 +23,14 @@ colors["hierarchy-quality"] = cm(2)
 colors["cluster-quality"] = cm(4)
 colors["hierarchy-similarity"] = cm(6)
 
-markers = defaultdict(lambda: "")
+markers = defaultdict(lambda: ".")
 markers["serial"] = "o"
 markers["parallel"] = "s"
 markers["JET"] = "D"
+markers["fcfs"] = "X"
+markers["preClustering"] = "P"
+markers["approxAscending"] = "^"
+markers["shortestTs"] = "*"
 
 
 def strategy_name(name):

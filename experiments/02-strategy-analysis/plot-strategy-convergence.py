@@ -6,11 +6,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from scipy.stats import skewnorm
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from plt_commons import colors, strategy_name, dataset_name
+from plt_commons import colors, strategy_name
 
 
 ariQualityMeasures = ("ari", "ariAt", "averageAri", "approxAverageAri")
@@ -69,19 +68,23 @@ def main(sys_args):
 
         df_strategies = pd.read_csv(results_file)
         max_index = df_strategies["index"].max()
-        traces = np.genfromtxt(traces_file, delimiter=",")[:max_index + 1, :]
-        runtimes = np.genfromtxt(timestamps_file, delimiter=",")[:max_index + 1, :]
+        traces = np.genfromtxt(traces_file, delimiter=",")[: max_index + 1, :]
+        runtimes = np.genfromtxt(timestamps_file, delimiter=",")[: max_index + 1, :]
         # convert timestamps to relative runtimes
         runtimes = runtimes - runtimes[:, [0]]
         # convert to seconds
         runtimes /= 1000
 
         axs[0, j].set_title(dataset_name)
-        axs[0, j].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
+        axs[0, j].grid(
+            visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
+        )
         axs[0, j].set_xlabel("Runtime (s)")
         axs[0, j].set_ylim(0.0, 1.05)
         axs[0, j].set_ylabel("WHS")
-        axs[1, j].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
+        axs[1, j].grid(
+            visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
+        )
         axs[1, j].set_xlabel("Computational steps")
         axs[0, j].set_ylim(0.0, 1.05)
         axs[0, j].set_ylabel("WHS")
@@ -96,9 +99,9 @@ def main(sys_args):
             auc = row["quality"].item()
             index = row["index"].item()
             color = colors[strategy]
-#             trace_x = runtimes[index, :]
-#             trace_y = traces[index, :]
-#             indices = np.arange(trace_x.shape[0])
+            #             trace_x = runtimes[index, :]
+            #             trace_y = traces[index, :]
+            #             indices = np.arange(trace_x.shape[0])
             trace_x = np.r_[runtimes[index, :], np.max(runtimes)]
             trace_y = np.r_[traces[index, :], 1.0]
             indices = np.arange(trace_x.shape[0])
@@ -106,10 +109,10 @@ def main(sys_args):
             runtime_auc = (
                 trace_y * np.diff(trace_x, 1, prepend=0)
             ).sum() / trace_x.max()
-            step_auc = (
-                trace_y * np.diff(indices, 1, prepend=0)
-            ).sum() / indices.max()
-            print(f"{strategy.ljust(16)}   {auc:.02f}    {runtime_auc:0.2f} {step_auc:0.2f}")
+            step_auc = (trace_y * np.diff(indices, 1, prepend=0)).sum() / indices.max()
+            print(
+                f"{strategy.ljust(16)}   {auc:.02f}    {runtime_auc:0.2f} {step_auc:0.2f}"
+            )
 
             plot_traces(trace_x, trace_y, strategy, color, axs[:, j])
 
@@ -122,7 +125,7 @@ def main(sys_args):
         bbox_to_anchor=(0.5, 1.06),
     )
 
-#     plt.tight_layout()
+    #     plt.tight_layout()
     plt.show()
 
 
@@ -144,13 +147,13 @@ def plot_traces(timestamps, qualities, strategy, color, axs):
         step="post",
         color=color,
     )
-#     axs[0].text(
-#         0.6 * timestamps.max(),
-#         0.25,
-#         f"AUC: {runtime_auc:.2f}",
-#         fontweight="bold",
-#         color=color,
-#     )
+    #     axs[0].text(
+    #         0.6 * timestamps.max(),
+    #         0.25,
+    #         f"AUC: {runtime_auc:.2f}",
+    #         fontweight="bold",
+    #         color=color,
+    #     )
 
     # step plot
     axs[1].step(
@@ -168,6 +171,8 @@ def plot_traces(timestamps, qualities, strategy, color, axs):
         step="post",
         color=color,
     )
+
+
 #     axs[1].text(
 #         0.6 * indices.max(),
 #         0.25,
