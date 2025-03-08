@@ -22,6 +22,12 @@ colors["JET"] = "blue"
 colors["hierarchy-quality"] = cm(2)
 colors["cluster-quality"] = cm(4)
 colors["hierarchy-similarity"] = cm(6)
+# phases
+colors["Initializing"] = cm(3)
+colors["Approximating"] = cm(4)
+colors["ComputingFullDistances"] = cm(5)
+colors["Finalizing"] = cm(6)
+
 
 markers = defaultdict(lambda: ".")
 markers["serial"] = "o"
@@ -50,6 +56,16 @@ def dataset_name(name):
         return "PGWZ"
     if name == "ShakeGestureWiimoteZ":
         return "SGWZ"
+    return name
+
+
+def phase_name(name):
+    if name == "Approximating":
+        return "(1) Approx."
+    if name == "ComputingFullDistances":
+        return "(2) Exact"
+    if name == "Finalizing":
+        return "Final dendrogram"
     return name
 
 

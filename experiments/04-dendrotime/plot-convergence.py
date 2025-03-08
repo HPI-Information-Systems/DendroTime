@@ -14,7 +14,7 @@ from plt_commons import colors, strategy_name
 RESULT_FOLDER = Path("results")
 selected_strategies = (
     "fcfs",
-    "pre_clustering",
+    # "pre_clustering",
     "approx_distance_ascending",
     # "shortestTs",
 )
@@ -32,11 +32,13 @@ def parse_args(args):
     parser.add_argument(
         "--distance",
         type=str,
+        default="msm",
         help="The distance measure used.",
     )
     parser.add_argument(
         "--linkage",
         type=str,
+        default="weighted",
         help="The linkage method used.",
     )
 
