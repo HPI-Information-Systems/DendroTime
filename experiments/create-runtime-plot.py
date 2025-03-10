@@ -88,6 +88,13 @@ def main(show_jet_variance=False,
 
     df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
+
+    # only consider datasets with parallel runtime >= 5 minutes
+    # print(df[(df["strategy"] == "parallel") & (df["distance"] == "msm")])
+    # datasets = df.loc[(df["strategy"] == "parallel") & (df["distance"] == "msm") & (df["runtime"] < 5*60), "dataset"].unique()
+    # print("Datasets", len(datasets))
+    # df = df[df["dataset"].isin(datasets)]
+
     # convert runtime to relative to parallel runtimes
     for _, group in df.groupby(["dataset", "distance", "linkage"]):
         try:
@@ -186,10 +193,10 @@ def main(show_jet_variance=False,
                     continue
                 color = colors[strategy]
                 runtimes = np.r_[
-                    df_filtered.loc[strategy, ("runtime", "mean")], [max_runtime]
+                    0.0, df_filtered.loc[strategy, ("runtime", "mean")], max_runtime
                 ]
-                stddevs = np.r_[df_filtered.loc[strategy, ("runtime", "std")], [0.0]]
-                whss = np.r_[df_filtered.loc[strategy, "whs"], [1.0]]
+                stddevs = np.r_[0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0]
+                whss = np.r_[0.0, df_filtered.loc[strategy, "whs"], 1.0]
                 ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
                 if not disable_variances:
                     ax.fill_betweenx(

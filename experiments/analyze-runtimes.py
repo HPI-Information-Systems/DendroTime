@@ -290,11 +290,13 @@ def create_runtime_table(df, distance, linkage):
 
     df = df.dropna(axis=0, how="any")
     df = df[df["parallel"] >= 5*60]
-    for c in (set(df.columns) - set(["parallel"])):
-        df[c] = (df[c] - df["parallel"]) / df["parallel"]
+    parallel_runtime = df["parallel"]
+    for c in df.columns:
+        df[c] = df[c] / parallel_runtime
     index = np.arange(df.shape[0])
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 6), constrained_layout=True)
+    ax.axhline(1, color="black", ls="--", lw=1, label="parallel")
     for i, strategy in enumerate(["JET", "fcfs", "ada", "precl"]):
         ax.bar(index + i/5, df[strategy], width=1/5, align="edge", color=colors[strategy], label=strategy_name(strategy))
     ax.set_xticks(index + 0.5)

@@ -284,8 +284,8 @@ def main(sys_args):
     print("  ... done.")
 
     fig.savefig(f"comparison_{experiment1}_{experiment2}.pdf", bbox_inches="tight")
-    #     plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
 
 
 if __name__ == "__main__":
