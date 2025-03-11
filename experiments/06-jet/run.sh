@@ -4,16 +4,27 @@ set -eo pipefail  # trace exit code of failed piped commands
 
 distances=( "dtw" "msm" "sbd" )
 # download datasets
-datasets=$(python ../download_datasets.py --all --sorted)
+# datasets=$(python ../download_datasets.py --all --sorted)
+datasets="Coffee
+PickupGestureWiimoteZ
+"
 
-# run experiments in n_jobs subprocesses
+# prepare result folder
+mkdir -p results/hierarchies
+result_file="results/results.csv"
+if [ ! -f $result_file ]; then
+  echo "dataset,distance,runtime,ARI" > $result_file
+fi
+
+# run experiments
 for dataset in $datasets; do
   for distance in "${distances[@]}"; do
     echo ""
     echo ""
     echo "Executing JET for dataset: $dataset and distance: $distance"
     # allow it to fail without dragging down the whole script (|| true) and run it in background (&)
-    python run-jet.py --data-folder "../data/datasets/" --result-folder "results/" --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" || true
+    result_line=$(python run-jet.py --data-folder "../data/datasets/" --result-folder "results/" --dataset "${dataset}" --distance "${distance}" || true)
+    echo "$result_line" >> $result_file
   done
 done
 
@@ -30,11 +41,13 @@ cat results/results.csv | while read line; do
   echo ""
   echo ""
   echo "Computing WHS for dataset: $dataset and distance: $distance"
-  whs=$(java -jar ../DendroTime-Evaluator.jar weightedHierarchySimilarity --prediction "results/hierarchies/hierarchy-${dataset}-${distance}.csv" --target "../data/ground-truth/${dataset}/hierarchy-${distance}-ward.csv" || echo "NaN")
+  whs=$(java -Dlogback.configurationFile=logback.xml -jar ../DendroTime-Evaluator.jar weightedHierarchySimilarity --prediction "results/hierarchies/hierarchy-${dataset}-${distance}.csv" --target "../data/ground-truth/${dataset}/hierarchy-${distance}-ward.csv" || echo "NaN")
   echo "WHS for dataset: $dataset and distance: $distance is $whs"
   echo "$line,$whs" >> $tmp_file
 done
+# move the temporary file to the final results file
+mv $tmp_file results/results.csv
 
 # create tar file
-tar -czf 06-jet-results.tar.gz results/*
-echo "Results are stored in 06-jet-results.tar.gz"
+#tar -czf 06-jet-results.tar.gz results/*
+#echo "Results are stored in 06-jet-results.tar.gz"

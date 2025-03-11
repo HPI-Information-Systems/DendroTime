@@ -1,3 +1,9 @@
 results
+nuitka-*
+nuitka-resutls
+python-results
+run-jet.bin
+run-jet.build
+run-jet.dist
 *.tar.gz
 *.log
