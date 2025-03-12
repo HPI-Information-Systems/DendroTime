@@ -1,0 +1,6 @@
+results
+figures
+*.tex
+*.pdf
+*.tar.gz
+*.log
