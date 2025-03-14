@@ -24,7 +24,7 @@ for dataset in $datasets; do
     echo ""
     echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage, strategy: $strategy"
     exit_code=0
-    java -Xmx32g -Dfile.encoding=UTF-8 \
+    java -Xmx48g -Dfile.encoding=UTF-8 \
       -Dlogback.configurationFile=../logback.xml \
       -Dconfig.file=application.conf \
       -jar ../DendroTime-runner.jar \

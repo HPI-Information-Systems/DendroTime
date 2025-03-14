@@ -37,7 +37,7 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     return df
 
 
-def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, max_runtime):
+def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, max_runtime, total_runtime):
     try:
         df = load_quality_trace(strategy, dataset, distance, linkage)
         # compute runtime for each threshold
@@ -46,7 +46,7 @@ def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, ma
             try:
                 runtimes[t] = df.loc[df[measure] >= t, "timestamp"].iloc[0]
             except (IndexError, KeyError) as e:
-                runtimes[t] = pd.NA
+                runtimes[t] = total_runtime
 
         # compute WHS-R-AUC
         x = np.r_[df["timestamp"], max_runtime]
@@ -57,7 +57,7 @@ def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, ma
         print(
             f"Quality trace for {strategy} - {dataset}-{distance}-{linkage} not found: {e}"
         )
-        return {t: np.nan for t in thresholds}, np.nan
+        return {t: total_runtime for t in thresholds}, np.nan
 
 
 def save(df, overwrite=False):
@@ -97,9 +97,11 @@ def main():
     df = df.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
     for (dataset, distance, linkage, strategy) in tqdm(df.index, desc="Assessing qualities", file=sys.stderr):
         max_runtime = s_max_runtime.loc[(dataset, distance, linkage)]
+        total_runtime = df.loc[(dataset, distance, linkage, strategy), "finished"]
         runtimes, whs_r_auc = assess_quality(
             strategy, dataset, distance, linkage, thresholds=thresholds,
-            measure="hierarchy-quality", max_runtime=max_runtime
+            measure="hierarchy-quality", max_runtime=max_runtime,
+            total_runtime=total_runtime
         )
         for t in thresholds:
             df.loc[(dataset, distance, linkage, strategy), f"runtime_{t:.1f}"] = runtimes[t]

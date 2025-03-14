@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import measure_name_mapping, colors, strategy_name
+from plt_commons import measure_name_mapping, colors
 
 
 def parse_args(args):

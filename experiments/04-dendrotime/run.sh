@@ -24,7 +24,7 @@ for dataset in $datasets; do
       echo ""
       echo "Processing dataset: $dataset, distance: $distance, linkage: $linkage"
       exit_code=0
-      java -Xmx32g -Dfile.encoding=UTF-8 \
+      java -Xmx48g -Dfile.encoding=UTF-8 \
         -Dlogback.configurationFile=../logback.xml \
         -Dconfig.file=application.conf \
         -jar ../DendroTime-runner.jar \
@@ -42,3 +42,6 @@ python aggregate-runtimes.py
 # create tar file
 tar -czf 04-dendrotime-results.tar.gz results/*
 echo "Results are stored in 04-dendrotime-results.tar.gz"
+
+python plot-qualities.py --dataset ACSF1 --use-runtime
+python plot-qualities.py --dataset ACSF1 --use-runtime --strategy fcfs

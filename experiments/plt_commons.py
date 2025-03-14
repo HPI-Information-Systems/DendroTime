@@ -82,7 +82,7 @@ measure_name_mapping = {
     "approxAverageAri": "Approx. average ARI",
     "hierarchySimilarity": "HierarchySimilarity",
     "weightedHierarchySimilarity": "WHS",
-    "labelChangesAt": "Prog. indicator",
+    "labelChangesAt": "#CumulativeClusterChanges@k",
 }
 baseline_strategies = ["serial", "parallel", "JET"]
 dendrotime_strategies = ["fcfs", "approx_distance_ascending", "pre_clustering"]
