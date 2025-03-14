@@ -35,12 +35,12 @@ def parse_args():
     return parser.parse_args()
 
 
-
-def main(show_jet_variance=False,
-         include_euclidean=False,
-         include_ward=False,
-         disable_variances=False
-         ):
+def main(
+    show_jet_variance=False,
+    include_euclidean=False,
+    include_ward=False,
+    disable_variances=False,
+):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
     # df_serial["strategy"] = "serial"
@@ -200,7 +200,11 @@ def main(show_jet_variance=False,
                 ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
                 if not disable_variances:
                     ax.fill_betweenx(
-                        whss, runtimes - stddevs, runtimes + stddevs, color=color, alpha=0.1
+                        whss,
+                        runtimes - stddevs,
+                        runtimes + stddevs,
+                        color=color,
+                        alpha=0.1,
                     )
                     # ax.errorbar(
                     #     runtimes,
