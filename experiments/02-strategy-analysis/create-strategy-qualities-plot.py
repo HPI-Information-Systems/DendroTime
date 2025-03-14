@@ -334,7 +334,8 @@ def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=N
     #     ax.set_ylim(-0.05, 1.05)
 
     ax.set_xticks(x)
-    ax.set_xticklabels([dataset_name(dataset) for dataset in datasets])
+    ax.set_xticklabels([dataset_name(dataset) for dataset in datasets], rotation=25, ha="right")
+    ax.set_yticks([0.25, 0.5, 0.75])
 
     if quality_measure == "weightedHierarchySimilarity":
         ax.set_ylabel("WHS-S-AUC")
