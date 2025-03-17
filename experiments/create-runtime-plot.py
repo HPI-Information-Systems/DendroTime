@@ -32,6 +32,11 @@ def parse_args():
     parser.add_argument(
         "--disable-variances", action="store_true", help="Disable variance plotting"
     )
+    parser.add_argument(
+        "-c", "--correct-dendrotime-runtime",
+        action="store_true",
+        help="Correct dendrotime runtime by removing quality measurement overhead"
+    )
     return parser.parse_args()
 
 
@@ -40,6 +45,7 @@ def main(
     include_euclidean=False,
     include_ward=False,
     disable_variances=False,
+    correct_dendrotime_runtime=False,
 ):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
@@ -68,10 +74,33 @@ def main(
             "finished",
         ]
     )
+    runtime_cols = [c for c in df_dendrotime.columns if c.startswith("runtime")]
+    if correct_dendrotime_runtime:
+        # --- runtime correction (remove quality measurement overhead)
+        df_dendrotime_nqa = pd.read_csv("08-dendrotime-no-quality/results/aggregated-runtimes.csv")
+        df_dendrotime_nqa["runtime_nqa"] = df_dendrotime_nqa["finished"]
+        df_dendrotime_nqa = df_dendrotime_nqa.drop(
+            columns=[
+                "initializing",
+                "approximating",
+                "computingfulldistances",
+                "finalizing",
+                "finished",
+            ]
+        )
+        df_dendrotime_nqa = df_dendrotime_nqa.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
+        df_tmp = df_dendrotime.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
+        df_tmp = pd.merge(df_tmp, df_dendrotime_nqa, how="left", left_index=True, right_index=True)
+        df_tmp["runtime_correction_factor"] = df_tmp["runtime_1.0"] / df_tmp["runtime_nqa"]
+        df_tmp["runtime_correction_factor"] = df_tmp["runtime_correction_factor"].fillna(1.0)
+        for c in runtime_cols:
+            df_tmp[c] = df_tmp[c] / df_tmp["runtime_correction_factor"]
+        df_dendrotime = df_tmp.drop(columns=["runtime_nqa", "runtime_correction_factor"]).reset_index()
+        # --- end runtime correction
     df_dendrotime = df_dendrotime.melt(
         id_vars=["dataset", "distance", "linkage", "strategy"],
         var_name="whs",
-        value_vars=[c for c in df_dendrotime.columns if c.startswith("runtime")],
+        value_vars=runtime_cols,
         value_name="runtime",
         ignore_index=True,
     )
@@ -283,4 +312,5 @@ if __name__ == "__main__":
         include_euclidean=args.include_euclidean,
         include_ward=args.include_ward,
         disable_variances=args.disable_variances,
+        correct_dendrotime_runtime=args.correct_dendrotime_runtime,
     )

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-from turtle import width
-from xml.etree.ElementInclude import include
 
 import pandas as pd
 import numpy as np
@@ -14,6 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from plt_commons import colors, markers, strategy_name, phase_name
 
 RESULT_FOLDER = Path("04-dendrotime/results")
+NQA_RESULT_FOLDER = Path("08-dendrotime-no-quality/results")
 selected_strategies = (
     "fcfs",
     # "pre_clustering",
@@ -54,6 +53,11 @@ def parse_args(args):
         default=None,
         help="Display the relative runtime of a specific phase in the plot.",
     )
+    parser.add_argument(
+        "--use-no-quality-for-runtimes",
+        action="store_true",
+        help="Use the runtimes from the DendroTime without quality assessment experiment.",
+    )
 
     return parser.parse_args(args)
 
@@ -64,10 +68,19 @@ def main(sys_args):
     experiment2 = args.experiment2
     include_baselines = args.include_baselines
     highlight_phase = args.highlight_phase
+    use_no_quality_for_runtimes = args.use_no_quality_for_runtimes
 
     print(f"Creating comparison plot between {experiment1} and {experiment2}")
 
     print("  loading data for selected DendroTime strategies ...")
+    # load runtime breakdown
+    result_file = (NQA_RESULT_FOLDER if use_no_quality_for_runtimes else RESULT_FOLDER) / "aggregated-runtimes.csv"
+    if not result_file.exists():
+        raise ValueError(f"Runtime file '{result_file}' does not exist!")
+    df_runtime = pd.read_csv(result_file).set_index(["dataset", "distance", "linkage", "strategy"])
+    df_runtime = df_runtime[["initializing", "approximating", "computingfulldistances", "finalizing", "finished"]]
+    df_runtime.columns = ["Initializing", "Approximating", "ComputingFullDistances", "Finalizing", "Finished"]
+
     traces = []
     runtimes = []
     for experiment_config in [experiment1, experiment2]:
@@ -83,6 +96,11 @@ def main(sys_args):
                 print(f"Trace file '{trace_file}' does not exist!", file=sys.stderr)
                 continue
 
+            if use_no_quality_for_runtimes:
+                results_file = NQA_RESULT_FOLDER / "aggregated-runtimes.csv"
+                df_nqa = pd.read_csv(results_file)
+                df_nqa = df_nqa.set_index(["dataset", "distance", "linkage", "strategy"])
+
             df = pd.read_csv(trace_file)
             df["experiment"] = experiment_config
             df["strategy"] = strategy
@@ -91,34 +109,24 @@ def main(sys_args):
             df = df[["experiment", "strategy", "runtime", "hierarchy-quality"]]
             traces.append(df)
 
-            # check for runtime file!
-            runtime_file = (
-                RESULT_FOLDER
-                / f"{experiment_config}-{strategy}"
-                / "Finished-100"
-                / "runtimes.csv"
-            ).resolve()
-            if not runtime_file.exists():
-                print(f"Runtime file '{runtime_file}' does not exist!", file=sys.stderr)
-                continue
-
-            df_runtime = pd.read_csv(runtime_file).set_index("phase")
-            df_runtime = df_runtime.T.reset_index(drop=True)
+            # load runtime breakdown
+            s_runtime = df_runtime.loc[(*experiment_config.split("-"), strategy), :].copy()
+            s_runtime = s_runtime.astype(float)
             # convert to seconds
-            for c in df_runtime.columns:
-                df_runtime[c] /= 1000
+            for c in s_runtime.index:
+                s_runtime[c] /= 1000
             # make relative
-            for c in df_runtime.columns:
+            for c in s_runtime.index:
                 if c == "Finished":
                     continue
-                df_runtime[c] = df_runtime[c] / df_runtime["Finished"]
-            df_runtime["experiment"] = experiment_config
-            df_runtime["strategy"] = strategy
-            runtimes.append(df_runtime)
+                s_runtime[c] = s_runtime[c] / s_runtime["Finished"]
+            s_runtime.name = (experiment_config, strategy)
+            print(s_runtime)
+            runtimes.append(s_runtime)
 
     df = pd.concat(traces, ignore_index=True)
-    df_runtimes = pd.concat(runtimes, ignore_index=True)
-    df_runtimes = df_runtimes.set_index(["experiment", "strategy"])
+    df_runtimes = pd.DataFrame(runtimes)
+    df_runtimes.index.names = ["experiment", "strategy"]
     print("  ... done.")
 
     if include_baselines:
@@ -253,24 +261,24 @@ def main(sys_args):
                 color=colors[phase],
                 width=0.5,
             )
+            # annotate highlighted phase time
+            if highlight_phase is not None and phase == highlight_phase:
+                y = runtimes[phase]
+                y_pos = bottom + y / 2
+                ax.text(
+                    0,
+                    y_pos,
+                    f"{y:.0%}",
+                    color="black",
+                    fontweight="bold",
+                    va="center",
+                    ha="center",
+                )
             bottom += runtimes[phase]
         ax.set_ylabel("Relative Runtime")
         # ax.set_xlabel(f"{runtimes['Finished']:.0f} s")
         ax.set_xticks([])
         ax.set_xticklabels([])
-        # annotate highlighted phase time
-        if highlight_phase is not None:
-            y = runtimes[highlight_phase]
-            y_pos = y / 2
-            ax.text(
-                0,
-                y_pos,
-                f"{y:.0%}",
-                color="black",
-                fontweight="bold",
-                va="center",
-                ha="center",
-            )
 
     handles, labels = axs[0].get_legend_handles_labels()
     handles2, labels2 = axs[1].get_legend_handles_labels()
