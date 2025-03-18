@@ -31,6 +31,7 @@ function ClusteringPage() {
   const [polling, setPolling] = useState(null);
   const [useEqualNodeDistance, setUseEqualNodeDistance] = useState(false);
   const [useTimestamps, setUseTimestamps] = useState(true);
+  const [forceDendrogramDisplay, setForceDendrogramDisplay] = useState(false);
   const pollingInterval = 200;
 
   const startJob = useCallback(() => {
@@ -191,7 +192,7 @@ function ClusteringPage() {
         <div className={"grid grid-cols-1 my-auto"}>
           {state.hierarchySimilarities.length === 0 ? (<></>) : (<>
               <h2 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mb-1 mx-auto">
-                Quality over Time
+                Convergence
               </h2>
               <D3LineChart data={{
                 "steps": state.steps,
@@ -205,7 +206,22 @@ function ClusteringPage() {
             <h2 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mt-4 mb-1 mx-auto">
               Dendrogram
             </h2>
-            <D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>
+            {state.hierarchy.n > 300 ? (<>
+              <div className="flex justify-center items-center space-x-3 my-2">
+                <span className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+                  The dendrogram is too large to display ({state.hierarchy.n} time series).
+                </span>
+                <Switch id="force-dendrogram-switch" checked={forceDendrogramDisplay} onChange={setForceDendrogramDisplay}/>
+                <label htmlFor="force-dendrogram-switch"
+                       className="text-tremor-default text-tremor-content dark:text-dark-termor-content">
+                  Display anyway
+                </label>
+              </div>
+              {forceDendrogramDisplay? (
+                  <D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>
+                ) : (<></>)}
+              </>
+            ) : (<D3Dendrogram key={jobId} data={state.hierarchy} useEqualNodeDistance={useEqualNodeDistance}/>)}
           </>)}
           <div className="flex justify-center items-center my-1 mx-auto">
             {(jobId && polling) ? (
