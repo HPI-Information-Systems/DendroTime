@@ -59,8 +59,9 @@ class JobService(scheduler: ActorRef[Scheduler.Command])(using system: ActorSyst
           pathEnd {
             concat(
               get {
-                onSuccess(scheduler.ask(Scheduler.GetStatus.apply)) { response =>
-                  complete(StatusCodes.OK, response)
+                onSuccess(scheduler.ask(Scheduler.GetStatus.apply)) {
+                  case Scheduler.ProcessingStatus(id, Some(dataset)) => complete(Job(id, dataset))
+                  case Scheduler.ProcessingStatus(_, None) => complete(StatusCodes.NoContent)
                 }
               },
               post {

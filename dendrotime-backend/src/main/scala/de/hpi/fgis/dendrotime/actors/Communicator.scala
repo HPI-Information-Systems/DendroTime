@@ -94,6 +94,10 @@ private class Communicator private(ctx: ActorContext[Communicator.Command],
     val destination = settings.resolveResultsFolder(dataset, params).resolve(s"$status-$progress")
     destination.toFile.mkdirs()
 
+    // write settings
+    val settingsFile = destination.resolve("config.json").toFile
+    settings.writeJson(settingsFile)
+
     // write hierarchy
     val hierarchyFile = destination.resolve("hierarchy.csv").toFile
     HierarchyCSVWriter.write(hierarchyFile, clusteringState.hierarchy)

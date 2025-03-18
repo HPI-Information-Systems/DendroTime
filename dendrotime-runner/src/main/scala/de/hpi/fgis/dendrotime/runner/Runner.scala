@@ -101,8 +101,6 @@ class Runner(ctx: ActorContext[Runner.MessageType]) {
         if settings.storeResults then
           val resultFolder = settings.resolveResultsFolder(dataset, params).resolve(s"${Status.Finished}-100")
           resultFolder.toFile.mkdirs()
-          val settingsFile = resultFolder.resolve("config.json").toFile
-          settings.writeJson(settingsFile)
           App.storeRuntimes(runtimes, resultFolder)
           println(s"Result is stored in ${settings.resultsPath}")
 
