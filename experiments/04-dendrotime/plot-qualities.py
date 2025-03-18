@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import measure_name_mapping, colors
+from plt_commons import measure_name_mapping, colors, extract_measures_from_config
 
 
 def parse_args(args):
@@ -79,16 +79,6 @@ def main(sys_args):
     plot_results(results_file, use_runtime, include_ari)
 
 
-def extract_measures_from_config(config_file):
-    with config_file.open("r") as fh:
-        config = json.load(fh)
-    obj = config["dendrotime"]["progress-indicators"]
-    mapping = {}
-    for name in ["hierarchy-similarity", "hierarchy-quality", "cluster-quality"]:
-        mapping[name] = measure_name_mapping[obj[name]]
-    return mapping
-
-
 def plot_results(results_file, use_runtime=False, include_ari=False):
     # experiment details
     parts = results_file.parent.parent.stem.split("-")
@@ -126,10 +116,11 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
     else:
         df = df.set_index("index").drop(columns=["timestamp"])
 
-    if not include_ari:
+    if not include_ari and "cluster-quality" in df.columns:
         df = df.drop(columns=["cluster-quality"])
 
     aucs = df.sum(axis=0) / df.shape[0]
+    print("AUCs")
     print(aucs)
 
     fig = plt.figure(figsize=(5, 3))
@@ -145,22 +136,24 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
     )
 
     # WHS
-    ax.step(
-        df.index,
-        df["hierarchy-quality"],
-        where="post",
-        label=measures["hierarchy-quality"],
-        color=colors["hierarchy-quality"],
-        lw=2,
-    )
-    ax.fill_between(
-        df.index,
-        df["hierarchy-quality"],
-        alpha=0.2,
-        step="post",
-        color=colors["hierarchy-quality"],
-    )
-    df = df.drop(columns=["hierarchy-quality"])
+    if "hierarchy-quality" in df.columns:
+        ax.step(
+            df.index,
+            df["hierarchy-quality"],
+            where="post",
+            label=measures["hierarchy-quality"],
+            color=colors["hierarchy-quality"],
+            lw=2,
+        )
+        ax.fill_between(
+            df.index,
+            df["hierarchy-quality"],
+            alpha=0.2,
+            step="post",
+            color=colors["hierarchy-quality"],
+        )
+        df = df.drop(columns=["hierarchy-quality"])
+
     for measurement in df.columns:
         plt.plot(
             df.index,

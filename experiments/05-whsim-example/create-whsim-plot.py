@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import sys
 
 import pandas as pd
@@ -9,7 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import cm, measure_name_mapping
+from plt_commons import cm, measure_name_mapping, extract_measures_from_config
 
 
 def parse_args(args):
@@ -66,16 +65,6 @@ def main(sys_args):
         raise FileNotFoundError(f"Result file {results_file} not found!")
 
     plot_results(results_file)
-
-
-def extract_measures_from_config(config_file):
-    with config_file.open("r") as fh:
-        config = json.load(fh)
-    obj = config["dendrotime"]["progress-indicators"]
-    mapping = {}
-    for name in ["hierarchy-similarity", "hierarchy-quality", "cluster-quality"]:
-        mapping[name] = obj[name]
-    return mapping
 
 
 def plot_results(results_file, include_steps=False):

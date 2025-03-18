@@ -81,8 +81,24 @@ measure_name_mapping = {
     "averageAri": "Average ARI",
     "approxAverageAri": "Approx. average ARI",
     "hierarchySimilarity": "HierarchySimilarity",
+    "hierarchyQuality": "WHS",
     "weightedHierarchySimilarity": "WHS",
     "labelChangesAt": "#CumulativeClusterChanges@k",
 }
 baseline_strategies = ["serial", "parallel", "JET"]
 dendrotime_strategies = ["fcfs", "approx_distance_ascending", "pre_clustering"]
+
+
+def extract_measures_from_config(config_file):
+    import json
+
+    with config_file.open("r") as fh:
+        config = json.load(fh)
+    obj = config["dendrotime"]["progress-indicators"]
+
+    mapping = {}
+    for name in ["hierarchy-similarity", "hierarchy-quality", "cluster-quality"]:
+        mapped_name = obj[name]
+        if mapped_name:
+            mapping[name] = measure_name_mapping[mapped_name]
+    return mapping
