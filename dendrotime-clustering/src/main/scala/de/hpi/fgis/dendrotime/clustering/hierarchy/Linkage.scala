@@ -31,7 +31,7 @@ object Linkage {
     case "ward" => WardLinkage
     case "weighted" => WeightedLinkage
     case "median" => throw new IllegalArgumentException("Median linkage is not reducible")
-    case "centroid" => throw new IllegalArgumentException("Centroid linkage is not reducible")
+    case "centroid" => CentroidLinkage
     case _ => throw new IllegalArgumentException(s"Unknown linkage method: $method")
   }
 

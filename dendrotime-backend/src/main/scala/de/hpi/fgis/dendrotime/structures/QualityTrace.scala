@@ -14,6 +14,10 @@ final case class QualityTrace private(
   def hasClusterQualities: Boolean = clusterQualities.nonEmpty
 
   def size: Int = indices.length
+
+  def isEmpty: Boolean = indices.isEmpty
+
+  def nonEmpty: Boolean = !isEmpty
 }
 
 object QualityTrace {

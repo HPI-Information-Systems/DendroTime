@@ -9,6 +9,7 @@ import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.model.StateModel.{ClusteringState, ProgressMessage}
 import de.hpi.fgis.dendrotime.structures.{QualityTrace, Status}
+import org.apache.commons.math3.util.FastMath
 
 import scala.collection.mutable
 import scala.language.postfixOps
@@ -65,6 +66,19 @@ private class Communicator private(ctx: ActorContext[Communicator.Command],
 
       case NewHierarchy(state) =>
         ctx.log.debug("Received new hierarchy with last index {}!", state.qualityTrace.indices.last)
+        if state.qualityTrace.nonEmpty then
+          val index = state.qualityTrace.indices.last
+          val similarities = state.qualityTrace.similarities
+          val timestamps = state.qualityTrace.timestamps
+          var nPoints = FastMath.min(100, similarities.length*0.1).toInt
+          if similarities.length < 100 then
+            nPoints = similarities.length
+          val progInd = 1000 * (similarities.last - similarities(similarities.length - nPoints)) / (timestamps.last - timestamps(timestamps.length - nPoints))
+          if state.qualityTrace.hasGtSimilarities then
+            val hierarchyQuality = state.qualityTrace.gtSimilarities.last
+            println(f"Convergence @ $index%6d: $progInd%.4f ($hierarchyQuality%.2f)")
+          else
+            println(f"Convergence @ $index%6d: $progInd%.4f")
         running(status, state)
 
       case GetProgress(replyTo) =>

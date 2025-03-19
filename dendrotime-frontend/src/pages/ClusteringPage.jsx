@@ -150,8 +150,11 @@ function ClusteringPage() {
         <Select id="linkage-picker" value={linkage} onValueChange={setLinkage}>
           <SelectItem key="single" value="single">Single Linkage</SelectItem>
           <SelectItem key="complete" value="complete">Complete Linkage</SelectItem>
-          <SelectItem key="ward" value="ward">Ward Linkage</SelectItem>
           <SelectItem key="average" value="average">Average Linkage</SelectItem>
+          <SelectItem key="weighted" value="weighted">Weighted Linkage</SelectItem>
+          <SelectItem key="ward" value="ward">Ward Linkage</SelectItem>
+          <SelectItem key="centroid" value="centroid">Centroid Linkage</SelectItem>
+          {/*<SelectItem key="median" value="median">Median Linkage</SelectItem>*/}
         </Select>
         <label htmlFor="strategy-picker" className="ml-2 mr-2">Strategy:</label>
         <Select id="strategy-picker" value={strategy} onValueChange={setStrategy}>

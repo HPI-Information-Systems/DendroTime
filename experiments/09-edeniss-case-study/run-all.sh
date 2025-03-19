@@ -16,7 +16,7 @@ for distance in "${distances[@]}"; do
     java -Xmx48g -Dfile.encoding=UTF-8 \
       -Dlogback.configurationFile=../logback.xml \
       -Dconfig.file=application.conf \
-      -jar ../DendroTime-runner.jar \
+      -jar DendroTime-runner.jar \
         --dataset "${dataset}" --distance "${distance}" --linkage "${linkage}" \
         --strategy "${strategy}" || true
   done
