@@ -54,9 +54,9 @@ def parse_args(args):
         help="Display the relative runtime of a specific phase in the plot.",
     )
     parser.add_argument(
-        "--use-no-quality-for-runtimes",
+        "-c", "--correct-dendrotime-runtime",
         action="store_true",
-        help="Use the runtimes from the DendroTime without quality assessment experiment.",
+        help="Correct dendrotime runtime by removing quality measurement overhead"
     )
 
     return parser.parse_args(args)
@@ -68,7 +68,7 @@ def main(sys_args):
     experiment2 = args.experiment2
     include_baselines = args.include_baselines
     highlight_phase = args.highlight_phase
-    use_no_quality_for_runtimes = args.use_no_quality_for_runtimes
+    use_no_quality_for_runtimes = args.correct_dendrotime_runtime
 
     print(f"Creating comparison plot between {experiment1} and {experiment2}")
 
@@ -85,6 +85,20 @@ def main(sys_args):
     runtimes = []
     for experiment_config in [experiment1, experiment2]:
         for strategy in selected_strategies:
+            # load runtime breakdown
+            s_runtime = df_runtime.loc[(*experiment_config.split("-"), strategy), :].copy()
+            s_runtime = s_runtime.astype(float)
+            # convert to seconds
+            for c in s_runtime.index:
+                s_runtime[c] /= 1000
+            # make relative
+            for c in s_runtime.index:
+                if c == "Finished":
+                    continue
+                s_runtime[c] = s_runtime[c] / s_runtime["Finished"]
+            s_runtime.name = (experiment_config, strategy)
+            runtimes.append(s_runtime)
+
             # check for trace file!
             trace_file = (
                 RESULT_FOLDER
@@ -106,23 +120,14 @@ def main(sys_args):
             df["strategy"] = strategy
             df["runtime"] = df["timestamp"] - df["timestamp"].min()
             df["runtime"] /= 1000  # convert to seconds
+            if use_no_quality_for_runtimes:
+                # correct runtime by removing quality measurement overhead
+                factor = df["runtime"].max() / s_runtime["Finished"]
+                print(f"Correcting runtime by factor {factor:.2f}")
+                df["runtime"] = df["runtime"] / factor
+
             df = df[["experiment", "strategy", "runtime", "hierarchy-quality"]]
             traces.append(df)
-
-            # load runtime breakdown
-            s_runtime = df_runtime.loc[(*experiment_config.split("-"), strategy), :].copy()
-            s_runtime = s_runtime.astype(float)
-            # convert to seconds
-            for c in s_runtime.index:
-                s_runtime[c] /= 1000
-            # make relative
-            for c in s_runtime.index:
-                if c == "Finished":
-                    continue
-                s_runtime[c] = s_runtime[c] / s_runtime["Finished"]
-            s_runtime.name = (experiment_config, strategy)
-            print(s_runtime)
-            runtimes.append(s_runtime)
 
     df = pd.concat(traces, ignore_index=True)
     df_runtimes = pd.DataFrame(runtimes)
