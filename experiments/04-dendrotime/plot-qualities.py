@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import sys
 
 import pandas as pd
@@ -141,7 +140,7 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
             df.index,
             df["hierarchy-quality"],
             where="post",
-            label=measures["hierarchy-quality"],
+            label=measure_name_mapping[measures["hierarchy-quality"]],
             color=colors["hierarchy-quality"],
             lw=2,
         )
@@ -158,7 +157,7 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
         plt.plot(
             df.index,
             df[measurement],
-            label=measures[measurement],
+            label=measure_name_mapping[measures[measurement]],
             lw=2,
             color=colors[measurement],
         )

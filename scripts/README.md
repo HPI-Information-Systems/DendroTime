@@ -6,10 +6,10 @@ You can execute the scala worksheets in this directory with [scala-cli](https://
 
 For some scripts you may need the built project dependencies.
 You can use sbt to build the DendroTime project and publish the different modules to the local ivy repository.
-Just run this command from the project root directoy:
+Just run this command from the project root directory:
 
 ```shell
-sbt "bloom-filter/publishLocal; progress-bar/publishLocal; backend/publishLocal"
+sbt "bloom-filter/publishLocal; progress-bar/publishLocal; dendrotime-io/publishLocal; dendrotime-clustering/publishLocal; dendrotime-backend/publishLocal"
 ```
 
 Then, you can run the scripts with the following command:
