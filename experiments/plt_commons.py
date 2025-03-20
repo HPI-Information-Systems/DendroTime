@@ -100,5 +100,5 @@ def extract_measures_from_config(config_file):
     for name in ["hierarchy-similarity", "hierarchy-quality", "cluster-quality"]:
         mapped_name = obj[name]
         if mapped_name:
-            mapping[name] = measure_name_mapping[mapped_name]
+            mapping[name] = mapped_name
     return mapping

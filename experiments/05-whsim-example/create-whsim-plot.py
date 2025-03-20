@@ -82,7 +82,7 @@ def plot_results(results_file, include_steps=False):
     if measures["hierarchy-quality"] != "weightedHierarchySimilarity":
         raise ValueError(
             "Only 'weightedHierarchySimilarity' is supported as hierarchy similarity "
-            f"measure, but got '{measures['hierarchy-similarity']}' instead!"
+            f"measure, but got '{measures['hierarchy-quality']}' instead!"
         )
 
     print(
