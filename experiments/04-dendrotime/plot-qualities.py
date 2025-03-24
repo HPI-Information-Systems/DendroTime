@@ -94,9 +94,6 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
         f"Processing dataset '{dataset}' with distance '{distance}', linkage '{linkage}', and strategy '{strategy}'"
     )
 
-    figures_dir = Path("figures")
-    figures_dir.mkdir(parents=True, exist_ok=True)
-
     df = pd.read_csv(results_file)
     # use relative runtime instead of millis since epoch
     df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
@@ -171,10 +168,10 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
     ax.set_ylim(0.0, 1.05)
     ax.legend()
     fig.savefig(
-        figures_dir / f"solutions-{dataset}-{distance}-{linkage}-{strategy}.pdf",
+        f"solutions-{dataset}-{distance}-{linkage}-{strategy}.pdf",
         bbox_inches="tight",
     )
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":

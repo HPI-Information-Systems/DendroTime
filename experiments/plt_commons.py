@@ -35,7 +35,9 @@ markers["parallel"] = "s"
 markers["JET"] = "D"
 markers["fcfs"] = "X"
 markers["preClustering"] = "P"
+markers["pre_clustering"] = "P"
 markers["approxAscending"] = "^"
+markers["approx_distance_ascending"] = "^"
 markers["shortestTs"] = "*"
 
 

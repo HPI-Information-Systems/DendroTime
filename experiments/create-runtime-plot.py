@@ -33,6 +33,11 @@ def parse_args():
         "--disable-variances", action="store_true", help="Disable variance plotting"
     )
     parser.add_argument(
+        "--extend-strategy-runtimes",
+        action="store_true",
+        help="Extend strategy runtimes to the right until the maximum runtime",
+    )
+    parser.add_argument(
         "-c", "--correct-dendrotime-runtime",
         action="store_true",
         help="Correct dendrotime runtime by removing quality measurement overhead"
@@ -45,6 +50,7 @@ def main(
     include_euclidean=False,
     include_ward=False,
     disable_variances=False,
+    extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
 ):
     # load results from serial execution
@@ -57,7 +63,7 @@ def main(
     # load results from jet execution
     df_jet = pd.read_csv("06-jet/results/results.csv")
     df_jet["strategy"] = "JET"
-    df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
+    # df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
     df_jet.replace(-1, np.nan, inplace=True)
     # JET does only support ward linkage:
     df_jet["linkage"] = "ward"
@@ -191,7 +197,7 @@ def main(
             & (df["distance"] == distance)
             & (df["strategy"] == "JET")
         ]
-        df_jet = df_jet[["whs", "runtime"]].agg(["mean", "std"], axis=0)
+        df_jet = df_jet[["whs", "runtime"]].agg(["mean", "median", "std"], axis=0)
 
         for j, linkage in enumerate(linkages):
             ax = axs[i, j]
@@ -221,12 +227,27 @@ def main(
                     print(f"Skipping {strategy} for {distance}-{linkage}")
                     continue
                 color = colors[strategy]
-                runtimes = np.r_[
-                    0.0, df_filtered.loc[strategy, ("runtime", "mean")], max_runtime
-                ]
-                stddevs = np.r_[0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0]
-                whss = np.r_[0.0, df_filtered.loc[strategy, "whs"], 1.0]
-                ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
+                if extend_strategy_runtimes:
+                    runtimes = np.r_[
+                        0.0, df_filtered.loc[strategy, ("runtime", "mean")], max_runtime
+                    ]
+                    stddevs = np.r_[0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0]
+                    whss = np.r_[0.0, df_filtered.loc[strategy, "whs"], 1.0]
+                    ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
+                else:
+                    runtimes = df_filtered.loc[strategy, ("runtime", "mean")].values
+                    stddevs = df_filtered.loc[strategy, ("runtime", "std")].values
+                    whss = df_filtered.loc[strategy, "whs"].values
+                    ax.plot(runtimes, whss, color=color)
+                    marker = markers[strategy]
+                    ax.plot(
+                        runtimes[-1],
+                        whss[-1],
+                        color=color,
+                        label=strategy_name(strategy),
+                        marker=marker,
+                        zorder=2.5,
+                    )
                 if not disable_variances:
                     ax.fill_betweenx(
                         whss,
@@ -302,7 +323,7 @@ def main(
     fig.savefig(
         "mean-runtime-qualities.png", bbox_inches="tight", bbox_extra_artists=[legend]
     )
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -313,4 +334,5 @@ if __name__ == "__main__":
         include_ward=args.include_ward,
         disable_variances=args.disable_variances,
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
+        extend_strategy_runtimes=args.extend_strategy_runtimes,
     )
