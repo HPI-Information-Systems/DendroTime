@@ -59,6 +59,14 @@ python create-whsim-plot.py --dataset ACSF1 --distance dtw --linkage single --st
 popd
 mv 05-whsim-example/whsim-ACSF1-*.pdf figures/
 
+# 09-edeniss-case-study
+echo ""
+echo "Create convergence plots for msm and dtw centroid on 09-edeniss-case-study"
+pushd 09-edeniss-case-study
+python create-convergence-plot.py --use-runtime -c
+popd
+mv 09-edeniss-case-study/edeniss-convergence.pdf figures/
+
 # global plots: runtime vs quality
 echo ""
 echo "Creating global runtime vs quality plot"
