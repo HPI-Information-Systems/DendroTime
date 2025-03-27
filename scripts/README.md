@@ -9,7 +9,7 @@ You can use sbt to build the DendroTime project and publish the different module
 Just run this command from the project root directory:
 
 ```shell
-sbt "bloom-filter/publishLocal; progress-bar/publishLocal; dendrotime-io/publishLocal; dendrotime-clustering/publishLocal; dendrotime-backend/publishLocal"
+sbt "bloom-filter/publishLocal; progress-bar/publishLocal; dendrotime-io/publishLocal; dendrotime-clustering/publishLocal; backend/publishLocal"
 ```
 
 Then, you can run the scripts with the following command:

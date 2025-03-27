@@ -25,7 +25,7 @@ Our evaluation demonstrates that DendroTime's progressive strategies are very ef
 ### Architecture
 
 DendroTime consists of a reactive client-server architecture that executes the progressive HAC algorithm on a collection of time series (anomalies) in a highly concurrent execution server and visualizes dendrogram updates in a web-based client.
-The execution server is implemented using the [_actor programming model_](), which is a reactive programming paradigm for concurrent and parallel applications.
+The execution server is implemented using the [_actor programming model (Akka)_](https://doc.akka.io/libraries/akka-core/current/typed/actors.html), which is a reactive programming paradigm for concurrent and parallel applications.
 Its core primitives are _actors_, which are objects with private state and behavior.
 The following figures provides an overview of DendroTime's client-server architecture and its actors:
 
@@ -51,19 +51,48 @@ The client is web-based and visualizes the dendrogram as well as the computation
 
 ## Repository structure
 
-| **Folder** | **Description** |
-| :--------- | :-------------- |
-| [`bloom-filter`]() ||
-| [`progress-bar`]() ||
-| [`dendrotime-clustering`]() ||
-| [`dendrotime-io`]() ||
-| [`dendrotime-frontend`]() ||
-| [`dendrotime-backend`]() ||
-| [`dendrotime-runner`]() ||
-| [`dendrotime-evaluator`]() ||
-| [`dendrotime-benchmarking`]() | Contains jmh micro-benchmarks. |
-| [`data`]() ||
-| [`docs`]() ||
+The following table provides an overview about the most important contents in this repository:
+
+| **Folder**                                             | **Description**                                             |
+| :----------------------------------------------------- | :---------------------------------------------------------- |
+| _Scala modules_                                        |                                                             |
+| [`bloom-filter`](./bloom-filter)                       | Adaptation of Alexandr Nikitin's bloom-filter library for Scala 3 |
+| [`progress-bar`](./progress-bar)                       | Progress bar library similar to tqdm, used in Scala-CLI scripts |
+| [`dendrotime-io`](./dendrotime-io)                     | DendroTime's IO module: CSV reader and writer, `.ts`-file parser, time series data structure |
+| [`dendrotime-clustering`](./dendrotime-clustering)     | DendroTime's clustering module: Time series dissimilarities, linkage methods, MST and NN-chain algorithms, dissimilarity vector, stepwise dendrogram (hierarchy), and corresponding IO. |
+| [`dendrotime-frontend`](./dendrotime-frontend)         | DendroTime's frontend (TypeScript, React, TailwindCSS)      |
+| [`dendrotime-backend`](./dendrotime-backend)           | **DendroTime system**: Full-featured web application including the frontend |
+| [`dendrotime-runner`](./dendrotime-runner)             | **DendroTime runner**: CLI application without the user-facing features, used for paper experiments. |
+| [`dendrotime-evaluator`](./dendrotime-evaluator)       | **DendroTime evaluator**: CLI application to compute metrics for dendrograms (hierarchies) |
+| [`dendrotime-benchmarking`](./dendrotime-benchmarking) | Contains jmh micro-benchmarks.                              |
+| _Folders_                                              |                                                             |
+| [`docs`](./docs)                                       | Hosts doc files and resources                               |
+| [`experiments`](./experiments)                         | Paper experiment scripts for reproducibility                |
+| [`scripts`](./scripts)                                 | Collection of various Scala and Python scripts              |
+| _Files_                                                |                                                             |
+| [`build.sbt`](./build.sbt)                             | SBT build configuration                                     |
+| [`requirements.txt`](./requirements.txt)               | Python dependencies required for the scripts and experiments |
+
+## Experiments and results
+
+We compare DendroTime with two baseline algorithms:
+
+- **PARALLEL** HAC:
+  This baseline is a multithreaded Scala implementation of traditional linkage-based HAC.
+  It computes the pairwise time series dissimilarities in parallel and, then, constructs the final, exact stepwise dendrogram in the end.
+  You can execute the PARALLEL baseline using the DendroTime runner:
+
+  ```bash
+  java -jar DendroTime-runner.jar --parallel --dataset <dataset-name>
+  ```
+
+  There is also a SERIAL baseline that does not use any parallelism: `--serial`.
+
+- [**JET**](https://github.com/HPI-Information-Systems/jet):
+  JET is an approximated algorithm for hierarchical clustering of time series anomalies.
+  It is implemented in Python, and we execute it with Python version 3.9.21.
+  After computing a coarse-grained pre-clustering of the time series using the very efficient BIRCH algorithm, it computes the exact dissimilarities just for intra-pre-cluster time series and between the pre-cluster medoids.
+  The dissimilarity computations are executed in parallel.
 
 ## Citation
 
