@@ -37,19 +37,19 @@ equal_datasets=(
 echo "Downloading datasets ..."
 for dataset in "${equal_datasets[@]}"; do
   echo "  ${dataset}"
-  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../data/datasets/')"
+  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../../data/datasets/')"
 done
 for dataset in "${variable_datasets[@]}"; do
   echo "  ${dataset}"
-  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../data/datasets/')"
+  python -c "from aeon.datasets import load_classification; load_classification('${dataset}', extract_path='../../data/datasets/')"
 done
 echo "... done."
 
 echo ""
 echo "Processing datasets:"
 for dataset in "${equal_datasets[@]}"; do
-  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder ../data/datasets/ --qualityMeasure averageAri
+  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder ../../data/datasets/ --qualityMeasure averageAri
 done
 for dataset in "${variable_datasets[@]}"; do
-  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder ../data/datasets/ --qualityMeasure averageAri
+  java -jar test-strategies.jar "${dataset}" --resultFolder ordering-strategy-analysis/ --dataFolder ../../data/datasets/ --qualityMeasure averageAri
 done
