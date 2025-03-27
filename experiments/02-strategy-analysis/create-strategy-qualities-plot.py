@@ -73,7 +73,9 @@ def main(sys_args):
 
     if boxplot:
         fig, ax = plt.subplots(figsize=(8, 1.5), constrained_layout=True)
-        violin_handle, violin_label = plot_results_boxplot(results_folder, strategy_files, quality_measure, ax=ax)
+        violin_handle, violin_label = plot_results_boxplot(
+            results_folder, strategy_files, quality_measure, ax=ax
+        )
         handles, labels = ax.get_legend_handles_labels()
         handles.append(violin_handle)
         labels.append(violin_label)
@@ -88,9 +90,15 @@ def main(sys_args):
         )
         for k, results_file in enumerate(strategy_files):
             filename = results_file.stem
-            i = int(k / (n/2))
-            j = int(k % (n/2))
-            plot_results_histogram(results_folder, filename, quality_measure, fit_distribution, ax=axs[i, j])
+            i = int(k / (n / 2))
+            j = int(k % (n / 2))
+            plot_results_histogram(
+                results_folder,
+                filename,
+                quality_measure,
+                fit_distribution,
+                ax=axs[i, j],
+            )
 
         handles, labels = axs[0, 0].get_legend_handles_labels()
 
@@ -147,7 +155,9 @@ def main(sys_args):
     # plt.show()
 
 
-def plot_results_histogram(result_dir, filename, quality_measure="ari", fit_distribution=False, ax=None):
+def plot_results_histogram(
+    result_dir, filename, quality_measure="ari", fit_distribution=False, ax=None
+):
     parts = filename.split("-")
     suffix = "-".join(parts[1:])
     tracesPath = result_dir / f"traces-{suffix}.csv"
@@ -278,12 +288,16 @@ def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=N
 
         tmp_aucs = df.sum(axis=1) / df.shape[1]
         if "auc" not in df_strategies.columns:
-            df_strategies["auc"] = df_strategies["index"].apply(lambda i: tmp_aucs.loc[i])
+            df_strategies["auc"] = df_strategies["index"].apply(
+                lambda i: tmp_aucs.loc[i]
+            )
 
         aucs[dataset] = df_strategies.set_index("strategy")["auc"]
 
         # select random strategies
-        random_strategy_indices = [i for i in df.index if i not in df_strategies["index"]]
+        random_strategy_indices = [
+            i for i in df.index if i not in df_strategies["index"]
+        ]
         random_aucs[dataset] = tmp_aucs.loc[random_strategy_indices].values
 
     datasets = sorted(aucs.keys())
@@ -325,7 +339,7 @@ def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=N
             linewidth=0,
             # increase size of marker
             s=100,
-            zorder=2.5 + i*0.01,
+            zorder=2.5 + i * 0.01,
         )
     # - configure axis
     # if quality_measure in ariQualityMeasures:
@@ -334,7 +348,9 @@ def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=N
     #     ax.set_ylim(-0.05, 1.05)
 
     ax.set_xticks(x)
-    ax.set_xticklabels([dataset_name(dataset) for dataset in datasets], rotation=25, ha="right")
+    ax.set_xticklabels(
+        [dataset_name(dataset) for dataset in datasets], rotation=25, ha="right"
+    )
     ax.set_yticks([0.25, 0.5, 0.75])
 
     if quality_measure == "weightedHierarchySimilarity":

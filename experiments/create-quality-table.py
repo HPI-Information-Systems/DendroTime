@@ -35,7 +35,9 @@ template_no_jet = """% DO NOT MODIFY!
 \\end{{tabular}}
 """
 first_row_template_no_jet = "    \\multirow{{{n_linkages}}}{{*}}{{\\gls{{{distance}}}}} & {linkage} & {approx_asc:.2f} & {pre_clust:.2f} & {fcfs:.2f} \\\\"
-row_template_no_jet = "        & {linkage} & {approx_asc:.2f} & {pre_clust:.2f} & {fcfs:.2f} \\\\"
+row_template_no_jet = (
+    "        & {linkage} & {approx_asc:.2f} & {pre_clust:.2f} & {fcfs:.2f} \\\\"
+)
 
 
 def parse_args():
@@ -109,7 +111,9 @@ def main(include_euclidean=False, include_ward=False, exclude_jet=False):
     for i, distance in enumerate(distances):
         for j, linkage in enumerate(linkages):
             values = {"distance": distance, "linkage": linkage}
-            if (distance, linkage) in df_dendrotime.index and (include_ward or linkage != "ward"):
+            if (distance, linkage) in df_dendrotime.index and (
+                include_ward or linkage != "ward"
+            ):
                 row = df_dendrotime.loc[(distance, linkage)]
                 values.update(
                     {
@@ -167,5 +171,5 @@ if __name__ == "__main__":
     main(
         include_euclidean=args.include_euclidean,
         include_ward=args.include_ward,
-        exclude_jet=args.exclude_jet
+        exclude_jet=args.exclude_jet,
     )

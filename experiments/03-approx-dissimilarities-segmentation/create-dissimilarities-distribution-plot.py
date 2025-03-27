@@ -120,6 +120,5 @@ def main(dataset: str = "BeetleFly", distance: str = "dtw") -> None:
     # plt.show()
 
 
-
 if __name__ == "__main__":
     main(dataset="BeetleFly", distance="dtw")

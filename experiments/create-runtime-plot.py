@@ -38,9 +38,10 @@ def parse_args():
         help="Extend strategy runtimes to the right until the maximum runtime",
     )
     parser.add_argument(
-        "-c", "--correct-dendrotime-runtime",
+        "-c",
+        "--correct-dendrotime-runtime",
         action="store_true",
-        help="Correct dendrotime runtime by removing quality measurement overhead"
+        help="Correct dendrotime runtime by removing quality measurement overhead",
     )
     return parser.parse_args()
 
@@ -83,7 +84,9 @@ def main(
     runtime_cols = [c for c in df_dendrotime.columns if c.startswith("runtime")]
     if correct_dendrotime_runtime:
         # --- runtime correction (remove quality measurement overhead)
-        df_dendrotime_nqa = pd.read_csv("08-dendrotime-no-quality/results/aggregated-runtimes.csv")
+        df_dendrotime_nqa = pd.read_csv(
+            "08-dendrotime-no-quality/results/aggregated-runtimes.csv"
+        )
         df_dendrotime_nqa["runtime_nqa"] = df_dendrotime_nqa["finished"]
         df_dendrotime_nqa = df_dendrotime_nqa.drop(
             columns=[
@@ -94,14 +97,26 @@ def main(
                 "finished",
             ]
         )
-        df_dendrotime_nqa = df_dendrotime_nqa.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
-        df_tmp = df_dendrotime.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
-        df_tmp = pd.merge(df_tmp, df_dendrotime_nqa, how="left", left_index=True, right_index=True)
-        df_tmp["runtime_correction_factor"] = df_tmp["runtime_1.0"] / df_tmp["runtime_nqa"]
-        df_tmp["runtime_correction_factor"] = df_tmp["runtime_correction_factor"].fillna(1.0)
+        df_dendrotime_nqa = df_dendrotime_nqa.set_index(
+            ["dataset", "distance", "linkage", "strategy"]
+        ).sort_index()
+        df_tmp = df_dendrotime.set_index(
+            ["dataset", "distance", "linkage", "strategy"]
+        ).sort_index()
+        df_tmp = pd.merge(
+            df_tmp, df_dendrotime_nqa, how="left", left_index=True, right_index=True
+        )
+        df_tmp["runtime_correction_factor"] = (
+            df_tmp["runtime_1.0"] / df_tmp["runtime_nqa"]
+        )
+        df_tmp["runtime_correction_factor"] = df_tmp[
+            "runtime_correction_factor"
+        ].fillna(1.0)
         for c in runtime_cols:
             df_tmp[c] = df_tmp[c] / df_tmp["runtime_correction_factor"]
-        df_dendrotime = df_tmp.drop(columns=["runtime_nqa", "runtime_correction_factor"]).reset_index()
+        df_dendrotime = df_tmp.drop(
+            columns=["runtime_nqa", "runtime_correction_factor"]
+        ).reset_index()
         # --- end runtime correction
     df_dendrotime = df_dendrotime.melt(
         id_vars=["dataset", "distance", "linkage", "strategy"],
@@ -231,7 +246,9 @@ def main(
                     runtimes = np.r_[
                         0.0, df_filtered.loc[strategy, ("runtime", "mean")], max_runtime
                     ]
-                    stddevs = np.r_[0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0]
+                    stddevs = np.r_[
+                        0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0
+                    ]
                     whss = np.r_[0.0, df_filtered.loc[strategy, "whs"], 1.0]
                     ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
                 else:
@@ -320,9 +337,9 @@ def main(
     fig.savefig(
         "mean-runtime-qualities.pdf", bbox_inches="tight", bbox_extra_artists=[legend]
     )
-    fig.savefig(
-        "mean-runtime-qualities.png", bbox_inches="tight", bbox_extra_artists=[legend]
-    )
+    # fig.savefig(
+    #     "mean-runtime-qualities.png", bbox_inches="tight", bbox_extra_artists=[legend]
+    # )
     # plt.show()
 
 

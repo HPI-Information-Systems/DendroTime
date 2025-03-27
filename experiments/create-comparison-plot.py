@@ -54,9 +54,10 @@ def parse_args(args):
         help="Display the relative runtime of a specific phase in the plot.",
     )
     parser.add_argument(
-        "-c", "--correct-dendrotime-runtime",
+        "-c",
+        "--correct-dendrotime-runtime",
         action="store_true",
-        help="Correct dendrotime runtime by removing quality measurement overhead"
+        help="Correct dendrotime runtime by removing quality measurement overhead",
     )
 
     return parser.parse_args(args)
@@ -74,19 +75,39 @@ def main(sys_args):
 
     print("  loading data for selected DendroTime strategies ...")
     # load runtime breakdown
-    result_file = (NQA_RESULT_FOLDER if use_no_quality_for_runtimes else RESULT_FOLDER) / "aggregated-runtimes.csv"
+    result_file = (
+        NQA_RESULT_FOLDER if use_no_quality_for_runtimes else RESULT_FOLDER
+    ) / "aggregated-runtimes.csv"
     if not result_file.exists():
         raise ValueError(f"Runtime file '{result_file}' does not exist!")
-    df_runtime = pd.read_csv(result_file).set_index(["dataset", "distance", "linkage", "strategy"])
-    df_runtime = df_runtime[["initializing", "approximating", "computingfulldistances", "finalizing", "finished"]]
-    df_runtime.columns = ["Initializing", "Approximating", "ComputingFullDistances", "Finalizing", "Finished"]
+    df_runtime = pd.read_csv(result_file).set_index(
+        ["dataset", "distance", "linkage", "strategy"]
+    )
+    df_runtime = df_runtime[
+        [
+            "initializing",
+            "approximating",
+            "computingfulldistances",
+            "finalizing",
+            "finished",
+        ]
+    ]
+    df_runtime.columns = [
+        "Initializing",
+        "Approximating",
+        "ComputingFullDistances",
+        "Finalizing",
+        "Finished",
+    ]
 
     traces = []
     runtimes = []
     for experiment_config in [experiment1, experiment2]:
         for strategy in selected_strategies:
             # load runtime breakdown
-            s_runtime = df_runtime.loc[(*experiment_config.split("-"), strategy), :].copy()
+            s_runtime = df_runtime.loc[
+                (*experiment_config.split("-"), strategy), :
+            ].copy()
             s_runtime = s_runtime.astype(float)
             # convert to seconds
             for c in s_runtime.index:
@@ -113,7 +134,9 @@ def main(sys_args):
             if use_no_quality_for_runtimes:
                 results_file = NQA_RESULT_FOLDER / "aggregated-runtimes.csv"
                 df_nqa = pd.read_csv(results_file)
-                df_nqa = df_nqa.set_index(["dataset", "distance", "linkage", "strategy"])
+                df_nqa = df_nqa.set_index(
+                    ["dataset", "distance", "linkage", "strategy"]
+                )
 
             df = pd.read_csv(trace_file)
             df["experiment"] = experiment_config
@@ -165,7 +188,8 @@ def main(sys_args):
                         "experiment": experiment_config,
                         "runtime": df_parallel.loc[
                             (dataset, distance, linkage), "runtime"
-                        ] / 1000,
+                        ]
+                        / 1000,
                         "whs": 1.0,
                     },
                 ]
@@ -245,7 +269,7 @@ def main(sys_args):
                     whs,
                     label=strategy_name(strategy),
                     color=colors[strategy],
-                    marker=markers[strategy]
+                    marker=markers[strategy],
                 )
 
         ax = axs[i * 2 + 1]

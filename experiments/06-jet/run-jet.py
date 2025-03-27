@@ -72,7 +72,9 @@ def compute_whs(dataset, distance, data_folder):
         target_path.absolute().as_posix(),
     ]
     try:
-        whs = float(subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip())
+        whs = float(
+            subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip()
+        )
     except Exception as e:
         whs = np.nan
     return whs
@@ -95,8 +97,8 @@ def main(data_folder):
     for dataset in tqdm(datasets):
         X, y, n_clusters = load_dataset(dataset, data_folder)
         for distance in distances:
-            t0 = time.time()
             try:
+                t0 = time.time()
                 jet = JET(
                     n_clusters=n_clusters,
                     n_pre_clusters=None,
@@ -119,12 +121,17 @@ def main(data_folder):
                     h,
                     delimiter=",",
                 )
-                whs = compute_whs(dataset, distance, data_folder)
             except Exception as e:
                 print(f"Error for {dataset} with {distance}: {e}")
                 runtime = np.nan
                 ari = np.nan
+
+            try:
+                whs = compute_whs(dataset, distance, data_folder)
+            except Exception as e:
+                print(f"Cannot compute WHS for {dataset} with {distance}: {e}")
                 whs = np.nan
+
             with open(aggregated_result_file, "a") as f:
                 f.write(f"{dataset},{distance},{runtime},{ari},{whs}\n")
 

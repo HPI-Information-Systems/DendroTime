@@ -14,7 +14,7 @@ from aeon.datasets.tsc_datasets import (
 from aeon.datasets import load_classification
 
 
-DATA_FOLDER = Path(__file__).resolve().parent / "data" / "datasets"
+DATA_FOLDER = Path(__file__).resolve().parent.parent / "data" / "datasets"
 LONG_RUNNING_DATASETS = [
     "Crop",
     "ElectricDevices",
@@ -114,7 +114,13 @@ def parse_args(args):
 
 def _sort_datasets(datasets):
     try:
-        dataset_order = np.loadtxt(DATA_FOLDER.parent / "datasets.csv", delimiter=",", skiprows=1, usecols=(0,), dtype=str).tolist()
+        dataset_order = np.loadtxt(
+            DATA_FOLDER.parent / "datasets.csv",
+            delimiter=",",
+            skiprows=1,
+            usecols=(0,),
+            dtype=str,
+        ).tolist()
         return sorted(datasets, key=lambda x: dataset_order.index(x))
     except FileNotFoundError:
         print("Could not find datasets.csv. Sorting by name.", file=sys.stderr)
@@ -193,7 +199,9 @@ if __name__ == "__main__":
             skip_edeniss=False,
         )
     else:
-        datasets = select_aeon_datasets(args.all, args.large, args.test, args.datasets, args.sorted)
+        datasets = select_aeon_datasets(
+            args.all, args.large, args.test, args.datasets, args.sorted
+        )
         main(
             args.datafolder if args.datafolder else DATA_FOLDER,
             datasets,

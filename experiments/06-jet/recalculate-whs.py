@@ -34,8 +34,10 @@ def compute_whs(dataset, distance):
         target_path.absolute().as_posix(),
     ]
     try:
-        whs = float(subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip())
-    except Exception as e:
+        whs = float(
+            subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip()
+        )
+    except Exception:
         whs = np.nan
     return whs
 
@@ -49,7 +51,8 @@ def main():
     entries = []
     with tqdm_joblib(tqdm(desc="Processing", total=len(configurations))):
         entries = joblib.Parallel(n_jobs=N_JOBS)(
-            joblib.delayed(compute_whs)(dataset, distance) for dataset, distance in configurations
+            joblib.delayed(compute_whs)(dataset, distance)
+            for dataset, distance in configurations
         )
     df["whs"] = entries
     df.to_csv(RESULT_FOLDER / "results.csv")

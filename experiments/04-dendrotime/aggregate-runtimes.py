@@ -25,10 +25,12 @@ def parse_experiment_name(f):
     return Experiment(*parts)
 
 
-
 def load_quality_trace(strategy, dataset, distance, linkage):
     df = pd.read_csv(
-        RESULT_FOLDER / f"{dataset}-{distance}-{linkage}-{strategy}" / "Finished-100" / "qualities.csv"
+        RESULT_FOLDER
+        / f"{dataset}-{distance}-{linkage}-{strategy}"
+        / "Finished-100"
+        / "qualities.csv"
     )
     # use relative runtime instead of millis since epoch
     df["timestamp"] = df["timestamp"] - df.loc[0, "timestamp"]
@@ -37,7 +39,16 @@ def load_quality_trace(strategy, dataset, distance, linkage):
     return df
 
 
-def assess_quality(strategy, dataset, distance, linkage, thresholds, measure, max_runtime, total_runtime):
+def assess_quality(
+    strategy,
+    dataset,
+    distance,
+    linkage,
+    thresholds,
+    measure,
+    max_runtime,
+    total_runtime,
+):
     try:
         df = load_quality_trace(strategy, dataset, distance, linkage)
         # compute runtime for each threshold
@@ -74,7 +85,7 @@ def save(df, overwrite=False):
 
 
 def main():
-    thresholds = [0.1*i for i in range(1, 10)]
+    thresholds = [0.1 * i for i in range(1, 10)]
     experiments = [f for f in RESULT_FOLDER.iterdir() if f.is_dir()]
     print(
         f"Processing results from {len(experiments)} experiments ...", file=sys.stderr
@@ -95,16 +106,25 @@ def main():
 
     s_max_runtime = df.groupby(["dataset", "distance", "linkage"])["finished"].max()
     df = df.set_index(["dataset", "distance", "linkage", "strategy"]).sort_index()
-    for (dataset, distance, linkage, strategy) in tqdm(df.index, desc="Assessing qualities", file=sys.stderr):
+    for dataset, distance, linkage, strategy in tqdm(
+        df.index, desc="Assessing qualities", file=sys.stderr
+    ):
         max_runtime = s_max_runtime.loc[(dataset, distance, linkage)]
         total_runtime = df.loc[(dataset, distance, linkage, strategy), "finished"]
         runtimes, whs_r_auc = assess_quality(
-            strategy, dataset, distance, linkage, thresholds=thresholds,
-            measure="hierarchy-quality", max_runtime=max_runtime,
-            total_runtime=total_runtime
+            strategy,
+            dataset,
+            distance,
+            linkage,
+            thresholds=thresholds,
+            measure="hierarchy-quality",
+            max_runtime=max_runtime,
+            total_runtime=total_runtime,
         )
         for t in thresholds:
-            df.loc[(dataset, distance, linkage, strategy), f"runtime_{t:.1f}"] = runtimes[t]
+            df.loc[(dataset, distance, linkage, strategy), f"runtime_{t:.1f}"] = (
+                runtimes[t]
+            )
         df.loc[(dataset, distance, linkage, strategy), "whs_r_auc"] = whs_r_auc
     df = df.reset_index()
     save(df, overwrite=True)

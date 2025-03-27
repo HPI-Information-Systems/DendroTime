@@ -117,7 +117,9 @@ def plot_results(results_file, include_steps=False):
     print(f"Step AUC={step_auc:0.2f}")
 
     n_cols = 2 if include_steps else 1
-    fig, axs = plt.subplots(1, n_cols, squeeze=False, figsize=(3.5*n_cols, 2), sharey="all")
+    fig, axs = plt.subplots(
+        1, n_cols, squeeze=False, figsize=(3.5 * n_cols, 2), sharey="all"
+    )
     axs = axs[0, :]
 
     # runtime plot
@@ -155,7 +157,9 @@ def plot_results(results_file, include_steps=False):
 
     # step plot
     if include_steps:
-        axs[1].grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
+        axs[1].grid(
+            visible=True, which="major", axis="y", linestyle="dotted", linewidth=1
+        )
         axs[1].axvline(
             x=change_point,
             color="gray",

@@ -159,7 +159,6 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
             color=colors[measurement],
         )
 
-
     if use_runtime:
         ax.set_xlabel(f"Runtime ({runtime_unit})")
     else:
