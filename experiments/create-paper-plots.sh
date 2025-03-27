@@ -15,14 +15,15 @@ popd
 mv 01-serial-hac/runtimes-ratio-table.tex tables/
 
 # 02-strategy-analysis: create plots just for some configurations
-# skip because I have not downloaded all results
+# skip most of them because I have not downloaded all results
 # echo ""
 # echo "Creating strategy WHS-R-AUC plots (MSM/SBD and average/ward) for 02-strategy-analysis"
 # pushd 02-strategy-analysis
 # # - msm with ward-linkage
 # python create-strategy-qualities-plot.py results/msm-ward-weightedHierarchySimilarity --boxplot
-# # - msm with average-linkage
-# python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot
+# - msm with average-linkage
+python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot
+python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot -small
 # # - sbd with average-linkage
 # python create-strategy-qualities-plot.py results/sbd-average-weightedHierarchySimilarity --boxplot
 # # - dtw with average-linkage
@@ -43,7 +44,6 @@ echo ""
 echo "Creating convergence indicator vs WHS plots (ada and fcfs on ACSF1) for 04-dendrotime"
 pushd 04-dendrotime
 python plot-qualities.py --dataset ACSF1 --use-runtime
-python plot-qualities.py --dataset ACSF1 --use-runtime --strategy fcfs
 popd
 mv 04-dendrotime/solutions-ACSF1-*.pdf figures/
 

@@ -23,6 +23,15 @@ selected_strategies = (
     "shortestTs",
 )
 histogram_bins = 10
+selected_datasets_for_small = [
+    "PickupGestureWiimoteZ",
+    "ShakeGestureWiimoteZ",
+    "BirdChicken",
+    "BeetleFly",
+    "Coffee",
+    "Wine",
+    "Beef"
+]
 
 
 def parse_args(args):
@@ -49,6 +58,11 @@ def parse_args(args):
         action="store_true",
         help="Plot the AUCs of the random strategies as boxplots instead of histogram.",
     )
+    parser.add_argument(
+        "--small",
+        action="store_true",
+        help="Fit plot in a single column by reducing the number of datasets.",
+    )
     return parser.parse_args(args)
 
 
@@ -58,6 +72,7 @@ def main(sys_args):
     fit_distribution = args.fit_distribution
     legend_right = args.legend_right
     boxplot = args.boxplot
+    small = args.small
 
     parts = results_folder.stem.split("-")
     distance = parts[-3]
@@ -72,14 +87,21 @@ def main(sys_args):
         raise ValueError("There are no 'strategies-*.csv'-files in the result folder!")
 
     if boxplot:
-        fig, ax = plt.subplots(figsize=(8, 1.5), constrained_layout=True)
+        if small:
+            fig, ax = plt.subplots(figsize=(5.5, 1.3), constrained_layout=True)
+            ax.set_xlim(-0.5, len(selected_datasets_for_small) - 0.5)
+        else:
+            fig, ax = plt.subplots(figsize=(8, 1.5), constrained_layout=True)
         violin_handle, violin_label = plot_results_boxplot(
-            results_folder, strategy_files, quality_measure, ax=ax
+            results_folder, strategy_files, quality_measure, small, ax=ax
         )
         handles, labels = ax.get_legend_handles_labels()
         handles.append(violin_handle)
         labels.append(violin_label)
     else:
+        if small:
+            print("WARN: --small is not supported for non-boxplot plots!")
+
         fig, axs = plt.subplots(
             2,
             int(np.ceil(n / 2)),
@@ -146,11 +168,11 @@ def main(sys_args):
         )
 
     figures_dir = results_folder.parent.parent
-    fig.savefig(
-        figures_dir / f"strategy-qualities-{distance}-{linkage}.pdf",
-        bbox_inches="tight",
-        bbox_extra_artists=(legend,),
-    )
+    if boxplot and small:
+        file_path = figures_dir / f"strategy-qualities-{distance}-{linkage}-small.pdf"
+    else:
+        file_path = figures_dir / f"strategy-qualities-{distance}-{linkage}.pdf"
+    fig.savefig(file_path, bbox_inches="tight", bbox_extra_artists=(legend,))
     # plt.tight_layout()
     # plt.show()
 
@@ -257,7 +279,7 @@ def plot_results_histogram(
     spines["left"].set_visible(False)
 
 
-def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=None):
+def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", small=False, ax=None):
     if ax is None:
         ax = plt.gca()
 
@@ -276,6 +298,9 @@ def plot_results_boxplot(result_dir, strategy_files, quality_measure="ari", ax=N
         else:
             dataset = parts[-1]
             seed = None
+
+        if small and dataset not in selected_datasets_for_small:
+            continue
 
         print()
         print(f"Processing dataset '{dataset}' with seed {seed}")

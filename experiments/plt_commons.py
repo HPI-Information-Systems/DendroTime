@@ -58,6 +58,8 @@ def dataset_name(name):
         return "PGWZ"
     if name == "ShakeGestureWiimoteZ":
         return "SGWZ"
+    if name == "UWaveGestureLibraryAll":
+        return "UWGLA"
     return name
 
 

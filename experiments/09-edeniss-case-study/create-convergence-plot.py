@@ -44,7 +44,7 @@ def plot_results(dataset, strategy, configs, use_runtime=False, correct_runtime=
     fig, axs = plt.subplots(
         1,
         len(configs),
-        figsize=(8, 2.5),
+        figsize=(5.5, 1.5),
         sharey="all",
         sharex="all",
         constrained_layout=True,
@@ -67,7 +67,17 @@ def plot_results(dataset, strategy, configs, use_runtime=False, correct_runtime=
 
     axs[0].set_ylabel("Quality")
     axs[0].set_ylim(0.0, 1.05)
-    axs[-1].legend(loc="lower right", bbox_to_anchor=(1.0, 0.0), ncol=1)
+    axs[0].set_yticks([0.0, 0.5, 1.0])
+    axs[0].set_yticklabels([0.0, 0.5, 1.0])
+
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc="lower center",
+        ncol=len(handles),
+        bbox_to_anchor=(0.5, 1.0),
+    )
+
     fig.savefig("edeniss-convergence.pdf", bbox_inches="tight")
     # fig.savefig(
     #     "edeniss-convergence.png",

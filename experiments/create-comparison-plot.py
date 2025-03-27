@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from plt_commons import colors, markers, strategy_name, phase_name
+from plt_commons import colors, markers, strategy_name, phase_name, dataset_name
 
 RESULT_FOLDER = Path("04-dendrotime/results")
 NQA_RESULT_FOLDER = Path("08-dendrotime-no-quality/results")
@@ -203,8 +203,7 @@ def main(sys_args):
     fig, axs = plt.subplots(
         1,
         4,
-        sharey="all",
-        figsize=(7, 2),
+        figsize=(5.5, 1.5),
         constrained_layout=True,
         gridspec_kw={"width_ratios": [3, 1, 3, 1]},
     )
@@ -215,13 +214,17 @@ def main(sys_args):
         title_ax = fig.add_subplot(1, 2, i + 1, frame_on=False)
         title_ax.set_xticks([])
         title_ax.set_yticks([])
-        title_ax.set_title(f"{experiment_config}")
+        dataset, distance, linkage = experiment_config.split("-")
+        title_ax.set_title(f"{dataset_name(dataset)}-{distance}-{linkage}")
         # hack to let the contrained_layout allocate space for our title (in the invisible axis)
         ax.set_title(" ")
 
         ax.grid(visible=True, which="major", axis="y", linestyle="dotted", linewidth=1)
         ax.set_xlabel("Runtime (s)")
         ax.set_ylim(0.0, 1.05)
+        ax.set_yticks([0.0, 0.5, 1.0])
+        ax.set_yticklabels([0.0, 0.5, 1.0])
+
         if i == 1:
             # hack to increase spacing between the two experiment configurations
             ax.set_ylabel("\nWHS")
@@ -304,10 +307,12 @@ def main(sys_args):
                     ha="center",
                 )
             bottom += runtimes[phase]
-        ax.set_ylabel("Relative Runtime")
+        ax.set_ylabel("Rel. Runtime")
         # ax.set_xlabel(f"{runtimes['Finished']:.0f} s")
         ax.set_xticks([])
         ax.set_xticklabels([])
+        ax.set_yticks([])
+        ax.set_yticklabels([])
 
     handles, labels = axs[0].get_legend_handles_labels()
     handles2, labels2 = axs[1].get_legend_handles_labels()

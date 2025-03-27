@@ -34,11 +34,18 @@ def parse_args(args):
         help="Linkage method",
     )
     parser.add_argument(
-        "--strategy",
+        "--strategy-left",
         type=str,
         default="approx-distance-ascending",
         choices=["pre-clustering", "approx-distance-ascending", "fcfs"],
-        help="Strategy name",
+        help="Strategy name for left plot",
+    )
+    parser.add_argument(
+        "--strategy-right",
+        type=str,
+        default="fcfs",
+        choices=["pre-clustering", "approx-distance-ascending", "fcfs"],
+        help="Strategy name for right plot",
     )
     parser.add_argument(
         "--use-runtime",
@@ -59,26 +66,60 @@ def main(sys_args):
     use_runtime = args.use_runtime
     include_ari = args.include_ari
     if args.resultfile is not None:
-        results_file = Path(args.resultfile)
+        results_file_left = Path(args.resultfile)
+        results_file_right = None
     elif args.dataset is None:
         raise ValueError("Either provide the result file or the dataset name.")
     else:
         dataset = args.dataset
         distance = args.distance
         linkage = args.linkage
-        strategy = args.strategy
-        results_file = Path(
-            f"results/{dataset}-{distance}-{linkage}-{strategy.replace('-', '_')}/Finished-100/qualities.csv"
+        strategy_left = args.strategy_left
+        results_file_left = Path(
+            f"results/{dataset}-{distance}-{linkage}-{strategy_left.replace('-', '_')}/Finished-100/qualities.csv"
+        )
+        strategy_right = args.strategy_right
+        results_file_right = Path(
+            f"results/{dataset}-{distance}-{linkage}-{strategy_right.replace('-', '_')}/Finished-100/qualities.csv"
         )
 
-    results_file = results_file.resolve()
-    if not results_file.exists():
-        raise FileNotFoundError(f"Result file {results_file} not found!")
+    results_file_left = results_file_left.resolve()
+    if not results_file_left.exists():
+        raise FileNotFoundError(f"Result file {results_file_left} not found!")
+    if results_file_right is not None:
+        results_file_right = results_file_right.resolve()
+        if not results_file_right.exists():
+            raise FileNotFoundError(f"Result file {results_file_right} not found!")
 
-    plot_results(results_file, use_runtime, include_ari)
+    fig, axs = plt.subplots(1, 2, sharey="all", figsize=(5.5, 1.5), constrained_layout=True)
+
+    # plot left
+    plot_results(results_file_left, use_runtime, include_ari, ax=axs[0])
+    # plot right
+    if results_file_right is not None:
+        plot_results(results_file_right, use_runtime, include_ari, ax=axs[1])
+    axs[0].set_ylabel("Quality")
+    axs[0].set_ylim(0.0, 1.05)
+
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc="lower center",
+        ncol=len(handles),
+        bbox_to_anchor=(0.5, 1.0),
+    )
+
+    fig.savefig(
+        f"solutions-{dataset}-{distance}-{linkage}-{strategy_left}-{strategy_right}.pdf",
+        bbox_inches="tight",
+    )
+    # plt.show()
 
 
-def plot_results(results_file, use_runtime=False, include_ari=False):
+def plot_results(results_file, use_runtime=False, include_ari=False, ax=None):
+    if ax is None:
+        ax = plt.gca()
+
     # experiment details
     parts = results_file.parent.parent.stem.split("-")
     dataset = parts[0]
@@ -119,9 +160,6 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
     print("AUCs")
     print(aucs)
 
-    fig = plt.figure(figsize=(5, 3))
-    plt.tight_layout()
-    ax = plt.gca()
     # ax.set_title(f"{dataset}: {strategy_name(strategy)} strategy with {distance.upper()} and {linkage}")
     ax.grid(True, which="major", axis="y", ls=":", lw=1)
     ax.axvline(
@@ -151,7 +189,7 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
         df = df.drop(columns=["hierarchy-quality"])
 
     for measurement in df.columns:
-        plt.plot(
+        ax.plot(
             df.index,
             df[measurement],
             label=measure_name_mapping[measures[measurement]],
@@ -163,14 +201,6 @@ def plot_results(results_file, use_runtime=False, include_ari=False):
         ax.set_xlabel(f"Runtime ({runtime_unit})")
     else:
         ax.set_xlabel("Computational steps")
-    ax.set_ylabel("Quality")
-    ax.set_ylim(0.0, 1.05)
-    ax.legend()
-    fig.savefig(
-        f"solutions-{dataset}-{distance}-{linkage}-{strategy}.pdf",
-        bbox_inches="tight",
-    )
-    # plt.show()
 
 
 if __name__ == "__main__":
