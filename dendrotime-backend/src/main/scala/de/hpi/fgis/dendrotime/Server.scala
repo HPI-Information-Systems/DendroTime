@@ -58,6 +58,7 @@ object Server extends ApiRoutesProvider {
       throw RuntimeException("Server could not start", cause)
     case (ctx, Started(binding)) =>
       ctx.log.info("Server started at https://{}:{}/", binding.localAddress.getHostString, binding.localAddress.getPort)
+      println(s"Server started at https://${binding.localAddress.getHostString}:${binding.localAddress.getPort}/")
       // when started, we go to running state and handle stop messages
       if (wasStopped) ctx.self ! Stop
       running(binding)

@@ -7,6 +7,7 @@ Progressive HAC system for time series anomalies.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Scala version 3.3](https://img.shields.io/badge/Scala-3.3-blue)
+![python version 3.8|3.9|3.10](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue)
 
 </div>
 
@@ -49,6 +50,10 @@ Other linkage functions, such as Ward or centroid linkage, are not compatible wi
 [`de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage`](dendrotime-clustering/src/main/scala/de/hpi/fgis/dendrotime/clustering/hierarchy/Linkage.scala).
 The client is web-based and visualizes the dendrogram as well as the computational and qualitative progress to allow the user to monitor the clustering results over time, and stop the process early.
 
+> **WARNING**
+>
+> We will add a screencast (gif/webm) of the DendroTime frontend here shortly.
+
 ## Repository structure
 
 The following table provides an overview about the most important contents in this repository:
@@ -75,6 +80,18 @@ The following table provides an overview about the most important contents in th
 
 ## Experiments and results
 
+DendroTime supports multiple strategies to order the time series dissimilarities.
+The following three are the most important ones:
+
+- **fcfs**:
+  The fcfs _baseline_ strategy simply orders the dissimilarity computations in the order we load the time series from disk.
+- **ada**: The ada strategy defines an ordering heuristic that is based on the dissimilarities from the approximation phase, from small to large.
+- **precl**: The precl strategy follows a three-step approach (inspired by JET):
+  The first step (intra-pre-cluster) partitions the approximated dendrogram into 3√𝑛 pre-clusters and then computes the exact dissimilarities for all time series pairs within these pre-clusters.
+  The second step (medoids) determines the medoid for each pre-cluster and computes the dissimilarities of all medoid pairs.
+  The final step (inter-pre-cluster) computes the exact dissimilarities of all inter-pre-cluster pairs.
+  We compute the dissimilarities between time series from close pre-clusters before those between far-apart pre-clusters.
+
 We compare DendroTime with two baseline algorithms:
 
 - **PARALLEL** HAC:
@@ -93,6 +110,28 @@ We compare DendroTime with two baseline algorithms:
   It is implemented in Python, and we execute it with Python version 3.9.21.
   After computing a coarse-grained pre-clustering of the time series using the very efficient BIRCH algorithm, it computes the exact dissimilarities just for intra-pre-cluster time series and between the pre-cluster medoids.
   The dissimilarity computations are executed in parallel.
+  You can execute JET from the `experiments/06-jet/` repository:
+
+  ```bash
+  cd experiments/06-jet
+  python run-jet.py --datafolder ../../data/datasets --dataset <dataset-name>
+  ```
+
+![legend](./docs/figures/runtime-quality-legend.png)
+![dtw-average convergence](./docs/figures/runtime-quality-dtw-average.png)
+
+> Horizontal axis shows relative runtime w.r.t the PARALLEL baseline runtime and vertical axis shows dendrogram similarity w.r.t to the exact dendrogram (= quality).
+
+### DendroTime vs. JET
+
+Although JET is an approximate approach for calculating fast HAC sketches, it is on average slower than DendroTime.
+For larger datasets, JET's Python overhead diminishes and it is indeed faster.
+Nevertheless, DendroTime achieves for all datasets at least similar quality after the same runtime.
+
+### DendroTime vs. PARALLEL
+
+Because DendroTime eventually computes the same result as PARALLEL, but with additional approximation and ordering steps in the process, it takes up to 1.5x time to finish the exact dendrogram, as expected.
+Despite DendroTime continuously producing approximate results, its progressive strategies can achieve high qualities in a shorter or similar runtime as PARALLEL.
 
 ## Citation
 
@@ -114,6 +153,7 @@ Please make sure that you have a recent Java runtime environment on your machine
 - (Scala 3 is managed by SBT)
 - Node.js >= v22.12.0
 - npm >= 11.0.0
+- Python >= 3.8
 
 #### Procedure
 
@@ -146,18 +186,43 @@ Run DendroTime from sbt with
 run <hostname> <port>
 ```
 
-Build a JAR for DendroTime using the `runner` SBT-subproject:
+or build a JAR for DendroTime using SBT and then start the application from the JAR-file:
 
-```sbt
-project runner
-assembly
+```bash
+sbt assembly
+mv target/scala-3.3.3/DendroTime-assembly*.jar DendroTime-server.jar
+java -Dfile.encoding=UTF-8 -Dlogback.configurationFile=<logging-config-file> -Dconfig.file=<config-file> -jar DendroTime.jar <hostname> <port>
 ```
 
-The final JAR will be at `experiments/DendroTime-runner.jar`.
-On Linux, you can restrict the number of cores used by DendroTime using `taskset -c <cpu-list>`.
+You can then access the frontend using a modern browser at `http://<hostname>:<port>/`.
+
+> If no datasets show up in the drop-down menu, please check the path to the datasets-folder in the configuration file!
 
 ### Usage from the CLI
 
+We also provide a headless version of DendroTime for experiments and scripts (DendroTime-runner).
+It can be started from the CLI and takes the dataset, distance, linkage, and strategy as arguments.
+Use `--help` to show options and arguments.
+
+You build the DendroTime-runner using the `runner` SBT-subproject:
+
+```bash
+sbt "runner/assembly"
+```
+
+The JAR-file will be placed at `experiments/DendroTime-runner.jar`.
+Afterward, you can execute the DendroTime-runner with the `./run-dendrotime.sh`-script.
+The JAR-file includes the code for the PARALLEL baseline.
+It can be executed using the `./run-baseline.sh`-script.
+
 ### Algorithm configuration
 
+DendroTime exposes various configuration parameters to control its execution.
+They can be configured via CLI or a configuration file.
+DendroTime's configuration options are described in [_DendroTime configuration_](./docs/configuration.md)
+
 ## Experiments & Reproducibility
+
+The configuration of DendroTime and the baselines used for the experiments in the paper can be found in the [`experiments`-folder](./experiments/).
+Note that we do not publish the results of the experiments in this Github-Repository due to their size.
+Please contact us directly for the experiments' result backups.
