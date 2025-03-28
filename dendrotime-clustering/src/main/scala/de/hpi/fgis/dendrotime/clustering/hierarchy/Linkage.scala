@@ -11,7 +11,7 @@ import org.apache.commons.math3.util.FastMath
 sealed trait Linkage {
   /**
    * Compute the distance from a cluster i to the new cluster xy after merging cluster x and cluster y.
-   * 
+   *
    * @param dXi Distance from cluster x to cluster i
    * @param dYi Distance from cluster y to cluster i
    * @param dXY Distance from cluster x to cluster y
@@ -30,7 +30,7 @@ object Linkage {
     case "average" => AverageLinkage
     case "ward" => WardLinkage
     case "weighted" => WeightedLinkage
-    case "median" => throw new IllegalArgumentException("Median linkage is not reducible")
+    case "median" => MedianLinkage
     case "centroid" => CentroidLinkage
     case _ => throw new IllegalArgumentException(s"Unknown linkage method: $method")
   }

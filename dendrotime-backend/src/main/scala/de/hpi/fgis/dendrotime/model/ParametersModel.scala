@@ -10,8 +10,16 @@ object ParametersModel {
   case class DendroTimeParams(distanceName: String,
                               linkageName: String,
                               strategy: String = "approx-distance-ascending") {
+    if !areCompatible(distanceName, linkageName) then
+      throw new IllegalArgumentException(s"$linkageName linkage is compatible with $distanceName")
     def distance(using DistanceOptions): Distance = Distance(distanceName)
     def linkage: Linkage = Linkage(linkageName)
+  }
+
+  private def areCompatible(distance: String, linkage: String): Boolean = {
+    val euclideans = Seq("manhatten", "euclidean", "minkowsky")
+    val linkagesRequireEuclideans = Seq("ward", "median", "centroid")
+    !linkagesRequireEuclideans.contains(linkage) || euclideans.contains(distance)
   }
 
   trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
