@@ -6,7 +6,7 @@ set -eo pipefail  # trace exit code of failed piped commands
 strategy="${1-approx-distance-ascending}"
 
 distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "weighted" "ward" )
+linkages=( "single" "complete" "average" "weighted" )
 failure_log_file="results/failures.csv"
 mkdir -p "results"
 if [ ! -f "${failure_log_file}" ]; then

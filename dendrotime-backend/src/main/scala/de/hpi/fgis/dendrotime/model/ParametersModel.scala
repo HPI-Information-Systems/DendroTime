@@ -19,6 +19,7 @@ object ParametersModel {
   private def areCompatible(distance: String, linkage: String): Boolean = {
     val euclideans = Seq("manhatten", "euclidean", "minkowsky")
     val linkagesRequireEuclideans = Seq("ward", "median", "centroid")
+    // val linkagesRequireEuclideans = Seq.empty
     !linkagesRequireEuclideans.contains(linkage) || euclideans.contains(distance)
   }
 

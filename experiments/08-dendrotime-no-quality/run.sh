@@ -7,7 +7,7 @@ strategy="${1-approx-distance-ascending}"
 distance="${2-dtw}"
 
 #distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "weighted" "ward" )
+linkages=( "single" "complete" "average" "weighted" )
 failure_log_file="results/${distance}-${strategy}-failures.csv"
 mkdir -p "results"
 if [ ! -f "${failure_log_file}" ]; then

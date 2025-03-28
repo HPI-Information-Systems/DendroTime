@@ -97,6 +97,7 @@ class Settings private(config: Config) extends Extension {
       val duration = config.getDuration(s"$internalNamespace.ground-truth-loading-delay")
       FiniteDuration(duration.toMillis, "milliseconds")
     }
+    val toStdout: Boolean = config.getBoolean(s"$internalNamespace.stdout")
 
     def computeHierarchySimilarity: Boolean = hierarchySimilarityConfig.isDefined
     def computeHierarchyQuality: Boolean = hierarchyQualityConfig.isDefined

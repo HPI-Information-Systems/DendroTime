@@ -210,6 +210,8 @@ dendrotime {
 
         # Initial delay before the ground truth information is loaded. This improves startup performance.
         ground-truth-loading-delay = 100ms
+        # If enabled, prints progress information to the console. This could be quite verbose!
+        stdout = off
     }
 
     # Configuration for the different time series distance measures
