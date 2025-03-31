@@ -50,8 +50,7 @@ Other linkage functions, such as Ward or centroid linkage, are not compatible wi
 [`de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams#areCompatible`](dendrotime-backend/src/main/scala/de/hpi/fgis/dendrotime/model/ParametersModel.scala#L19).
 The client is web-based and visualizes the dendrogram as well as the computational and qualitative progress to allow the user to monitor the clustering results over time, and stop the process early.
 
-https://github.com/HPI-Information-Systems/DendroTime/blob/main/docs/videos/DendroTime-clustering-ACSF1.webm
-
+https://github.com/user-attachments/assets/8ab3b6d5-b716-43a5-a2e0-63bdd5ce9e77
 
 ## Repository structure
 
