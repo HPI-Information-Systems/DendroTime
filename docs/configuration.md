@@ -22,7 +22,7 @@ Configuration values can be set on the command line or using a configuration fil
   Then, execute DendroTime with `java -Dconfig.file=dendrotime.conf -Dfile.encoding=UTF-8 -jar DendroTime-server.jar`.
 
 For a full description of all ways one can use and set configuration options, we refer to the [`lightbend/config` documentation](https://github.com/lightbend/config), which we make use of here.
-You can find all parameters of DendroTime, their default values, and their description in the [`application.conf` file](./dendrotime-backend/src/main/resources/application.conf) bundled with DendroTime or [below](#default-configuration).
+You can find all parameters of DendroTime, their default values, and their description in the [`application.conf` file](/dendrotime-backend/src/main/resources/application.conf) bundled with DendroTime or [below](#default-configuration).
 
 ## Important options
 
@@ -32,15 +32,15 @@ DendroTime uses three folders to manage data and results:
 
 | **Config** | **Default value** | **Description** |
 | :--------- | :---------------- | :-------------- |
-| dendrotime.data-path | data/datasets | Path to the data directory. Existing datasets are automatically added to the index |
-| dendrotime.ground-truth-path | data/ground-truth | Path to the ground-truth directory. DendroTime uses the ground-truth data to evaluate the quality of the clustering results. |
-| dendrotime.results-path | data/results | DendroTime stored the clustering results for each dataset in the results directory. |
+| `dendrotime.data-path` | data/datasets | Path to the data directory. Existing datasets are automatically added to the index |
+| `dendrotime.ground-truth-path` | data/ground-truth | Path to the ground-truth directory. DendroTime uses the ground-truth data to evaluate the quality of the clustering results. |
+| `dendrotime.results-path` | data/results | DendroTime stores the clustering results for each dataset in this directory. |
 
 ### Quality and convergence indicators
 
 DendroTime provides three different convergence indicators that can all be turned off by setting the respective configuration option to `null`:
 
-- **Hierarchy Similarity**
+- **Hierarchy Similarity.**
   The hierarchy similarity indicator computes the similarity between the current and the previous hierarchy for every clustering step.
   It can be computed without any ground-truth data.
 
@@ -48,7 +48,7 @@ DendroTime provides three different convergence indicators that can all be turne
 
   _Default_: labelChangesAt (_#CumulativeClusterChanges@k_)
 
-- **Hierarchy Quality**
+- **Hierarchy Quality.**
   The hierarchy quality indicator computes the similarity between the current hierarchy and the final, exact hierarchy.
   This requires a ground-truth hierarchy (the final hierarchy) for each dataset.
 
@@ -56,14 +56,13 @@ DendroTime provides three different convergence indicators that can all be turne
 
   _Default_: weightedHierarchySimilarity (_WHS_)
 
-- **Cluster Quality**
+- **Cluster Quality.**
   The cluster quality indicator computes the Adjusted Rand Score (ARI) or the Adjusted Mutual Information (AMI) for the current hierarchy.
   It requires ground-truth class labels for each time series in the dataset and uses the observed number of clusters in the ground-truth classes as the target number of clusters (k).
 
   _Options_: ari, ami (not yet fully implemented!)
 
   _Default_: ari
-
 
 ## Default configuration
 

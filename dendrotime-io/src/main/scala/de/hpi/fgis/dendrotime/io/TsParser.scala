@@ -120,7 +120,9 @@ class TsParser(settings: TsParser.TsParserSettings) {
         if dataIdx > 0 && line.isEmpty then
           lineCounter -= 1
       }
-      lineCounter - dataIdx
+      settings.tsLimit
+        .map(limit => scala.math.min(lineCounter - dataIdx, limit))
+        .getOrElse(lineCounter - dataIdx)
     }
   }
 
@@ -165,7 +167,7 @@ class TsParser(settings: TsParser.TsParserSettings) {
             processor.processUnivariate(ts.toArray, "")
             nTimeseries += 1
             ts.clear()
-            
+
       if settings.tsLimit.exists(nTimeseries >= _) then
         return nTimeseries
       ch = input.read().toChar

@@ -80,13 +80,14 @@ object HierarchyState {
 
     override def setGtHierarchy(hierarchy: Option[Hierarchy]): Unit = {
       hierarchyQualityState = hierarchy.zip(hierarchyQualityConfig).map{ (h, c) =>
-        require(n == h.n, s"N does not match ($n != ${h.n})!")
+        require(n == h.n, s"GT hierarchy has a different number of time series ($n != ${h.n})!")
         HierarchyQualityState(c, h)
       }
     }
 
     override def setGtClasses(classes: Option[Array[String]]): Unit = {
       gtClasses = classes.map { c =>
+        require(n == c.length, s"GT classes have a different number of time series ($n != ${c.length})!")
         val mapping = c.iterator.zipWithIndex.toMap
         c.map(mapping.apply)
       }

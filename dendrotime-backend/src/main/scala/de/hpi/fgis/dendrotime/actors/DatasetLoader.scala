@@ -36,13 +36,9 @@ private class DatasetLoader private (
                            ) {
 
   import DatasetLoader.*
-  
+
   private var idGen = 0
   private val settings = Settings(ctx.system)
-  private val parser = TsParser(TsParser.TsParserSettings(
-    parseMetadata = false,
-    tsLimit = settings.maxTimeseries
-  ))
 
   private def start(): Behavior[Command] = Behaviors.receiveMessagePartial {
     case LoadDataset(d, replyTo) =>
@@ -61,15 +57,26 @@ private class DatasetLoader private (
   }
 
   private def loadDataset(d: Dataset, replyTo: ActorRef[Response]): Try[Unit] = Try {
-    val testFile = new File(d.testPath)
-    val nTestTimeseries = parser.countTimeseries(testFile)
+    val trainParser = TsParser(TsParser.TsParserSettings(
+      parseMetadata = false,
+      tsLimit = settings.maxTimeseries
+    ))
     val nTrainTimeseries = d.trainPath match {
       case Some(path) =>
-        parser.countTimeseries(new File(path))
+        trainParser.countTimeseries(new File(path))
       case None =>
         0
     }
-    replyTo ! DatasetNTimeseries(nTestTimeseries + nTrainTimeseries)
+
+    val testFile = new File(d.testPath)
+    val testParser = TsParser(TsParser.TsParserSettings(
+      parseMetadata = false,
+      tsLimit = settings.maxTimeseries.map(_ - nTrainTimeseries)
+    ))
+    val nTestTimeseries = testParser.countTimeseries(testFile)
+
+    val n = nTestTimeseries + nTrainTimeseries
+    replyTo ! DatasetNTimeseries(n)
 
     var idx = 0
     val processor = new TsParser.TsProcessor {
@@ -84,8 +91,8 @@ private class DatasetLoader private (
       }
     }
     d.trainPath.foreach { path =>
-      parser.parse(new File(path), processor)
+      trainParser.parse(new File(path), processor)
     }
-    parser.parse(testFile, processor)
+    testParser.parse(testFile, processor)
   }
 }

@@ -69,11 +69,14 @@ SMALL_TEST_DATASETS = [
 
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description="Ensure that dataset are available.")
+    parser = argparse.ArgumentParser(
+        description="Ensure that the datasets are downloaded/available and select specific dataset collections."
+    )
     parser.add_argument(
         "--datafolder",
         type=str,
-        help="Overwrite the folder, where the datasets are stored",
+        default=DATA_FOLDER,
+        help="The folder, where the datasets are stored",
     )
     parser.add_argument(
         "-f",
@@ -106,7 +109,8 @@ def parse_args(args):
         "-s",
         "--sorted",
         action="store_true",
-        help="Sort the datasets by estimated processing time ascending",
+        help="Sort the datasets by estimated processing time ascending. "
+        "Requires the datasets.csv file.",
     )
 
     return parser.parse_args(args)
@@ -194,7 +198,7 @@ if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
     if args.edeniss:
         main(
-            args.datafolder if args.datafolder else DATA_FOLDER,
+            args.datafolder,
             datasets=[],
             skip_edeniss=False,
         )
@@ -203,7 +207,7 @@ if __name__ == "__main__":
             args.all, args.large, args.test, args.datasets, args.sorted
         )
         main(
-            args.datafolder if args.datafolder else DATA_FOLDER,
+            args.datafolder,
             datasets,
             skip_edeniss=args.test or args.datasets is not None,
         )

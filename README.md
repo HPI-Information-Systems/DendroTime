@@ -115,6 +115,9 @@ We compare DendroTime with two baseline algorithms:
   python run-jet.py --datafolder ../../data/datasets --dataset <dataset-name>
   ```
 
+We perform the experiments on 123 univariate datasets without missing values from [the UCR time series classification archive](https://www.timeseriesclassification.com/dataset.php) and 12 univariate anomaly datasets extracted from greenhouse telemetry of the EDENISS project.
+The UCR datasets are hosted publicly and can be downloaded with the [`download_datasets.py`-script](./experiments/download_datasets.py).
+
 ![legend](./docs/figures/runtime-quality-legend.png)
 ![dtw-average convergence](./docs/figures/runtime-quality-dtw-average.png)
 

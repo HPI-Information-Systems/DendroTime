@@ -69,8 +69,14 @@ private[clusterer] class HierarchyCalculator(ctx: ActorContext[HierarchyCalculat
 
     case GroundTruthLoaded(gtHierarchy, gtClassLabels) =>
       ctx.log.debug("Ground truth updated")
-      state.setGtHierarchy(gtHierarchy)
-      state.setGtClasses(gtClassLabels)
+      try
+        state.setGtHierarchy(gtHierarchy)
+      catch case e: Exception =>
+        ctx.log.error("Failed to set ground truth hierarchy:", e)
+      try
+        state.setGtClasses(gtClassLabels)
+      catch case e: Exception =>
+        ctx.log.error("Failed to set ground truth classes:", e)
       Behaviors.same
 
     case ReportRuntime =>
