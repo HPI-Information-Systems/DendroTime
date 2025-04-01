@@ -48,9 +48,12 @@ The following linkage functions are supported and compatible:
 
 Other linkage functions, such as Ward or centroid linkage, are not compatible with non-metric time series dissimilarity measures, but can be enabled in code:
 [`de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams#areCompatible`](dendrotime-backend/src/main/scala/de/hpi/fgis/dendrotime/model/ParametersModel.scala#L19).
-The client is web-based and visualizes the dendrogram as well as the computational and qualitative progress to allow the user to monitor the clustering results over time, and stop the process early.
+The client is web-based and visualizes the dendrogram as well as the computational and qualitative progress to allow the user to monitor the clustering results over time, and potentially stop the process early:
 
 https://github.com/user-attachments/assets/8ab3b6d5-b716-43a5-a2e0-63bdd5ce9e77
+
+> DendroTime’s frontend allows you to select a dissimilarity measure, a linkage method, and a progressive strategy to cluster a specific dataset.
+> For each job, it visualizes the completed processing steps for each phase in % (top), the convergence indicator (middle), and changes to the dendrogram (bottom).
 
 ## Repository structure
 
