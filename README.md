@@ -233,5 +233,5 @@ Please contact us directly for the experiments' result backups.
 
 ## License
 The DendroTime Software and all accompanying scripts are licensed under MIT license. 
-The edeniss20182020_anomalies dataset in `experiments/09-edeniss-case-study/datasets/edeniss20182020_anomalies/edeniss20182020_ics_anomalies_1min.ts` 
-is licensed under CCY-BY-4.0.
+The edeniss20182020_anomalies datasets in `experiments/09-edeniss-case-study/datasets/edeniss20182020_anomalies/` 
+are licensed under CCY-BY-4.0.
