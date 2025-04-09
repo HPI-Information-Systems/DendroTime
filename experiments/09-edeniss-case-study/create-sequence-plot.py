@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2025 German Aerospace Center (DLR.e.V.)
+# SPDX-FileContributor: Ferdinand Rewicki <ferdinand.rewicki@dlr.de>
+#
+# SPDX-License-Identifier: MIT
+
 import argparse
 import math
 import sys

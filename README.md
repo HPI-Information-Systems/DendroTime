@@ -230,3 +230,8 @@ DendroTime's configuration options are described in [_DendroTime configuration_]
 The configuration of DendroTime and the baselines used for the experiments in the paper can be found in the [`experiments`-folder](./experiments/).
 Note that we do not publish the results of the experiments in this Github-Repository due to their size.
 Please contact us directly for the experiments' result backups.
+
+## License
+The DendroTime Software and all accompanying scripts are licensed under MIT license. 
+The edeniss20182020_anomalies dataset in `experiments/09-edeniss-case-study/datasets/edeniss20182020_anomalies/edeniss20182020_ics_anomalies_1min.ts` 
+is licensed under CCY-BY-4.0.
