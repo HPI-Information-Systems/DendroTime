@@ -5,7 +5,7 @@ import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigException, ConfigRenderOptions}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
-import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions, MinkowskyOptions, SBDOptions}
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, LorentzianOptions, MSMOptions, MinkowskyOptions, SBDOptions}
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig
@@ -34,6 +34,7 @@ class Settings private(config: Config) extends Extension {
 
   val storeDistances: Boolean = config.getBoolean(s"$namespace.store-distances")
   val storeResults: Boolean = config.getBoolean(s"$namespace.store-results")
+
   def resolveResultsFolder(dataset: Dataset, params: DendroTimeParams): Path =
     resultsPath.resolve(
       s"${dataset.name}-${params.distanceName}-${params.linkageName}-${params.strategy.replace("-", "_")}"
@@ -74,6 +75,7 @@ class Settings private(config: Config) extends Extension {
 
   object ProgressIndicators {
     private val internalNamespace = s"$namespace.progress-indicators"
+
     private def resolveSubConfig(path: String): Option[Config] = Try[Option[Config]] {
       if !config.getBoolean(s"$internalNamespace.$path") then None
       else throw new RuntimeException("marker for recovery")
@@ -100,8 +102,11 @@ class Settings private(config: Config) extends Extension {
     val toStdout: Boolean = config.getBoolean(s"$internalNamespace.stdout")
 
     def computeHierarchySimilarity: Boolean = hierarchySimilarityConfig.isDefined
+
     def computeHierarchyQuality: Boolean = hierarchyQualityConfig.isDefined
+
     def computeClusterQuality: Boolean = clusterQualityMethod.isDefined
+
     def disabled: Boolean =
       hierarchySimilarityConfig.isEmpty && hierarchyQualityConfig.isEmpty && clusterQualityMethod.isEmpty
   }
@@ -144,10 +149,17 @@ class Settings private(config: Config) extends Extension {
       given minkowskyOpts: MinkowskyOptions = MinkowskyOptions(config.getInt(s"$internalNamespace.p"))
     }
 
+    object Lorentzian {
+      private val internalNamespace = s"$namespace.distances.lorentzian"
+
+      given lorentzianOpts: LorentzianOptions = LorentzianOptions(config.getBoolean(s"$internalNamespace.normalize"))
+    }
+
     val approxLength: Int = config.getInt(s"$namespace.distances.approx-length")
 
     given options: DistanceOptions = DistanceOptions(
-      Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts, Distances.Minkowsky.minkowskyOpts
+      Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts, Distances.Minkowsky.minkowskyOpts,
+      Distances.Lorentzian.lorentzianOpts
     )
   }
 
@@ -167,7 +179,7 @@ class Settings private(config: Config) extends Extension {
   def writeJson(file: File): Unit = {
     val renderOptions = ConfigRenderOptions
       .concise()
-//      .setFormatted(true)
+    //      .setFormatted(true)
     Using.resource(new java.io.PrintWriter(file)) { writer =>
       writer.println(config.root().render(renderOptions))
     }
@@ -198,6 +210,7 @@ class Settings private(config: Config) extends Extension {
        |    SBD=${Distances.SBD.sbdOpts},
        |    DTW=${Distances.DTW.dtwOpts},
        |    Minkowsky=${Distances.Minkowsky.minkowskyOpts},
+       |    Lorentzian=${Distances.Lorentzian.lorentzianOpts},
        |    approxLength=${Distances.approxLength},
        |  )
        |  bloomFilterOptions=$bloomFilterOptions,

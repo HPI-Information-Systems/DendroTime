@@ -43,7 +43,8 @@ object Distance {
     msm = MSM.defaultOptions,
     dtw = DTW.defaultOptions,
     sbd = SBD.defaultOptions,
-    minkowsky = Minkowsky.defaultOptions
+    minkowsky = Minkowsky.defaultOptions,
+    lorentzian = Lorentzian.defaultOptions
   )
 
   def apply(name: String)(using DistanceOptions): Distance = name.toLowerCase match {
@@ -53,6 +54,7 @@ object Distance {
     case "manhatten" => Minkowsky(1)
     case "euclidean" => Minkowsky(2)
     case "minkowsky" => Minkowsky.create
+    case "lorentzian" => Lorentzian.create
     case other => throw new IllegalArgumentException(s"Distance $other is not implemented. Use one of 'MSM' or 'SBD'")
   }
 
@@ -63,6 +65,7 @@ object Distance {
     case Minkowsky(1) => "manhatten"
     case Minkowsky(2) => "euclidean"
     case _: Minkowsky => "minkowsky"
+    case _: Lorentzian => "lorentzian"
     case _ => throw new IllegalArgumentException("Unknown distance type")
   }
 }
