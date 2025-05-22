@@ -4,8 +4,7 @@ import akka.actor.typed.{ActorSystem, Extension, ExtensionId}
 import akka.util.Timeout
 import com.typesafe.config.{Config, ConfigException, ConfigRenderOptions}
 import de.hpi.fgis.bloomfilter.BloomFilterOptions
-import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions
-import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, LorentzianOptions, MSMOptions, MinkowskyOptions, SBDOptions}
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.*
 import de.hpi.fgis.dendrotime.model.DatasetModel.Dataset
 import de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams
 import de.hpi.fgis.dendrotime.structures.HierarchySimilarityConfig
@@ -155,11 +154,22 @@ class Settings private(config: Config) extends Extension {
       given lorentzianOpts: LorentzianOptions = LorentzianOptions(config.getBoolean(s"$internalNamespace.normalize"))
     }
 
+    object KDTW {
+      private val internalNamespace = s"$namespace.distances.kdtw"
+
+      given kdtwOpts: KDTWOptions = KDTWOptions(
+        gamma = config.getDouble(s"$internalNamespace.gamma"),
+        epsilon = config.getDouble(s"$internalNamespace.epsilon"),
+        normalizeInput = config.getBoolean(s"$internalNamespace.normalize-input"),
+        normalizeDistance = config.getBoolean(s"$internalNamespace.normalize-distance")
+      )
+    }
+
     val approxLength: Int = config.getInt(s"$namespace.distances.approx-length")
 
-    given options: DistanceOptions = DistanceOptions(
+    given options: AllDistanceOptions = AllDistanceOptions(
       Distances.MSM.msmOpts, Distances.DTW.dtwOpts, Distances.SBD.sbdOpts, Distances.Minkowsky.minkowskyOpts,
-      Distances.Lorentzian.lorentzianOpts
+      Distances.Lorentzian.lorentzianOpts, Distances.KDTW.kdtwOpts
     )
   }
 
@@ -204,6 +214,7 @@ class Settings private(config: Config) extends Extension {
        |    hierarchyQualityConfig=${ProgressIndicators.hierarchyQualityConfig},
        |    clusterQualityMethod=${ProgressIndicators.clusterQualityMethod},
        |    loadingDelay=${ProgressIndicators.loadingDelay}
+       |    toStdout=${ProgressIndicators.toStdout},
        |  ),
        |  Distances(
        |    MSM=${Distances.MSM.msmOpts},
@@ -211,6 +222,7 @@ class Settings private(config: Config) extends Extension {
        |    DTW=${Distances.DTW.dtwOpts},
        |    Minkowsky=${Distances.Minkowsky.minkowskyOpts},
        |    Lorentzian=${Distances.Lorentzian.lorentzianOpts},
+       |    KDTW=${Distances.KDTW.kdtwOpts},
        |    approxLength=${Distances.approxLength},
        |  )
        |  bloomFilterOptions=$bloomFilterOptions,

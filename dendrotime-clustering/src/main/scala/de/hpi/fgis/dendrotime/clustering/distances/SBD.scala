@@ -4,7 +4,7 @@ import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.SBDOptions
 import fftw3.{FFTWProvider, FFTWReal}
 import org.apache.commons.math3.util.FastMath
 
-object SBD {
+object SBD extends DistanceFactory[SBD, SBDOptions] {
   @inline
   private final def standardize(x: Array[Double]): Array[Double] = {
     val xMean = x.sum / x.length
@@ -16,7 +16,7 @@ object SBD {
 
   given defaultOptions: SBDOptions = SBDOptions(standardize = DEFAULT_STANDARDIZE)
 
-  def create(using opt: SBDOptions): SBD = SBD(opt.standardize, opt.localFftwCacheSize)
+  override def create(using opt: SBDOptions): SBD = SBD(opt.standardize, opt.localFftwCacheSize)
 }
 
 /** Compute the shape-based distance (SBD) between two time series.

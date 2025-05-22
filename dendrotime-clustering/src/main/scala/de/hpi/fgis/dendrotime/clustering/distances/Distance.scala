@@ -1,6 +1,9 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.AllDistanceOptions
+
 trait Distance {
+
   def apply(x: Array[Double], y: Array[Double]): Double
 
   /** Compute distances between all pairs of time series in `x`.
@@ -39,15 +42,16 @@ trait Distance {
 }
 
 object Distance {
-  given defaultOptions: DistanceOptions = DistanceOptions(
+  given defaultOptions: AllDistanceOptions = AllDistanceOptions(
     msm = MSM.defaultOptions,
     dtw = DTW.defaultOptions,
     sbd = SBD.defaultOptions,
     minkowsky = Minkowsky.defaultOptions,
-    lorentzian = Lorentzian.defaultOptions
+    lorentzian = Lorentzian.defaultOptions,
+    kdtw = KDTW.defaultOptions
   )
 
-  def apply(name: String)(using DistanceOptions): Distance = name.toLowerCase match {
+  def apply(name: String)(using AllDistanceOptions): Distance = name.toLowerCase match {
     case "msm" => MSM.create
     case "sbd" => SBD.create
     case "dtw" => DTW.create
@@ -55,6 +59,7 @@ object Distance {
     case "euclidean" => Minkowsky(2)
     case "minkowsky" => Minkowsky.create
     case "lorentzian" => Lorentzian.create
+    case "kdtw" => KDTW.create
     case other => throw new IllegalArgumentException(s"Distance $other is not implemented. Use one of 'MSM' or 'SBD'")
   }
 
@@ -66,6 +71,7 @@ object Distance {
     case Minkowsky(2) => "euclidean"
     case _: Minkowsky => "minkowsky"
     case _: Lorentzian => "lorentzian"
+    case _: KDTW => "kdtw"
     case _ => throw new IllegalArgumentException("Unknown distance type")
   }
 }

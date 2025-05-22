@@ -4,9 +4,7 @@ import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.LorentzianOpt
 import org.apache.commons.math3.util.FastMath
 
 
-object Lorentzian {
-  private final val eps = Double.MinPositiveValue
-
+object Lorentzian extends DistanceFactory[Lorentzian, LorentzianOptions] {
   /** Normalize the time series to zero mean, unit variance, and unit length. */
   @inline
   private final def normalize(x: Array[Double]): Array[Double] = {
@@ -21,7 +19,7 @@ object Lorentzian {
 
   given defaultOptions: LorentzianOptions = LorentzianOptions(normalize = DEFAULT_NORMALIZE)
 
-  def create(using opt: LorentzianOptions): Lorentzian = Lorentzian(opt.normalize)
+  override def create(using opt: LorentzianOptions): Lorentzian = Lorentzian(opt.normalize)
 
   def apply(normalize: Boolean = DEFAULT_NORMALIZE): Lorentzian = new Lorentzian(normalize)
 

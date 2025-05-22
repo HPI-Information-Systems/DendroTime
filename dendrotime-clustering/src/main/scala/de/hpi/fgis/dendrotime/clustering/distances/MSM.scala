@@ -3,7 +3,7 @@ package de.hpi.fgis.dendrotime.clustering.distances
 import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.MSMOptions
 import org.apache.commons.math3.util.FastMath
 
-object MSM {
+object MSM extends DistanceFactory[MSM, MSMOptions] {
   val DEFAULT_COST: Double = 0.5
   // FIXME: val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = Double.NaN
@@ -11,7 +11,7 @@ object MSM {
 
   given defaultOptions: MSMOptions = MSMOptions(DEFAULT_COST, DEFAULT_WINDOW, DEFAULT_ITAKURA_MAX_SLOPE)
 
-  def create(using opt: MSMOptions): MSM = new MSM(opt.cost, opt.window, opt.itakuraMaxSlope)
+  override def create(using opt: MSMOptions): MSM = new MSM(opt.cost, opt.window, opt.itakuraMaxSlope)
 }
 
 /** Compute the MSM distance between two time series.

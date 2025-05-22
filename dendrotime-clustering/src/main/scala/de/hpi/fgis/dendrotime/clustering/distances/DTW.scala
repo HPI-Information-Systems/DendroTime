@@ -1,15 +1,15 @@
 package de.hpi.fgis.dendrotime.clustering.distances
 
-import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.{DTWOptions, MSMOptions}
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.DTWOptions
 
-object DTW {
+object DTW extends DistanceFactory[DTW, DTWOptions] {
   // FIXME:  val DEFAULT_WINDOW: Double = 0.05
   val DEFAULT_WINDOW: Double = 0.1
   val DEFAULT_ITAKURA_MAX_SLOPE: Double = Double.NaN
 
   given defaultOptions: DTWOptions = DTWOptions(DEFAULT_WINDOW, DEFAULT_ITAKURA_MAX_SLOPE)
 
-  def create(using opt: DTWOptions): DTW = new DTW(opt.window, opt.itakuraMaxSlope)
+  override def create(using opt: DTWOptions): DTW = new DTW(opt.window, opt.itakuraMaxSlope)
 }
 
 /** Compute the DTW distance between two time series.
@@ -27,7 +27,7 @@ object DTW {
  * A warping path
  *
  * .. math::
- *     P = <(e_1, f_1), (e_2, f_2), \ldots, (e_s, f_s)>
+ * P = <(e_1, f_1), (e_2, f_2), \ldots, (e_s, f_s)>
  *
  * is a set of pairs of indices that  define a traversal of matrix :math:`M`. A
  * valid warping path must start at location :math:`(1,1)` and end at point :math:`(
@@ -38,13 +38,13 @@ object DTW {
  * total distance. The distance for any path :math:`P` of length :math:`s` is
  *
  * .. math::
- *     D_P(\mathbf{x},\mathbf{y}, M) =\sum_{i=1}^s M_{e_i,f_i}
+ * D_P(\mathbf{x},\mathbf{y}, M) =\sum_{i=1}^s M_{e_i,f_i}
  *
  * If :math:`\mathcal{P}` is the space of all possible paths, the DTW path :math:`P^*`
  * is the path that has the minimum distance, hence the DTW distance between series is
  *
  * .. math::
- *     d_{dtw}(\mathbf{x}, \mathbf{x}) =D_{P*}(\mathbf{x},\mathbf{x}, M).
+ * d_{dtw}(\mathbf{x}, \mathbf{x}) =D_{P*}(\mathbf{x},\mathbf{x}, M).
  *
  * The optimal warping path :math:`P^*` can be found exactly through a dynamic
  * programming formulation. This can be a time consuming operation, and it is common to
@@ -146,13 +146,13 @@ class DTW(
     var i = 1
     while i < n do
       if boundingMatrix(i)(0) then
-        costMatrix(i)(0) = costMatrix(i-1)(0) + univariateSquared(x(i), y(0))
+        costMatrix(i)(0) = costMatrix(i - 1)(0) + univariateSquared(x(i), y(0))
       i += 1
 
     var j = 1
     while j < m do
       if boundingMatrix(0)(j) then
-        costMatrix(0)(j) = costMatrix(0)(j-1) + univariateSquared(x(0), y(j))
+        costMatrix(0)(j) = costMatrix(0)(j - 1) + univariateSquared(x(0), y(j))
       j += 1
 
     i = 1
@@ -161,10 +161,10 @@ class DTW(
       while j < m do
         if boundingMatrix(i)(j) then
           val prevMin = Math.min(
-            costMatrix(i-1)(j), Math.min(
-            costMatrix(i)(j-1),
-            costMatrix(i-1)(j-1)
-          ))
+            costMatrix(i - 1)(j), Math.min(
+              costMatrix(i)(j - 1),
+              costMatrix(i - 1)(j - 1)
+            ))
           val current = univariateSquared(x(i), y(j))
 
           costMatrix(i)(j) = prevMin + current

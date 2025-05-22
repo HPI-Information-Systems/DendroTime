@@ -1,7 +1,8 @@
 package de.hpi.fgis.dendrotime.model
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import de.hpi.fgis.dendrotime.clustering.distances.{Distance, DistanceOptions}
+import de.hpi.fgis.dendrotime.clustering.distances.Distance
+import de.hpi.fgis.dendrotime.clustering.distances.DistanceOptions.AllDistanceOptions
 import de.hpi.fgis.dendrotime.clustering.hierarchy.Linkage
 import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
@@ -20,7 +21,7 @@ object ParametersModel {
     if !areCompatible(distanceName, linkageName) then
       throw new IllegalArgumentException(s"$linkageName linkage is NOT compatible with $distanceName")
 
-    def distance(using DistanceOptions): Distance = Distance(distanceName)
+    def distance(using AllDistanceOptions): Distance = Distance(distanceName)
 
     def linkage: Linkage = Linkage(linkageName)
   }

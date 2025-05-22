@@ -5,13 +5,13 @@ import fftw3.FFTWReal
 
 import scala.annotation.switch
 
-object Minkowsky {
+object Minkowsky extends DistanceFactory[Minkowsky, MinkowskyOptions] {
 
   val DEFAULT_P: Int = 2
 
   given defaultOptions: MinkowskyOptions = MinkowskyOptions(p = DEFAULT_P)
 
-  def create(using opt: MinkowskyOptions): Minkowsky = Minkowsky(opt.p)
+  override def create(using opt: MinkowskyOptions): Minkowsky = Minkowsky(opt.p)
 
   def apply(p: Int = DEFAULT_P): Minkowsky = new Minkowsky(p)
 
