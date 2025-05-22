@@ -26,15 +26,13 @@ class LinkageSpec extends AnyWordSpec with should.Matchers {
       val linkage = Linkage("weighted")
       linkage shouldEqual Linkage.WeightedLinkage
     }
-    "NOT create a CentroidLinkage instance" in {
-      assertThrows[IllegalArgumentException] {
-        Linkage("centroid")
-      }
+    "create a CentroidLinkage instance" in {
+      val linkage = Linkage("centroid")
+      linkage shouldEqual Linkage.CentroidLinkage
     }
-    "NOT create a MedianLinkage instance" in {
-      assertThrows[IllegalArgumentException] {
-        Linkage("median")
-      }
+    "create a MedianLinkage instance" in {
+      val linkage = Linkage("median")
+      linkage shouldEqual Linkage.MedianLinkage
     }
     "produce the correct error message for unknown linkages" in {
       val name = "unknown"

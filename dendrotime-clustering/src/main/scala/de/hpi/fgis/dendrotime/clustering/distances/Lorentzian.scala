@@ -5,15 +5,19 @@ import org.apache.commons.math3.util.FastMath
 
 
 object Lorentzian {
+  private final val eps = Double.MinPositiveValue
 
-  /** Normalize the time series to unit length. */
+  /** Normalize the time series to zero mean, unit variance, and unit length. */
   @inline
   private final def normalize(x: Array[Double]): Array[Double] = {
-    val norm = FastMath.sqrt(x.map(xi => xi * xi).sum)
-    if (norm == 0) x else x.map(_ / norm)
+    val mean = x.sum / x.length
+    val std = FastMath.sqrt(x.map(xi => (xi - mean) * (xi - mean)).sum / x.length)
+    val xStandard = x.map(xi => (xi - mean) / (std + eps))
+    val norm = FastMath.sqrt(xStandard.map(xi => xi * xi).sum)
+    if (norm == 0) xStandard else xStandard.map(_ / norm)
   }
 
-  val DEFAULT_NORMALIZE: Boolean = true
+  val DEFAULT_NORMALIZE: Boolean = false
 
   given defaultOptions: LorentzianOptions = LorentzianOptions(normalize = DEFAULT_NORMALIZE)
 
