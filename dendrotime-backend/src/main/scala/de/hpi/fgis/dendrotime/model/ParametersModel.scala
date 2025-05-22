@@ -7,12 +7,21 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat}
 
 object ParametersModel {
 
+  object DendroTimeParams {
+    def apply(distanceName: String,
+              linkageName: String,
+              strategy: String = "approx-distance-ascending"): DendroTimeParams =
+      new DendroTimeParams(distanceName.toLowerCase, linkageName.toLowerCase, strategy.toLowerCase)
+  }
+
   case class DendroTimeParams(distanceName: String,
                               linkageName: String,
                               strategy: String = "approx-distance-ascending") {
     if !areCompatible(distanceName, linkageName) then
-      throw new IllegalArgumentException(s"$linkageName linkage is compatible with $distanceName")
+      throw new IllegalArgumentException(s"$linkageName linkage is NOT compatible with $distanceName")
+
     def distance(using DistanceOptions): Distance = Distance(distanceName)
+
     def linkage: Linkage = Linkage(linkageName)
   }
 

@@ -65,7 +65,8 @@ private class Communicator private(ctx: ActorContext[Communicator.Command],
         running(status, clusteringState)
 
       case NewHierarchy(state) =>
-        ctx.log.debug("Received new hierarchy with last index {}!", state.qualityTrace.indices.last)
+        if state.qualityTrace.nonEmpty then
+          ctx.log.debug("Received new hierarchy with last index {}!", state.qualityTrace.indices.last)
         if settings.ProgressIndicators.toStdout then
           logQualityToStdout(state.qualityTrace)
         running(status, state)
