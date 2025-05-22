@@ -145,7 +145,8 @@ function ClusteringPage() {
           <SelectItem key="dtw" value="dtw">DTW</SelectItem>
           <SelectItem key="euclidean" value="euclidean">Euclidean</SelectItem>
           <SelectItem key="manhatten" value="manhatten">Manhatten</SelectItem>
-          <SelectItem key="Lorentzian" value="Lorentzian">Lorentzian</SelectItem>
+          <SelectItem key="lorentzian" value="lorentzian">Lorentzian</SelectItem>
+          <SelectItem key="kdtw" value="kdtw">KDTW</SelectItem>
         </Select>
         <label htmlFor="linkage-picker" className="ml-2 mr-2">Linkage:</label>
         <Select id="linkage-picker" value={linkage} onValueChange={setLinkage}>
@@ -194,7 +195,7 @@ function ClusteringPage() {
       <Divider/>
       <WidthProvider>
         <div className={"grid grid-cols-1 my-auto"}>
-          {state.hierarchySimilarities.length === 0 ? (<></>) : (<>
+          {state.steps.length === 0 ? (<></>) : (<>
               <h2 className="text-tremor-title text-tremor-emphasis dark:text-dark-termor-emphasis mb-1 mx-auto">
                 Convergence
               </h2>
