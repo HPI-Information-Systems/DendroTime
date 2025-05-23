@@ -19,7 +19,11 @@ object ParametersModel {
                               linkageName: String,
                               strategy: String = "approx-distance-ascending") {
     if !areCompatible(distanceName, linkageName) then
-      throw new IllegalArgumentException(s"$linkageName linkage is NOT compatible with $distanceName")
+      println(
+        s"WARNING: $linkageName linkage is NOT compatible with $distanceName, " +
+        "proceed at your own risk!"
+      )
+      // throw new IllegalArgumentException(s"$linkageName linkage is NOT compatible with $distanceName")
 
     def distance(using AllDistanceOptions): Distance = Distance(distanceName)
 
