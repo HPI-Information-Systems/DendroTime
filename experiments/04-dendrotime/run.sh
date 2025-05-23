@@ -5,8 +5,8 @@ set -eo pipefail  # trace exit code of failed piped commands
 # this script exposes a single positional argument
 strategy="${1-approx-distance-ascending}"
 
-distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "weighted" )
+distances=( "lorentzian" )
+linkages=( "single" "complete" "average" "weighted" "ward" )
 failure_log_file="results/failures.csv"
 mkdir -p "results"
 if [ ! -f "${failure_log_file}" ]; then
@@ -43,5 +43,5 @@ python aggregate-runtimes.py
 tar -czf 04-dendrotime-results.tar.gz results/*
 echo "Results are stored in 04-dendrotime-results.tar.gz"
 
-python plot-qualities.py --dataset ACSF1 --use-runtime
-python plot-qualities.py --dataset ACSF1 --use-runtime --strategy fcfs
+#python plot-qualities.py --dataset ACSF1 --use-runtime
+#python plot-qualities.py --dataset ACSF1 --use-runtime --strategy fcfs
