@@ -8,12 +8,18 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name
+from download_datasets import LONG_RUNNING_DATASETS
 
 selected_strategies = (
     "approx_distance_ascending",
     "pre_clustering",
     "fcfs",
 )
+# variable length OR at least 500 TS points on average
+selected_datasets = [
+    "PickupGestureWiimoteZ", "ShakeGestureWiimoteZ", "BirdChicken", "BeetleFly", "edeniss20182020_vpd_anomalies", "edeniss20182020_co2_anomalies", "edeniss20182020_valve_anomalies", "edeniss20182020_level_anomalies", "edeniss20182020_volume_anomalies", "OliveOil", "edeniss20182020_par_anomalies", "edeniss20182020_rh_anomalies", "edeniss20182020_ec_anomalies", "edeniss20182020_ph_anomalies", "GestureMidAirD1", "GestureMidAirD2", "GestureMidAirD3", "Herring", "GesturePebbleZ1", "GesturePebbleZ2", "Car", "Lightning2", "ShapeletSim", "edeniss20182020_pressure_anomalies", "AllGestureWiimoteY", "AllGestureWiimoteZ", "AllGestureWiimoteX", "InsectEPGSmallTrain", "InsectEPGRegularTrain", "edeniss20182020_temp_anomalies", "Rock", "Worms", "WormsTwoClass", "Earthquakes", "ACSF1", "HouseTwenty", "PLAID", "Computers", "edeniss20182020_ics_anomalies", "Haptics", "LargeKitchenAppliances", "SmallKitchenAppliances", "ScreenType", "RefrigerationDevices", "ShapesAll", "PigArtPressure", "PigCVP", "PigAirwayPressure", "EOGHorizontalSignal", "EOGVerticalSignal", "InlineSkate", "SemgHandGenderCh2", "SemgHandMovementCh2", "SemgHandSubjectCh2", "EthanolLevel", "HandOutlines", "CinCECGTorso", "Phoneme", "Mallat", "MixedShapesRegularTrain", "MixedShapesSmallTrain", "FordA", "FordB", "NonInvasiveFetalECGThorax1", "NonInvasiveFetalECGThorax2", "UWaveGestureLibraryAll", "StarLightCurves"
+]
+distance_order = ["euclidean", "lorentzian", "sbd", "dtw", "msm", "kdtw"]
 
 
 def parse_args():
@@ -138,6 +144,7 @@ def main(
 
     df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
+    df = df[df["dataset"].isin(selected_datasets)]
 
     # only consider datasets with parallel runtime >= 5 minutes
     # print(df[(df["strategy"] == "parallel") & (df["distance"] == "msm")])
@@ -156,9 +163,10 @@ def main(
         df.loc[group.index, "runtime"] = group["runtime"] / parallel_runtime
 
     distances = set(df["distance"].unique().tolist())
+    distances = distances - {"lorentzian"}
     if not include_euclidean:
-        distances = set(distances) - {"euclidean"}
-    distances = sorted(distances)
+        distances = distances - {"euclidean"}
+    distances = sorted(distances, key=lambda x: distance_order.index(x))
     linkages = set(df["linkage"].unique())
     if not include_ward:
         linkages = linkages - {"ward"}
@@ -171,19 +179,21 @@ def main(
     fig, axs = plt.subplots(
         len(distances),
         len(linkages),
-        figsize=(8, 3),
+        figsize=(8, len(distances)),
         sharex="none",
         sharey="none",
-        constrained_layout=True,
+        constrained_layout=False,
+        gridspec_kw={"hspace": 0.5, "wspace": 0.2},
     )
     # configure labels and headers
     for i, distance in enumerate(distances):
         rowHeaderAx = axs[i, 0].twinx()
         rowHeaderAx.yaxis.set_label_position("left")
-        rowHeaderAx.spines["left"].set_visible(False)
         rowHeaderAx.set_yticks([])
         rowHeaderAx.set_yticklabels([])
         rowHeaderAx.set_ylabel(distance, size="large")
+        for spine in rowHeaderAx.spines.values():
+            spine.set_visible(False)
         axs[i, 0].yaxis.set_label_position("right")
         axs[i, 0].yaxis.set_ticks_position("right")
         axs[i, 0].yaxis.tick_right()
@@ -216,6 +226,7 @@ def main(
 
         for j, linkage in enumerate(linkages):
             ax = axs[i, j]
+            ax_jet = ax
 
             # compute mean and std runtime for each strategy over the datasets
             df_filtered = df[
@@ -236,12 +247,74 @@ def main(
                 df_jet.loc["mean", "runtime"].max(),
             )
 
+            # cut axis, where JET runtime is large into two
+            jet_whs = df_jet.loc["mean", "whs"]
+            jet_runtime = df_jet.loc["mean", "runtime"]
+            break_point = 1.9
+            if jet_runtime > break_point:
+                # we get the gridspec of the axis, remove the axis, add a subgridspec to
+                # it, and then add two new axes to it
+                kwargs = dict(wspace=0.1, hspace=0.0)
+                gs = ax.get_subplotspec().subgridspec(1, 2, width_ratios=[3, 1], **kwargs)
+                ax_default = fig.add_subplot(gs[0, 0])
+                ax_jet = fig.add_subplot(gs[0, 1])
+                ax.remove()
+
+                # reconfigure the default axis
+                ax_default.set_xlim(-0.1, break_point)
+                ax_default.spines["right"].set_visible(False)
+                ax_default.set_ylim(-0.05, 1.1)
+                ax_default.set_yticks([])
+                ax_default.set_yticks([], minor=True)
+                ax_default.set_yticklabels([])
+                ax_default.yaxis.set_ticks_position("none")
+                ax_default.tick_params(labelright=False, labelleft=False)
+                if j == 0:
+                    ax_default.set_ylabel(" ", size="large")
+
+                ax_default.axvline(x=1, color="lightgray", ls="--", lw=1)
+
+                if i == 0:
+                    ax_default.set_title(linkage, size="large")
+                if i == len(distances) - 1:
+                    ax_default.set_xlabel("relative runtime")
+
+                # configure the JET axis
+                ax_jet.set_ylim(-0.05, 1.1)
+                ax_jet.set_yticks([0.0, 0.5, 1.0])
+                ax_jet.yaxis.set_label_position("right")
+
+                if j == len(linkages) - 1:
+                    ax_jet.set_ylabel("WHS")
+                    ax_jet.set_yticklabels([0.0, 0.5, 1.0])
+                    ax_jet.tick_params(labelright=True, labelleft=False)
+                else:
+                    ax_jet.set_yticklabels([])
+                    ax_jet.tick_params(labelright=False, labelleft=False)
+
+                # adjust y-axis limits to show JET point (zooms)
+                ax_jet.set_xlim(break_point, 1.1*max_runtime)
+                ax_jet.set_xticks([jet_runtime])
+                ax_jet.set_xticklabels([f"{jet_runtime:.1f}"])
+                ax_jet.spines["left"].set_visible(False)
+
+                # add slanted lines to indicate the break
+                d = .5  # proportion of vertical to horizontal extent of the slanted line
+                kwargs = dict(marker=[(-1, -d), (1, d)], markersize=6,
+                              linestyle="none", color='k', mec='k', mew=1, clip_on=False)
+                ax_jet.plot([0, 0], [0, 1], transform=ax_jet.transAxes, **kwargs)
+                ax_default.plot([1, 1], [0, 1], transform=ax_default.transAxes, **kwargs)
+                ax = ax_default  # use the new axis for plotting
+
             # add plots for all strategies
             for strategy in selected_strategies[::-1]:
                 if strategy not in df_filtered.index.get_level_values("strategy"):
                     print(f"Skipping {strategy} for {distance}-{linkage}")
                     continue
                 color = colors[strategy]
+                runtimes = df_filtered.loc[strategy, ("runtime", "mean")].values
+                stddevs = df_filtered.loc[strategy, ("runtime", "std")].values
+                whss = df_filtered.loc[strategy, "whs"].values
                 if extend_strategy_runtimes:
                     runtimes = np.r_[
                         0.0, df_filtered.loc[strategy, ("runtime", "mean")], max_runtime
@@ -250,21 +323,21 @@ def main(
                         0.0, df_filtered.loc[strategy, ("runtime", "std")], 0.0
                     ]
                     whss = np.r_[0.0, df_filtered.loc[strategy, "whs"], 1.0]
-                    ax.plot(runtimes, whss, label=strategy_name(strategy), color=color)
                 else:
-                    runtimes = df_filtered.loc[strategy, ("runtime", "mean")].values
-                    stddevs = df_filtered.loc[strategy, ("runtime", "std")].values
-                    whss = df_filtered.loc[strategy, "whs"].values
-                    ax.plot(runtimes, whss, color=color)
-                    marker = markers[strategy]
-                    ax.plot(
-                        runtimes[-1],
-                        whss[-1],
-                        color=color,
-                        label=strategy_name(strategy),
-                        marker=marker,
-                        zorder=2.5,
-                    )
+                    runtimes = np.r_[0.0, runtimes]
+                    stddevs = np.r_[0.0, stddevs]
+                    whss = np.r_[0.0, whss]
+
+                ax.plot(runtimes, whss, color=color)
+                marker = markers[strategy]
+                ax.plot(
+                    runtimes[-1],
+                    whss[-1],
+                    color=color,
+                    label=strategy_name(strategy),
+                    marker=marker,
+                    zorder=2.5,
+                )
                 if not disable_variances:
                     ax.fill_betweenx(
                         whss,
@@ -300,9 +373,9 @@ def main(
             strategy = "JET"
             color = colors[strategy]
             if show_jet_variance:
-                ax.errorbar(
-                    df_jet.loc["mean", "runtime"],
-                    df_jet.loc["mean", "whs"],
+                ax_jet.errorbar(
+                    jet_runtime,
+                    jet_whs,
                     xerr=df_jet.loc["std", "runtime"],
                     yerr=df_jet.loc["std", "whs"],
                     label=strategy_name(strategy),
@@ -313,9 +386,9 @@ def main(
                     capsize=2,
                 )
             else:
-                ax.scatter(
-                    df_jet.loc["mean", "runtime"],
-                    df_jet.loc["mean", "whs"],
+                ax_jet.scatter(
+                    jet_runtime,
+                    jet_whs,
                     label=strategy_name(strategy),
                     color=color,
                     marker=markers[strategy],
@@ -329,10 +402,10 @@ def main(
         labels,
         loc="lower center",
         ncol=len(handles),
-        bbox_to_anchor=(0.5, 1.0),
+        bbox_to_anchor=(0.5, 0.95),
         borderpad=0.25,
         handletextpad=0.4,
-        columnspacing=0.75,
+        columnspacing=1.0,
     )
     fig.savefig(
         "mean-runtime-qualities.pdf", bbox_inches="tight", bbox_extra_artists=[legend]
