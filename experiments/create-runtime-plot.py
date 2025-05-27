@@ -33,6 +33,9 @@ def parse_args():
         "--include-euclidean", action="store_true", help="Include euclidean distance"
     )
     parser.add_argument(
+        "--include-lorentzian", action="store_true", help="Include lorentzian distance"
+    )
+    parser.add_argument(
         "--include-ward", action="store_true", help="Include ward linkage"
     )
     parser.add_argument(
@@ -55,6 +58,7 @@ def parse_args():
 def main(
     show_jet_variance=False,
     include_euclidean=False,
+    include_lorentzian=False,
     include_ward=False,
     disable_variances=False,
     extend_strategy_runtimes=False,
@@ -144,7 +148,8 @@ def main(
 
     df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
-    df = df[df["dataset"].isin(selected_datasets)]
+    # df = df[df["dataset"].isin(selected_datasets)]
+    # df = df[df["dataset"].isin(LONG_RUNNING_DATASETS)]
 
     # only consider datasets with parallel runtime >= 5 minutes
     # print(df[(df["strategy"] == "parallel") & (df["distance"] == "msm")])
@@ -163,7 +168,8 @@ def main(
         df.loc[group.index, "runtime"] = group["runtime"] / parallel_runtime
 
     distances = set(df["distance"].unique().tolist())
-    distances = distances - {"lorentzian"}
+    if not include_lorentzian:
+        distances = distances - {"lorentzian"}
     if not include_euclidean:
         distances = distances - {"euclidean"}
     distances = sorted(distances, key=lambda x: distance_order.index(x))
@@ -214,6 +220,7 @@ def main(
         axs[-1, j].set_xlabel("relative runtime")
 
     # add plots
+    handles, labels = [], []
     for i, distance in enumerate(distances):
         # aggregate WHS and runtime over datasets to get a single point for JET
         # JET only supports ward linkage, so broadcast to all linkages
@@ -242,19 +249,17 @@ def main(
             )
 
             # get maximum runtime for scaling and extending strategy lines to right
-            max_runtime = max(
-                df_filtered[("runtime", "mean")].max(),
-                df_jet.loc["mean", "runtime"].max(),
-            )
-
-            # cut axis, where JET runtime is large into two
             jet_whs = df_jet.loc["mean", "whs"]
             jet_runtime = df_jet.loc["mean", "runtime"]
-            break_point = 1.9
+            max_other_runtime = df_filtered[("runtime", "mean")].max()
+            max_runtime = max(jet_runtime, max_other_runtime)
+
+            # cut axis, where JET runtime is large into two
+            break_point = max(max_other_runtime*1.25, 2.1)
             if jet_runtime > break_point:
                 # we get the gridspec of the axis, remove the axis, add a subgridspec to
                 # it, and then add two new axes to it
-                kwargs = dict(wspace=0.1, hspace=0.0)
+                kwargs = dict(wspace=0.05, hspace=0.0)
                 gs = ax.get_subplotspec().subgridspec(1, 2, width_ratios=[3, 1], **kwargs)
                 ax_default = fig.add_subplot(gs[0, 0])
                 ax_jet = fig.add_subplot(gs[0, 1])
@@ -299,7 +304,7 @@ def main(
                 ax_jet.spines["left"].set_visible(False)
 
                 # add slanted lines to indicate the break
-                d = .5  # proportion of vertical to horizontal extent of the slanted line
+                d = .75  # proportion of vertical to horizontal extent of the slanted line
                 kwargs = dict(marker=[(-1, -d), (1, d)], markersize=6,
                               linestyle="none", color='k', mec='k', mew=1, clip_on=False)
                 ax_jet.plot([0, 0], [0, 1], transform=ax_jet.transAxes, **kwargs)
@@ -394,15 +399,21 @@ def main(
                     marker=markers[strategy],
                     zorder=2.5,
                 )
+            if i == 0 and j == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                if jet_runtime > break_point:
+                    # add JET to the legend
+                    jet_handles, jet_labels = ax_jet.get_legend_handles_labels()
+                    handles.extend(jet_handles)
+                    labels.extend(jet_labels)
 
     # add legend
-    handles, labels = axs[-1, -1].get_legend_handles_labels()
     legend = fig.legend(
         handles,
         labels,
-        loc="lower center",
-        ncol=len(handles),
-        bbox_to_anchor=(0.5, 0.95),
+        loc="center left",
+        ncol=1,
+        bbox_to_anchor=(0.97, 0.5),
         borderpad=0.25,
         handletextpad=0.4,
         columnspacing=1.0,
@@ -421,6 +432,7 @@ if __name__ == "__main__":
     main(
         show_jet_variance=args.show_jet_variance,
         include_euclidean=args.include_euclidean,
+        include_lorentzian=args.include_lorentzian,
         include_ward=args.include_ward,
         disable_variances=args.disable_variances,
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
