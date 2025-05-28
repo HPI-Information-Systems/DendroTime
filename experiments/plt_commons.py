@@ -73,11 +73,23 @@ def phase_name(name):
     return name
 
 
+def distance_name(name):
+    if name == "euclidean":
+        return "ED"
+    if name == "lorentzian":
+        return "LD"
+    if name.lower() in ("dtw", "msm", "sbd", "kdtw"):
+        return name.upper()
+    return name
+
+
 distance_name_mapping = {
-    "euclidean": "Euclidean",
+    "euclidean": "ED",
+    "lorentzian": "LD",
     "dtw": "\\gls{dtw}",
     "msm": "\\gls{msm}",
     "sbd": "\\gls{sbd}",
+    "kdtw": "\\gls{kdtw}",
 }
 measure_name_mapping = {
     "ari": "ARI",

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import colors, markers, strategy_name
+from plt_commons import colors, markers, strategy_name, distance_name
 from download_datasets import LONG_RUNNING_DATASETS
 
 selected_strategies = (
@@ -181,15 +181,16 @@ def main(
     # use right y ticks and labels for this plot
     plt.rcParams["ytick.right"] = plt.rcParams["ytick.labelright"] = True
     plt.rcParams["ytick.left"] = plt.rcParams["ytick.labelleft"] = False
+    plt.rcParams["lines.markersize"] = 4
 
     fig, axs = plt.subplots(
         len(distances),
         len(linkages),
-        figsize=(8, len(distances)),
+        figsize=(8, 3),
         sharex="none",
         sharey="none",
         constrained_layout=False,
-        gridspec_kw={"hspace": 0.5, "wspace": 0.2},
+        gridspec_kw={"hspace": 0.75, "wspace": 0.2},
     )
     # configure labels and headers
     for i, distance in enumerate(distances):
@@ -197,7 +198,7 @@ def main(
         rowHeaderAx.yaxis.set_label_position("left")
         rowHeaderAx.set_yticks([])
         rowHeaderAx.set_yticklabels([])
-        rowHeaderAx.set_ylabel(distance, size="large")
+        rowHeaderAx.set_ylabel(distance_name(distance), size="large")
         for spine in rowHeaderAx.spines.values():
             spine.set_visible(False)
         axs[i, 0].yaxis.set_label_position("right")
@@ -211,6 +212,8 @@ def main(
             axs[i, j].set_yticks([0.0, 0.5, 1.0])
             axs[i, j].set_yticklabels([])
             axs[i, j].yaxis.set_label_position("right")
+            axs[i, j].spines["left"].set_visible(False)
+            axs[i, j].spines["top"].set_visible(False)
 
         axs[i, -1].set_ylabel("WHS")
         axs[i, -1].set_yticklabels([0.0, 0.5, 1.0])
@@ -263,26 +266,34 @@ def main(
                 gs = ax.get_subplotspec().subgridspec(1, 2, width_ratios=[3, 1], **kwargs)
                 ax_default = fig.add_subplot(gs[0, 0])
                 ax_jet = fig.add_subplot(gs[0, 1])
-                ax.remove()
+                # remove old axis (at least the visible parts)
+                # ax.remove()
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+                ax.tick_params(colors="white")
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+                ax.set_ylabel("")
 
                 # reconfigure the default axis
                 ax_default.set_xlim(-0.1, break_point)
-                ax_default.spines["right"].set_visible(False)
+                ax_default.set_xticks([0.0, 1.0, 2.0])
                 ax_default.set_ylim(-0.05, 1.1)
                 ax_default.set_yticks([])
                 ax_default.set_yticks([], minor=True)
                 ax_default.set_yticklabels([])
                 ax_default.yaxis.set_ticks_position("none")
                 ax_default.tick_params(labelright=False, labelleft=False)
-                if j == 0:
-                    ax_default.set_ylabel(" ", size="large")
-
                 ax_default.axvline(x=1, color="lightgray", ls="--", lw=1)
+                ax_default.spines["right"].set_visible(False)
+                ax_default.spines["left"].set_visible(False)
+                ax_default.spines["top"].set_visible(False)
 
-                if i == 0:
-                    ax_default.set_title(linkage, size="large")
-                if i == len(distances) - 1:
-                    ax_default.set_xlabel("relative runtime")
+                # still included from the old axis:
+                # if i == 0:
+                #     ax_default.set_title(linkage, size="large")
+                # if i == len(distances) - 1:
+                #     ax_default.set_xlabel("relative runtime")
 
                 # configure the JET axis
                 ax_jet.set_ylim(-0.05, 1.1)
@@ -302,13 +313,16 @@ def main(
                 ax_jet.set_xticks([jet_runtime])
                 ax_jet.set_xticklabels([f"{jet_runtime:.1f}"])
                 ax_jet.spines["left"].set_visible(False)
+                ax_jet.spines["top"].set_visible(False)
 
                 # add slanted lines to indicate the break
                 d = .75  # proportion of vertical to horizontal extent of the slanted line
                 kwargs = dict(marker=[(-1, -d), (1, d)], markersize=6,
                               linestyle="none", color='k', mec='k', mew=1, clip_on=False)
-                ax_jet.plot([0, 0], [0, 1], transform=ax_jet.transAxes, **kwargs)
-                ax_default.plot([1, 1], [0, 1], transform=ax_default.transAxes, **kwargs)
+                # ax_jet.plot([0, 0], [0, 1], transform=ax_jet.transAxes, **kwargs)
+                # ax_default.plot([1, 1], [0, 1], transform=ax_default.transAxes, **kwargs)
+                ax_jet.plot([0], [0], transform=ax_jet.transAxes, **kwargs)
+                ax_default.plot([1], [0], transform=ax_default.transAxes, **kwargs)
                 ax = ax_default  # use the new axis for plotting
 
             # add plots for all strategies
@@ -421,9 +435,9 @@ def main(
     fig.savefig(
         "mean-runtime-qualities.pdf", bbox_inches="tight", bbox_extra_artists=[legend]
     )
-    # fig.savefig(
-    #     "mean-runtime-qualities.png", bbox_inches="tight", bbox_extra_artists=[legend]
-    # )
+    fig.savefig(
+        "mean-runtime-qualities.png", bbox_inches="tight", bbox_extra_artists=[legend]
+    )
     # plt.show()
 
 
