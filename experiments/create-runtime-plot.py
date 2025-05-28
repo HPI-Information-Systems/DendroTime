@@ -193,12 +193,12 @@ def main(
         gridspec_kw={"hspace": 0.75, "wspace": 0.2},
     )
     # configure labels and headers
-    for i, distance in enumerate(distances):
+    for i, linkage in enumerate(linkages):
         rowHeaderAx = axs[i, 0].twinx()
         rowHeaderAx.yaxis.set_label_position("left")
         rowHeaderAx.set_yticks([])
         rowHeaderAx.set_yticklabels([])
-        rowHeaderAx.set_ylabel(distance_name(distance), size="large")
+        rowHeaderAx.set_ylabel(linkage, size="large", rotation=0, ha="right", va="center")
         for spine in rowHeaderAx.spines.values():
             spine.set_visible(False)
         axs[i, 0].yaxis.set_label_position("right")
@@ -208,6 +208,7 @@ def main(
         for j in range(axs.shape[1]):
             # helper grid line:
             axs[i, j].axvline(x=1, color="lightgray", ls="--", lw=1)
+            axs[i, j].tick_params(labelbottom=False)
             axs[i, j].set_ylim(-0.05, 1.1)
             axs[i, j].set_yticks([0.0, 0.5, 1.0])
             axs[i, j].set_yticklabels([])
@@ -218,13 +219,14 @@ def main(
         axs[i, -1].set_ylabel("WHS")
         axs[i, -1].set_yticklabels([0.0, 0.5, 1.0])
 
-    for j, linkage in enumerate(linkages):
-        axs[0, j].set_title(linkage, size="large")
+    for j, distance in enumerate(distances):
+        axs[0, j].set_title(distance_name(distance), size="large")
+        axs[-1, j].tick_params(labelbottom=True)
         axs[-1, j].set_xlabel("relative runtime")
 
     # add plots
     handles, labels = [], []
-    for i, distance in enumerate(distances):
+    for j, distance in enumerate(distances):
         # aggregate WHS and runtime over datasets to get a single point for JET
         # JET only supports ward linkage, so broadcast to all linkages
         df_jet = df[
@@ -234,7 +236,19 @@ def main(
         ]
         df_jet = df_jet[["whs", "runtime"]].agg(["mean", "median", "std"], axis=0)
 
-        for j, linkage in enumerate(linkages):
+        # get maximum runtime for scaling and extending strategy lines to right
+        jet_whs = df_jet.loc["mean", "whs"]
+        jet_runtime = df_jet.loc["mean", "runtime"]
+        # same across all linkages, so we just need axis ticks once
+        max_other_runtime = (
+            df[(df["distance"] == distance) & (df["strategy"] != "JET")]
+                .groupby(["strategy", "linkage", "whs"])["runtime"]
+                .mean()
+                .max()
+        )
+        max_runtime = max(jet_runtime, max_other_runtime)
+
+        for i, linkage in enumerate(linkages):
             ax = axs[i, j]
             ax_jet = ax
 
@@ -251,15 +265,10 @@ def main(
                 .set_index("strategy")
             )
 
-            # get maximum runtime for scaling and extending strategy lines to right
-            jet_whs = df_jet.loc["mean", "whs"]
-            jet_runtime = df_jet.loc["mean", "runtime"]
-            max_other_runtime = df_filtered[("runtime", "mean")].max()
-            max_runtime = max(jet_runtime, max_other_runtime)
-
             # cut axis, where JET runtime is large into two
-            break_point = max(max_other_runtime*1.25, 2.1)
-            if jet_runtime > break_point:
+            break_point = max(max_other_runtime, 2.1)
+            break_axis = jet_runtime > break_point
+            if break_axis:
                 # we get the gridspec of the axis, remove the axis, add a subgridspec to
                 # it, and then add two new axes to it
                 kwargs = dict(wspace=0.05, hspace=0.0)
@@ -278,6 +287,7 @@ def main(
                 # reconfigure the default axis
                 ax_default.set_xlim(-0.1, break_point)
                 ax_default.set_xticks([0.0, 1.0, 2.0])
+                ax_default.tick_params(labelbottom=False)
                 ax_default.set_ylim(-0.05, 1.1)
                 ax_default.set_yticks([])
                 ax_default.set_yticks([], minor=True)
@@ -300,7 +310,7 @@ def main(
                 ax_jet.set_yticks([0.0, 0.5, 1.0])
                 ax_jet.yaxis.set_label_position("right")
 
-                if j == len(linkages) - 1:
+                if j == len(distances) - 1:
                     ax_jet.set_ylabel("WHS")
                     ax_jet.set_yticklabels([0.0, 0.5, 1.0])
                     ax_jet.tick_params(labelright=True, labelleft=False)
@@ -309,11 +319,16 @@ def main(
                     ax_jet.tick_params(labelright=False, labelleft=False)
 
                 # adjust y-axis limits to show JET point (zooms)
-                ax_jet.set_xlim(break_point, 1.1*max_runtime)
+                ax_jet.set_xlim(break_point*1.1, 1.1*max_runtime)
                 ax_jet.set_xticks([jet_runtime])
                 ax_jet.set_xticklabels([f"{jet_runtime:.1f}"])
+                ax_jet.tick_params(labelbottom=False)
                 ax_jet.spines["left"].set_visible(False)
                 ax_jet.spines["top"].set_visible(False)
+
+                if i == len(linkages) - 1:
+                    ax_default.tick_params(labelbottom=True)
+                    ax_jet.tick_params(labelbottom=True)
 
                 # add slanted lines to indicate the break
                 d = .75  # proportion of vertical to horizontal extent of the slanted line
@@ -356,6 +371,7 @@ def main(
                     label=strategy_name(strategy),
                     marker=marker,
                     zorder=2.5,
+                    clip_on=False
                 )
                 if not disable_variances:
                     ax.fill_betweenx(
@@ -375,6 +391,27 @@ def main(
                     #     elinewidth=1,
                     #     capsize=2,
                     # )
+                if extend_strategy_runtimes and break_axis:
+                    # extend the strategy line to the right
+                    ax_jet.plot(runtimes, whss, color=color)
+                    ax_jet.plot(
+                        runtimes[-1],
+                        whss[-1],
+                        color=color,
+                        label=strategy_name(strategy),
+                        marker=marker,
+                        zorder=2.5,
+                        clip_on=False
+                    )
+                    if not disable_variances:
+                        ax_jet.fill_betweenx(
+                            whss,
+                            runtimes - stddevs,
+                            runtimes + stddevs,
+                            color=color,
+                            alpha=0.1,
+                        )
+
 
             # add plot for parallel
             strategy = "parallel"
@@ -404,6 +441,19 @@ def main(
                     elinewidth=1,
                     capsize=2,
                 )
+                if break_axis:
+                    ax.errorbar(
+                        jet_runtime,
+                        jet_whs,
+                        xerr=df_jet.loc["std", "runtime"],
+                        yerr=df_jet.loc["std", "whs"],
+                        label=strategy_name(strategy),
+                        color=color,
+                        marker=markers[strategy],
+                        lw=2,
+                        elinewidth=1,
+                        capsize=2,
+                    )
             else:
                 ax_jet.scatter(
                     jet_runtime,
@@ -415,7 +465,7 @@ def main(
                 )
             if i == 0 and j == 0:
                 handles, labels = ax.get_legend_handles_labels()
-                if jet_runtime > break_point:
+                if break_axis:
                     # add JET to the legend
                     jet_handles, jet_labels = ax_jet.get_legend_handles_labels()
                     handles.extend(jet_handles)

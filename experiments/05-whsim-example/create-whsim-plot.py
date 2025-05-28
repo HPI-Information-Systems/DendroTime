@@ -190,13 +190,22 @@ def plot_results(results_file, include_steps=False):
         axs[1].set_xlabel("Computational steps")
 
     handles, labels = axs[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        ncol=len(handles),
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.06),
-    )
+    if include_steps:
+        fig.legend(
+            handles,
+            labels,
+            ncol=len(handles),
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.06),
+        )
+    else:
+        fig.legend(
+            handles,
+            labels,
+            ncol=1,
+            loc="center left",
+            bbox_to_anchor=(0.95, 0.5),
+        )
     plt.savefig(
         f"whsim-{dataset}-{distance}-{linkage}-{strategy}.pdf",
         bbox_inches="tight",
