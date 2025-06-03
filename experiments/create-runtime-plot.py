@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name, distance_name
-from download_datasets import LONG_RUNNING_DATASETS
+from download_datasets import LONG_RUNNING_DATASETS, select_aeon_datasets
 
 selected_strategies = (
     "approx_distance_ascending",
@@ -20,6 +20,7 @@ selected_datasets = [
     "PickupGestureWiimoteZ", "ShakeGestureWiimoteZ", "BirdChicken", "BeetleFly", "edeniss20182020_vpd_anomalies", "edeniss20182020_co2_anomalies", "edeniss20182020_valve_anomalies", "edeniss20182020_level_anomalies", "edeniss20182020_volume_anomalies", "OliveOil", "edeniss20182020_par_anomalies", "edeniss20182020_rh_anomalies", "edeniss20182020_ec_anomalies", "edeniss20182020_ph_anomalies", "GestureMidAirD1", "GestureMidAirD2", "GestureMidAirD3", "Herring", "GesturePebbleZ1", "GesturePebbleZ2", "Car", "Lightning2", "ShapeletSim", "edeniss20182020_pressure_anomalies", "AllGestureWiimoteY", "AllGestureWiimoteZ", "AllGestureWiimoteX", "InsectEPGSmallTrain", "InsectEPGRegularTrain", "edeniss20182020_temp_anomalies", "Rock", "Worms", "WormsTwoClass", "Earthquakes", "ACSF1", "HouseTwenty", "PLAID", "Computers", "edeniss20182020_ics_anomalies", "Haptics", "LargeKitchenAppliances", "SmallKitchenAppliances", "ScreenType", "RefrigerationDevices", "ShapesAll", "PigArtPressure", "PigCVP", "PigAirwayPressure", "EOGHorizontalSignal", "EOGVerticalSignal", "InlineSkate", "SemgHandGenderCh2", "SemgHandMovementCh2", "SemgHandSubjectCh2", "EthanolLevel", "HandOutlines", "CinCECGTorso", "Phoneme", "Mallat", "MixedShapesRegularTrain", "MixedShapesSmallTrain", "FordA", "FordB", "NonInvasiveFetalECGThorax1", "NonInvasiveFetalECGThorax2", "UWaveGestureLibraryAll", "StarLightCurves"
 ]
 distance_order = ["euclidean", "lorentzian", "sbd", "dtw", "msm", "kdtw"]
+kdtw_datasets = select_aeon_datasets(download_all=True, sorted=True)[:100]
 
 
 def parse_args():
@@ -30,10 +31,10 @@ def parse_args():
         help="Show variance of JET runtime and WHS",
     )
     parser.add_argument(
-        "--include-euclidean", action="store_true", help="Include euclidean distance"
-    )
-    parser.add_argument(
-        "--include-lorentzian", action="store_true", help="Include lorentzian distance"
+        "--distances",
+        nargs="*",
+        default=distance_order,
+        help="Distances to include in the plot (default: all)",
     )
     parser.add_argument(
         "--include-ward", action="store_true", help="Include ward linkage"
@@ -52,17 +53,22 @@ def parse_args():
         action="store_true",
         help="Correct dendrotime runtime by removing quality measurement overhead",
     )
+    parser.add_argument(
+        "--limit-kdtw-datasets",
+        action="store_true",
+        help="Limit kdtw to the first 100 datasets (for performance reasons)",
+    )
     return parser.parse_args()
 
 
 def main(
+    selected_distances,
     show_jet_variance=False,
-    include_euclidean=False,
-    include_lorentzian=False,
     include_ward=False,
     disable_variances=False,
     extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
+    limit_kdtw_datasets=False,
 ):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
@@ -78,6 +84,13 @@ def main(
     df_jet.replace(-1, np.nan, inplace=True)
     # JET does only support ward linkage:
     df_jet["linkage"] = "ward"
+
+    # load results from parallel execution
+    df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
+    df_parallel["strategy"] = "parallel"
+    df_parallel = df_parallel[df_parallel["phase"] == "Finished"]
+    df_parallel = df_parallel.drop(columns=["phase"])
+    df_parallel["whs"] = 1.0
 
     # load results from system execution
     df_dendrotime = pd.read_csv("04-dendrotime/results/aggregated-runtimes.csv")
@@ -128,6 +141,7 @@ def main(
             columns=["runtime_nqa", "runtime_correction_factor"]
         ).reset_index()
         # --- end runtime correction
+
     df_dendrotime = df_dendrotime.melt(
         id_vars=["dataset", "distance", "linkage", "strategy"],
         var_name="whs",
@@ -138,13 +152,6 @@ def main(
     df_dendrotime["whs"] = (
         df_dendrotime["whs"].str.replace("runtime_", "").astype(float)
     )
-
-    # load results from parallel execution
-    df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
-    df_parallel["strategy"] = "parallel"
-    df_parallel = df_parallel[df_parallel["phase"] == "Finished"]
-    df_parallel = df_parallel.drop(columns=["phase"])
-    df_parallel["whs"] = 1.0
 
     df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
@@ -167,16 +174,31 @@ def main(
             parallel_runtime = np.nan
         df.loc[group.index, "runtime"] = group["runtime"] / parallel_runtime
 
-    distances = set(df["distance"].unique().tolist())
-    if not include_lorentzian:
-        distances = distances - {"lorentzian"}
-    if not include_euclidean:
-        distances = distances - {"euclidean"}
+    distances = df["distance"].unique().tolist()
+    distances = [d for d in distances if d in selected_distances]
     distances = sorted(distances, key=lambda x: distance_order.index(x))
     linkages = set(df["linkage"].unique())
     if not include_ward:
         linkages = linkages - {"ward"}
     linkages = sorted(linkages)
+    # df = df[
+    #     (df["distance"].isin(distances))
+    #     & (df["linkage"].isin(linkages))
+    # ]
+
+    if limit_kdtw_datasets:
+        # for the kdtw distance, we only consider the first 100 datasets
+        df = df[
+            (df["distance"] != "kdtw")
+            | (df["dataset"].isin(kdtw_datasets))
+        ]
+
+    dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["dataset"].count()
+    print(f"Distances: {distances}")
+    print(f"Linkages: {linkages}")
+    with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        print(f"Processed datasets: {dataset_count}")
+    print(df[(df["dataset"] == "ACSF1") & (df["whs"] == 1.0)].sort_values(["strategy", "distance", "linkage"]))
 
     # use right y ticks and labels for this plot
     plt.rcParams["ytick.right"] = plt.rcParams["ytick.labelright"] = True
@@ -184,9 +206,9 @@ def main(
     plt.rcParams["lines.markersize"] = 4
 
     fig, axs = plt.subplots(
-        len(distances),
         len(linkages),
-        figsize=(8, 3),
+        len(distances),
+        figsize=(10, 3),
         sharex="none",
         sharey="none",
         constrained_layout=False,
@@ -220,7 +242,10 @@ def main(
         axs[i, -1].set_yticklabels([0.0, 0.5, 1.0])
 
     for j, distance in enumerate(distances):
-        axs[0, j].set_title(distance_name(distance), size="large")
+        title = distance_name(distance)
+        if limit_kdtw_datasets and distance == "kdtw":
+            title += "$^*$"
+        axs[0, j].set_title(title, size="large")
         axs[-1, j].tick_params(labelbottom=True)
         axs[-1, j].set_xlabel("relative runtime")
 
@@ -368,7 +393,7 @@ def main(
                     runtimes[-1],
                     whss[-1],
                     color=color,
-                    label=strategy_name(strategy),
+                    label=f"DendroTime {strategy_name(strategy)}",
                     marker=marker,
                     zorder=2.5,
                     clip_on=False
@@ -494,11 +519,11 @@ def main(
 if __name__ == "__main__":
     args = parse_args()
     main(
+        selected_distances=args.distances,
         show_jet_variance=args.show_jet_variance,
-        include_euclidean=args.include_euclidean,
-        include_lorentzian=args.include_lorentzian,
         include_ward=args.include_ward,
         disable_variances=args.disable_variances,
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
         extend_strategy_runtimes=args.extend_strategy_runtimes,
+        limit_kdtw_datasets=args.limit_kdtw_datasets,
     )

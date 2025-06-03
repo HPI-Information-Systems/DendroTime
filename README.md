@@ -13,15 +13,15 @@ Progressive HAC system for time series anomalies.
 
 ---
 
-Most effective dissimilarity measures for variable-length time series, such as Dynamic Time Warping (DTW) or Move-Split-Merge (MSM), are expensive to compute because their runtimes increase quadratically with the time series' lengths.
-Because hierarchical agglomerative clustering (HAC) algorithms need to compute all pairwise time series dissimilarities, they are slow and do not scale to large time series collections.
+Many effective dissimilarity measures for variable-length time series, such as Dynamic Time Warping (DTW), Move-Split-Merge (MSM), or Time Warp Edit Distance (TWED), are expensive to compute because their runtimes increase quadratically with the time series’ lengths.
+When used in hierarchical agglomerative clustering (HAC) algorithms that need to compute all pairwise time series dissimilarities, they cause slow runtimes and do not scale to large time series collections.
 However, there are use cases, where fast, interactive hierarchical clustering is necessary.
-For these use cases, progressive clustering algorithms can improve runtimes and interactivity.
+For these use cases, progressive hierarchical clustering algorithms can improve runtimes and interactivity.
 Progressive algorithms are incremental algorithms that produce and continuously improve an approximate solution, which eventually converges to the exact solution.
 
-We present DendroTime, the first (parallel) progressive clustering system for variable-length time series collections.
+In this paper, we present DendroTime, the first (parallel) progressive hierarchical clustering system for variable-length time series collections.
 The system incrementally computes the pairwise dissimilarities between the input time series and supports different ordering strategies to achieve progressivity.
-Our evaluation demonstrates that DendroTime's progressive strategies are very effective for clustering scenarios with expensive time series dissimilarity computations.
+Our evaluation demonstrates that DendroTime’s progressive strategies are very effective for clustering scenarios with expensive time series dissimilarity computations.
 
 ### Architecture
 
@@ -35,9 +35,11 @@ The following figures provides an overview of DendroTime's client-server archite
 DendroTime supports the following measures to compute the dissimilarities between time series:
 
 - Minkowsky distances (i.a., Euclidean)
+- Lorentzian distance
 - MSM
 - DTW
 - SBD
+- KDTW
 
 The following linkage functions are supported and compatible:
 
@@ -46,7 +48,7 @@ The following linkage functions are supported and compatible:
 - _average_
 - _weighted_
 
-Other linkage functions, such as Ward or centroid linkage, are not compatible with non-metric time series dissimilarity measures, but can be enabled in code:
+Other linkage functions, such as Ward, median, or centroid linkage, are not compatible with non-metric time series dissimilarity measures, but can be enabled in code:
 [`de.hpi.fgis.dendrotime.model.ParametersModel.DendroTimeParams#areCompatible`](dendrotime-backend/src/main/scala/de/hpi/fgis/dendrotime/model/ParametersModel.scala#L19).
 The client is web-based and visualizes the dendrogram as well as the computational and qualitative progress to allow the user to monitor the clustering results over time, and potentially stop the process early:
 
