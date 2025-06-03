@@ -44,7 +44,6 @@ def compute_whs(dataset, distance):
 
 def main():
     df = pd.read_csv(RESULT_FOLDER / "results.csv")
-    df["distance"] = np.tile(["sbd", "msm", "dtw"], df.shape[0] // 3)
     df = df.set_index(["dataset", "distance"])
 
     configurations = df.index.values
@@ -55,6 +54,7 @@ def main():
             for dataset, distance in configurations
         )
     df["whs"] = entries
+    df = df.reset_index()
     df.to_csv(RESULT_FOLDER / "results.csv")
 
 
