@@ -72,7 +72,7 @@ def main(data_folder):
     aggregated_result_file = RESULT_FOLDER / "results.csv"
     print(f"Storing results in {aggregated_result_file}")
     with open(aggregated_result_file, "w") as f:
-        f.write("dataset,distance,runtime,ARI,WHS\n")
+        f.write("dataset,distance,runtime,ARI,whs\n")
 
     for dataset in tqdm(datasets):
         for distance in distances:

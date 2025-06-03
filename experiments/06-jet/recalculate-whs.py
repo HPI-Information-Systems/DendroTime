@@ -17,14 +17,15 @@ N_JOBS = -1
 RESULT_FOLDER = Path("results")
 
 
-def compute_whs(dataset, distance):
+def compute_whs(dataset, distance, data_folder):
     result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}.csv"
     target_path = (
-        DATA_FOLDER.parent / "ground-truth" / dataset / f"hierarchy-{distance}-ward.csv"
+        data_folder.parent / "ground-truth" / dataset / f"hierarchy-{distance}-ward.csv"
     )
 
     cmd = [
         "java",
+        "-Dlogback.configurationFile=logback.xml",
         "-jar",
         "../DendroTime-Evaluator.jar",
         "weightedHierarchySimilarity",
@@ -35,9 +36,14 @@ def compute_whs(dataset, distance):
     ]
     try:
         whs = float(
-            subprocess.check_output(" ".join(cmd), shell=True).decode("utf-8").strip()
+            subprocess.check_output(
+                " ".join(cmd), shell=True, stderr=subprocess.DEVNULL
+            )
+            .decode("utf-8")
+            .strip()
         )
-    except Exception:
+    except Exception as e:
+        print(f"Cannot compute WHS for {dataset} with {distance}: {e}")
         whs = np.nan
     return whs
 
@@ -50,11 +56,10 @@ def main():
     entries = []
     with tqdm_joblib(tqdm(desc="Processing", total=len(configurations))):
         entries = joblib.Parallel(n_jobs=N_JOBS)(
-            joblib.delayed(compute_whs)(dataset, distance)
+            joblib.delayed(compute_whs)(dataset, distance, DATA_FOLDER)
             for dataset, distance in configurations
         )
     df["whs"] = entries
-    df = df.reset_index()
     df.to_csv(RESULT_FOLDER / "results.csv")
 
 
