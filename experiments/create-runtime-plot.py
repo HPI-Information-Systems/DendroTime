@@ -15,9 +15,28 @@ selected_strategies = (
     "pre_clustering",
     "fcfs",
 )
-# variable length OR at least 500 TS points on average
-selected_datasets = [
-    "PickupGestureWiimoteZ", "ShakeGestureWiimoteZ", "BirdChicken", "BeetleFly", "edeniss20182020_vpd_anomalies", "edeniss20182020_co2_anomalies", "edeniss20182020_valve_anomalies", "edeniss20182020_level_anomalies", "edeniss20182020_volume_anomalies", "OliveOil", "edeniss20182020_par_anomalies", "edeniss20182020_rh_anomalies", "edeniss20182020_ec_anomalies", "edeniss20182020_ph_anomalies", "GestureMidAirD1", "GestureMidAirD2", "GestureMidAirD3", "Herring", "GesturePebbleZ1", "GesturePebbleZ2", "Car", "Lightning2", "ShapeletSim", "edeniss20182020_pressure_anomalies", "AllGestureWiimoteY", "AllGestureWiimoteZ", "AllGestureWiimoteX", "InsectEPGSmallTrain", "InsectEPGRegularTrain", "edeniss20182020_temp_anomalies", "Rock", "Worms", "WormsTwoClass", "Earthquakes", "ACSF1", "HouseTwenty", "PLAID", "Computers", "edeniss20182020_ics_anomalies", "Haptics", "LargeKitchenAppliances", "SmallKitchenAppliances", "ScreenType", "RefrigerationDevices", "ShapesAll", "PigArtPressure", "PigCVP", "PigAirwayPressure", "EOGHorizontalSignal", "EOGVerticalSignal", "InlineSkate", "SemgHandGenderCh2", "SemgHandMovementCh2", "SemgHandSubjectCh2", "EthanolLevel", "HandOutlines", "CinCECGTorso", "Phoneme", "Mallat", "MixedShapesRegularTrain", "MixedShapesSmallTrain", "FordA", "FordB", "NonInvasiveFetalECGThorax1", "NonInvasiveFetalECGThorax2", "UWaveGestureLibraryAll", "StarLightCurves"
+# took too long!
+finally_excluded_datasets = [
+    "SemgHandSubjectCh2",
+    "EthanolLevel",
+    "HandOutlines",
+    "CinCECGTorso",
+    "Phoneme",
+    "Mallat",
+    "MixedShapesRegularTrain",
+    "MixedShapesSmallTrain",
+    "FordA",
+    "FordB",
+    "NonInvasiveFetalECGThorax1",
+    "NonInvasiveFetalECGThorax2",
+    "UWaveGestureLibraryAll",
+    "UWaveGestureLibraryX",
+    "UWaveGestureLibraryY",
+    "UWaveGestureLibraryZ",
+    "Yoga",
+    "Crop",
+    "ElectricDevices",
+    "StarLightCurves",
 ]
 distance_order = ["euclidean", "lorentzian", "sbd", "dtw", "msm", "kdtw"]
 kdtw_datasets = select_aeon_datasets(download_all=True, sorted=True)[:100]
@@ -155,8 +174,6 @@ def main(
 
     df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
-    # df = df[df["dataset"].isin(selected_datasets)]
-    # df = df[df["dataset"].isin(LONG_RUNNING_DATASETS)]
 
     # only consider datasets with parallel runtime >= 5 minutes
     # print(df[(df["strategy"] == "parallel") & (df["distance"] == "msm")])
@@ -190,7 +207,7 @@ def main(
         # for the kdtw distance, we only consider the first 100 datasets
         df = df[
             (df["distance"] != "kdtw")
-            | (df["dataset"].isin(kdtw_datasets))
+            | ~(df["dataset"].isin(finally_excluded_datasets))
         ]
 
     dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["dataset"].count()
