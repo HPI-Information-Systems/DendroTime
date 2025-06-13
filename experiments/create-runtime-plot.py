@@ -77,6 +77,11 @@ def parse_args():
         action="store_true",
         help="Limit kdtw to the first 100 datasets (for performance reasons)",
     )
+    parser.add_argument(
+        "--alternative-legend",
+        action="store_true",
+        help="Plot legend above the plot instead of on the right",
+    )
     return parser.parse_args()
 
 
@@ -88,6 +93,7 @@ def main(
     extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
     limit_kdtw_datasets=False,
+    alternative_legend=False,
 ):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
@@ -514,16 +520,28 @@ def main(
                     labels.extend(jet_labels)
 
     # add legend
-    legend = fig.legend(
-        handles,
-        labels,
-        loc="center left",
-        ncol=1,
-        bbox_to_anchor=(0.97, 0.5),
-        borderpad=0.25,
-        handletextpad=0.4,
-        columnspacing=1.0,
-    )
+    if alternative_legend:
+        legend = fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            ncol=len(handles),
+            bbox_to_anchor=(0.5, 1.1),
+            borderpad=0.25,
+            handletextpad=0.4,
+            columnspacing=1.0,
+        )
+    else:
+        legend = fig.legend(
+            handles,
+            labels,
+            loc="center left",
+            ncol=1,
+            bbox_to_anchor=(0.97, 0.5),
+            borderpad=0.25,
+            handletextpad=0.4,
+            columnspacing=1.0,
+        )
     fig.savefig(
         "mean-runtime-qualities.pdf", bbox_inches="tight", bbox_extra_artists=[legend]
     )
@@ -543,4 +561,5 @@ if __name__ == "__main__":
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
         extend_strategy_runtimes=args.extend_strategy_runtimes,
         limit_kdtw_datasets=args.limit_kdtw_datasets,
+        alternative_legend=args.alternative_legend,
     )
