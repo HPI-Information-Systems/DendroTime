@@ -16,11 +16,16 @@ selected_strategies = (
     "fcfs",
 )
 # took too long!
+# note:
+# - limit was 3h per experiment
+# - we need 30 executions per dataset (if 3h/execution then ~4 days/datset) because
+#   5 linkages x 3 strategies x 2 executions (no qa / qa)
+# - 12 of these datasets need > 10h and 3 of those > 32h (~130d of compute time)
 finally_excluded_datasets = [
-    "SemgHandSubjectCh2",
-    "EthanolLevel",
-    "HandOutlines",
     "CinCECGTorso",
+    "SemgHandGenderCh2",
+    "SemgHandMovementCh2",
+    "InlineSkate",
     "Phoneme",
     "Mallat",
     "MixedShapesRegularTrain",

@@ -16,23 +16,86 @@ fi
 
 # download datasets
 #datasets=$(python ../download_datasets.py --all --sorted)
-datasets="SemgHandSubjectCh2
-EthanolLevel
-HandOutlines
-CinCECGTorso
+datasets="
+SemgHandGenderCh2 ✅,
+SemgHandMovementCh2 ✅,
+InlineSkate ✅,
+SemgHandSubjectCh2 ✅,✅
+EthanolLevel ✅,✅
+HandOutlines ✅,✅
+CinCECGTorso ✅
+Phoneme ✅
+Mallat ✅
+MixedShapesRegularTrain      (odin10-12)
+MixedShapesSmallTrain ✅     (odin07-09)
+FordA                        (odin07-09)
+FordB                        (odin07-09)
+NonInvasiveFetalECGThorax1 ✅
+NonInvasiveFetalECGThorax2 ✅
+UWaveGestureLibraryAll ❌
+UWaveGestureLibraryX ✅
+UWaveGestureLibraryY ✅
+UWaveGestureLibraryZ ✅
+Yoga                         (odin[02,05,06])
+--------------------------
+StarLightCurves ❌
+Crop ❌
+ElectricDevices ❌"
+
+""" Missing DendroTime quality datasets:
+SemgHandGenderCh2
+SemgHandMovementCh2
+InlineSkate
+--- (scheduled)
 Phoneme
 Mallat
-MixedShapesRegularTrain
+MixedShapesRegularTrain (move to end)
 MixedShapesSmallTrain
 FordA
 FordB
 NonInvasiveFetalECGThorax1
 NonInvasiveFetalECGThorax2
-UWaveGestureLibraryAll
-UWaveGestureLibraryX
+UWaveGestureLibraryAll  (move to end)
 UWaveGestureLibraryY
 UWaveGestureLibraryZ
-Yoga"
+UWaveGestureLibraryX
+Yoga
+--- (end scheduled)
+StarLightCurves
+Crop
+ElectricDevices
+
+Parallel runtimes larger than 1h (in s):
+-------------------------------------
+(StarLightCurves              711996)
+(UWaveGestureLibraryAll       144172)
+HandOutlines                  114914
+MixedShapesRegularTrain        71899
+NonInvasiveFetalECGThorax1     63771
+NonInvasiveFetalECGThorax2     63617
+MixedShapesSmallTrain          53499
+Mallat                         48065
+FordA                          46476
+CinCECGTorso                   43797
+FordB                          37963
+Phoneme                        37748 >10h (12+2 datasets)
+EthanolLevel                   24667
+(ElectricDevices               15229)
+SemgHandMovementCh2            14167
+SemgHandSubjectCh2             14164
+SemgHandGenderCh2              14142
+Yoga                           13954
+InlineSkate                    12186
+UWaveGestureLibraryZ           11932
+UWaveGestureLibraryX           11920
+UWaveGestureLibraryY           11909 >3h (22+1 datasets)
+(Crop                           7671)
+Wafer                           7119
+EOGVerticalSignal               6573
+EOGHorizontalSignal             6560
+FreezerRegularTrain             4687
+FreezerSmallTrain               4314
+"""
 
 # run experiments one after the other
 for dataset in $datasets; do
