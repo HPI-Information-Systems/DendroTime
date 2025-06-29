@@ -23,20 +23,20 @@ InlineSkate ✅,
 SemgHandSubjectCh2 ✅,✅
 EthanolLevel ✅,✅
 HandOutlines ✅,✅
-CinCECGTorso ✅
-Phoneme ✅
-Mallat ✅
-MixedShapesRegularTrain      (odin10-12)
-MixedShapesSmallTrain ✅     (odin07-09)
-FordA                        (odin07-09)
-FordB                        (odin07-09)
-NonInvasiveFetalECGThorax1 ✅
-NonInvasiveFetalECGThorax2 ✅
+CinCECGTorso ✅,✅
+Phoneme ✅,✅
+Mallat ✅                     (odin[04,13,14], continuous downward; stop after *RegularTrain)
+MixedShapesRegularTrain ✅,❌
+MixedShapesSmallTrain ✅      (odin[10-12])
+FordA ✅                      (odin[10-12])
+FordB ✅                      (odin[10-12])
+NonInvasiveFetalECGThorax1 ✅ (odin[02,05,06])
+NonInvasiveFetalECGThorax2 ✅ (odin[02,05,06])
 UWaveGestureLibraryAll ❌
-UWaveGestureLibraryX ✅
-UWaveGestureLibraryY ✅
-UWaveGestureLibraryZ ✅
-Yoga                         (odin[02,05,06])
+UWaveGestureLibraryX ✅       (odin[07-09])
+UWaveGestureLibraryY ✅       (odin[07-09])
+UWaveGestureLibraryZ ✅       (odin[07-09])
+Yoga ✅                       (odin[02,05,06])
 --------------------------
 StarLightCurves ❌
 Crop ❌
