@@ -17,9 +17,9 @@ fi
 # download datasets
 #datasets=$(python ../download_datasets.py --all --sorted)
 datasets="
-SemgHandGenderCh2 ✅,
-SemgHandMovementCh2 ✅,
-InlineSkate ✅,
+SemgHandGenderCh2 ✅,         (odin[07-09])
+SemgHandMovementCh2 ✅,       (odin[07-09])
+InlineSkate ✅,               (odin[07-09])
 SemgHandSubjectCh2 ✅,✅
 EthanolLevel ✅,✅
 HandOutlines ✅,✅
@@ -33,9 +33,9 @@ FordB ✅                      (odin[10-12])
 NonInvasiveFetalECGThorax1 ✅ (odin[02,05,06])
 NonInvasiveFetalECGThorax2 ✅ (odin[02,05,06])
 UWaveGestureLibraryAll ❌
-UWaveGestureLibraryX ✅       (odin[07-09])
-UWaveGestureLibraryY ✅       (odin[07-09])
-UWaveGestureLibraryZ ✅       (odin[07-09])
+UWaveGestureLibraryX ✅,✅
+UWaveGestureLibraryY ✅,✅
+UWaveGestureLibraryZ ✅,✅
 Yoga ✅                       (odin[02,05,06])
 --------------------------
 StarLightCurves ❌
