@@ -17,16 +17,16 @@ fi
 # download datasets
 #datasets=$(python ../download_datasets.py --all --sorted)
 datasets="
-SemgHandGenderCh2 ✅,         (odin[07-09])
-SemgHandMovementCh2 ✅,       (odin[07-09])
-InlineSkate ✅,               (odin[07-09])
+SemgHandGenderCh2 ✅,✅
+SemgHandMovementCh2 ✅,✅
+InlineSkate ✅,✅
 SemgHandSubjectCh2 ✅,✅
 EthanolLevel ✅,✅
 HandOutlines ✅,✅
 CinCECGTorso ✅,✅
 Phoneme ✅,✅
-Mallat ✅                     (odin[04,13,14], continuous downward; stop after *RegularTrain)
-MixedShapesRegularTrain ✅,❌
+Mallat ✅,✅
+MixedShapesRegularTrain ✅,✅
 MixedShapesSmallTrain ✅      (odin[10-12])
 FordA ✅                      (odin[10-12])
 FordB ✅                      (odin[10-12])
