@@ -70,7 +70,7 @@ mv 09-edeniss-case-study/edeniss-convergence.pdf figures/
 # global plots: runtime vs quality
 echo ""
 echo "Creating global runtime vs quality plot"
-python create-runtime-plot.py --disable-variances -c
+python create-runtime-plot.py --disable-variances -c --distances lorentzian sbd dtw msm kdtw
 mv mean-runtime-qualities.pdf figures/
 
 # global plots: convergence table

@@ -27,16 +27,16 @@ CinCECGTorso ✅,✅
 Phoneme ✅,✅
 Mallat ✅,✅
 MixedShapesRegularTrain ✅,✅
-MixedShapesSmallTrain ✅      (odin[10-12])
-FordA ✅                      (odin[10-12])
-FordB ✅                      (odin[10-12])
-NonInvasiveFetalECGThorax1 ✅ (odin[02,05,06])
-NonInvasiveFetalECGThorax2 ✅ (odin[02,05,06])
+MixedShapesSmallTrain ✅,✅
+FordA ✅,✅
+FordB ✅,✅
+NonInvasiveFetalECGThorax1 ✅,✅
+NonInvasiveFetalECGThorax2 ✅,✅
 UWaveGestureLibraryAll ❌
 UWaveGestureLibraryX ✅,✅
 UWaveGestureLibraryY ✅,✅
 UWaveGestureLibraryZ ✅,✅
-Yoga ✅                       (odin[02,05,06])
+Yoga ✅,✅
 --------------------------
 StarLightCurves ❌
 Crop ❌
