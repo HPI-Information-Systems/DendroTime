@@ -32,39 +32,18 @@ FordA ✅,✅
 FordB ✅,✅
 NonInvasiveFetalECGThorax1 ✅,✅
 NonInvasiveFetalECGThorax2 ✅,✅
-UWaveGestureLibraryAll ❌
 UWaveGestureLibraryX ✅,✅
 UWaveGestureLibraryY ✅,✅
 UWaveGestureLibraryZ ✅,✅
 Yoga ✅,✅
+Crop            (odin[04-09])
+ElectricDevices (odin[04-09])
 --------------------------
+UWaveGestureLibraryAll ❌
 StarLightCurves ❌
-Crop ❌
-ElectricDevices ❌"
+"
 
-""" Missing DendroTime quality datasets:
-SemgHandGenderCh2
-SemgHandMovementCh2
-InlineSkate
---- (scheduled)
-Phoneme
-Mallat
-MixedShapesRegularTrain (move to end)
-MixedShapesSmallTrain
-FordA
-FordB
-NonInvasiveFetalECGThorax1
-NonInvasiveFetalECGThorax2
-UWaveGestureLibraryAll  (move to end)
-UWaveGestureLibraryY
-UWaveGestureLibraryZ
-UWaveGestureLibraryX
-Yoga
---- (end scheduled)
-StarLightCurves
-Crop
-ElectricDevices
-
+"""
 Parallel runtimes larger than 1h (in s):
 -------------------------------------
 (StarLightCurves              711996)
@@ -80,7 +59,7 @@ CinCECGTorso                   43797
 FordB                          37963
 Phoneme                        37748 >10h (12+2 datasets)
 EthanolLevel                   24667
-(ElectricDevices               15229)
+(ElectricDevices               15229) (quality measurement takes long)
 SemgHandMovementCh2            14167
 SemgHandSubjectCh2             14164
 SemgHandGenderCh2              14142
@@ -89,7 +68,7 @@ InlineSkate                    12186
 UWaveGestureLibraryZ           11932
 UWaveGestureLibraryX           11920
 UWaveGestureLibraryY           11909 >3h (22+1 datasets)
-(Crop                           7671)
+(Crop                           7671) (quality measurement takes long)
 Wafer                           7119
 EOGVerticalSignal               6573
 EOGHorizontalSignal             6560
