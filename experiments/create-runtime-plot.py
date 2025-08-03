@@ -224,6 +224,7 @@ def main(
         for j in range(axs.shape[1]):
             # helper grid line:
             axs[i, j].axvline(x=1, color="lightgray", ls="--", lw=1)
+            axs[i, j].axhline(y=0.8, color="lightgray", ls="--", lw=1)
             axs[i, j].tick_params(labelbottom=False)
             axs[i, j].set_ylim(-0.05, 1.1)
             axs[i, j].set_yticks([0.0, 0.5, 1.0])
@@ -303,6 +304,8 @@ def main(
                 ax.set_yticks([])
                 ax.set_yticklabels([])
                 ax.set_ylabel("")
+                for line in ax.lines:
+                    line.remove()
 
                 # reconfigure the default axis
                 ax_default.set_xlim(-0.1, break_point)
@@ -315,6 +318,7 @@ def main(
                 ax_default.yaxis.set_ticks_position("none")
                 ax_default.tick_params(labelright=False, labelleft=False)
                 ax_default.axvline(x=1, color="lightgray", ls="--", lw=1)
+                ax_default.axhline(y=0.8, color="lightgray", ls="--", lw=1)
                 ax_default.spines["right"].set_visible(False)
                 ax_default.spines["left"].set_visible(False)
                 ax_default.spines["top"].set_visible(False)
@@ -345,6 +349,7 @@ def main(
                 ax_jet.tick_params(labelbottom=False)
                 ax_jet.spines["left"].set_visible(False)
                 ax_jet.spines["top"].set_visible(False)
+                ax_jet.axhline(y=0.8, color="lightgray", ls="--", lw=1)
 
                 if i == len(linkages) - 1:
                     ax_default.tick_params(labelbottom=True)
