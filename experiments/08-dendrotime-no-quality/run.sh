@@ -36,8 +36,8 @@ UWaveGestureLibraryX ✅,✅
 UWaveGestureLibraryY ✅,✅
 UWaveGestureLibraryZ ✅,✅
 Yoga ✅,✅
-Crop            (odin[04-09])
-ElectricDevices (odin[04-09])
+Crop ✅,✅
+ElectricDevices ✅,✅
 --------------------------
 UWaveGestureLibraryAll ❌
 StarLightCurves ❌

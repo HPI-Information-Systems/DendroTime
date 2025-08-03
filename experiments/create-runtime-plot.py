@@ -8,43 +8,22 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
 from plt_commons import colors, markers, strategy_name, distance_name
-from download_datasets import LONG_RUNNING_DATASETS, select_aeon_datasets
 
 selected_strategies = (
     "approx_distance_ascending",
     "pre_clustering",
     "fcfs",
 )
-# took too long!
-# note:
-# - limit was 3h per experiment
-# - we need 30 executions per dataset (if 3h/execution then ~4 days/datset) because
+# excluded datasets for kdtw distance
+# - parallel took longer than 36h
+# - we need 30 executions per dataset because
 #   5 linkages x 3 strategies x 2 executions (no qa / qa)
-# - 12 of these datasets need > 10h and 3 of those > 32h (~130d of compute time)
-finally_excluded_datasets = [
-    "CinCECGTorso",
-    "SemgHandGenderCh2",
-    "SemgHandMovementCh2",
-    "InlineSkate",
-    "Phoneme",
-    "Mallat",
-    "MixedShapesRegularTrain",
-    "MixedShapesSmallTrain",
-    "FordA",
-    "FordB",
-    "NonInvasiveFetalECGThorax1",
-    "NonInvasiveFetalECGThorax2",
+# - >36h * 30 = >45 days per dataset
+kdtw_excluded_datasets = [
     "UWaveGestureLibraryAll",
-    "UWaveGestureLibraryX",
-    "UWaveGestureLibraryY",
-    "UWaveGestureLibraryZ",
-    "Yoga",
-    "Crop",
-    "ElectricDevices",
     "StarLightCurves",
 ]
 distance_order = ["euclidean", "lorentzian", "sbd", "dtw", "msm", "kdtw"]
-kdtw_datasets = select_aeon_datasets(download_all=True, sorted=True)[:100]
 
 
 def parse_args():
@@ -78,11 +57,6 @@ def parse_args():
         help="Correct dendrotime runtime by removing quality measurement overhead",
     )
     parser.add_argument(
-        "--limit-kdtw-datasets",
-        action="store_true",
-        help="Limit kdtw to the first 100 datasets (for performance reasons)",
-    )
-    parser.add_argument(
         "--alternative-legend",
         action="store_true",
         help="Plot legend above the plot instead of on the right",
@@ -97,7 +71,6 @@ def main(
     disable_variances=False,
     extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
-    limit_kdtw_datasets=False,
     alternative_legend=False,
 ):
     # load results from serial execution
@@ -214,13 +187,6 @@ def main(
     #     & (df["linkage"].isin(linkages))
     # ]
 
-    if limit_kdtw_datasets:
-        # for the kdtw distance, we only consider the first 100 datasets
-        df = df[
-            (df["distance"] != "kdtw")
-            | ~(df["dataset"].isin(finally_excluded_datasets))
-        ]
-
     dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["dataset"].count()
     print(f"Distances: {distances}")
     print(f"Linkages: {linkages}")
@@ -271,7 +237,8 @@ def main(
 
     for j, distance in enumerate(distances):
         title = distance_name(distance)
-        if limit_kdtw_datasets and distance == "kdtw":
+        if distance == "kdtw":
+            # we excluded two datasets from kdtw -> mark with *
             title += "$^*$"
         axs[0, j].set_title(title, size="large")
         axs[-1, j].tick_params(labelbottom=True)
@@ -365,7 +332,7 @@ def main(
 
                 if j == len(distances) - 1:
                     ax_jet.set_ylabel("WHS")
-                    ax_jet.set_yticklabels([0.0, 0.5, 1.0])
+                    ax_jet.set_yticklabels(["0.0", "0.5", "1.0"])
                     ax_jet.tick_params(labelright=True, labelleft=False)
                 else:
                     ax_jet.set_yticklabels([])
@@ -565,6 +532,5 @@ if __name__ == "__main__":
         disable_variances=args.disable_variances,
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
         extend_strategy_runtimes=args.extend_strategy_runtimes,
-        limit_kdtw_datasets=args.limit_kdtw_datasets,
         alternative_legend=args.alternative_legend,
     )
