@@ -22,8 +22,8 @@ mv 01-serial-hac/runtimes-ratio-table.tex tables/
 # # - msm with ward-linkage
 # python create-strategy-qualities-plot.py results/msm-ward-weightedHierarchySimilarity --boxplot
 # - msm with average-linkage
-python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot
-python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot -small
+# python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot
+# python create-strategy-qualities-plot.py results/msm-average-weightedHierarchySimilarity --boxplot -small
 # # - sbd with average-linkage
 # python create-strategy-qualities-plot.py results/sbd-average-weightedHierarchySimilarity --boxplot
 # # - dtw with average-linkage
@@ -70,8 +70,14 @@ mv 09-edeniss-case-study/edeniss-convergence.pdf figures/
 # global plots: runtime vs quality
 echo ""
 echo "Creating global runtime vs quality plot"
-python create-runtime-plot.py --disable-variances -c --distances lorentzian sbd dtw msm kdtw
+python create-runtime-plot.py --disable-variances -c --distances lorentzian sbd dtw msm kdtw --linkages single complete
 mv mean-runtime-qualities.pdf figures/
+
+# global plots: speedup table (DendroTime's runtime to reach 80 % WHS)
+echo ""
+echo "Creating speedup table"
+python create-speedup-table.py -cs --distances lorentzian sbd dtw msm kdtw --linkages single complete average weighted
+mv speedup-table.tex tables/
 
 # global plots: convergence table
 echo ""

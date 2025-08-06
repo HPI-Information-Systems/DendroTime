@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import colors, markers, strategy_name, distance_name
+from plt_commons import colors, markers, strategy_name, distance_name, linkages
 
 selected_strategies = (
     "approx_distance_ascending",
@@ -40,7 +40,10 @@ def parse_args():
         help="Distances to include in the plot (default: all)",
     )
     parser.add_argument(
-        "--include-ward", action="store_true", help="Include ward linkage"
+        "--linkages",
+        nargs="*",
+        default=linkages,
+        help="Linkages to include in the plot (default: all)",
     )
     parser.add_argument(
         "--disable-variances", action="store_true", help="Disable variance plotting"
@@ -66,8 +69,8 @@ def parse_args():
 
 def main(
     selected_distances,
+    selected_linkages,
     show_jet_variance=False,
-    include_ward=False,
     disable_variances=False,
     extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
@@ -178,9 +181,8 @@ def main(
     distances = df["distance"].unique().tolist()
     distances = [d for d in distances if d in selected_distances]
     distances = sorted(distances, key=lambda x: distance_order.index(x))
-    linkages = set(df["linkage"].unique())
-    if not include_ward:
-        linkages = linkages - {"ward"}
+    linkages = df["linkage"].unique().tolist()
+    linkages = [l for l in linkages if l in selected_linkages]
     linkages = sorted(linkages)
     # df = df[
     #     (df["distance"].isin(distances))
@@ -202,7 +204,7 @@ def main(
     fig, axs = plt.subplots(
         len(linkages),
         len(distances),
-        figsize=(10, 3),
+        figsize=(10, 3/4.0 *len(linkages)),
         sharex="none",
         sharey="none",
         constrained_layout=False,
@@ -238,9 +240,6 @@ def main(
 
     for j, distance in enumerate(distances):
         title = distance_name(distance)
-        if distance == "kdtw":
-            # we excluded two datasets from kdtw -> mark with *
-            title += "$^*$"
         axs[0, j].set_title(title, size="large")
         axs[-1, j].tick_params(labelbottom=True)
         axs[-1, j].set_xlabel("relative runtime")
@@ -532,8 +531,8 @@ if __name__ == "__main__":
     args = parse_args()
     main(
         selected_distances=args.distances,
+        selected_linkages=args.linkages,
         show_jet_variance=args.show_jet_variance,
-        include_ward=args.include_ward,
         disable_variances=args.disable_variances,
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
         extend_strategy_runtimes=args.extend_strategy_runtimes,

@@ -1,9 +1,10 @@
 # common configuration for plotting code
 from collections import defaultdict
 import matplotlib
+from typing import Union
 
 cm = matplotlib.colormaps["inferno"].resampled(9)
-colors = defaultdict(lambda: "black")
+colors: defaultdict[str, Union[str, tuple[float, float, float, float]]] = defaultdict(lambda: "black")
 # strategies
 colors["fcfs"] = "gray"
 colors["preClustering"] = cm(2)
@@ -40,6 +41,7 @@ markers["approxAscending"] = "^"
 markers["approx_distance_ascending"] = "^"
 markers["shortestTs"] = "*"
 
+linkages = ("single", "complete", "average", "weighted", "ward")
 
 def strategy_name(name):
     if name == "shortestTs":
