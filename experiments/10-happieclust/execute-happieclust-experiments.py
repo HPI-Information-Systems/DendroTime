@@ -77,8 +77,8 @@ def main(data_folder):
     with open(aggregated_result_file, "w") as f:
         f.write("dataset,distance,linkage,runtime,ARI,whs\n")
 
-    for distance in tqdm(distances):
-        for dataset in datasets:
+    for distance in distances:
+        for dataset in tqdm(datasets):
             for linkage in linkages:
                 try:
                     h, runtime, ari = run_happieclust(
