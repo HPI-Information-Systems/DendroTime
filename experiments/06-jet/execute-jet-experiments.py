@@ -47,6 +47,7 @@ def compute_whs(dataset, distance, linkage, data_folder):
         "--target",
         target_path.absolute().as_posix(),
     ]
+    p = None
     try:
         p = subprocess.run(
             " ".join(cmd), shell=True, check=True, stdout=subprocess.PIPE,
@@ -54,7 +55,8 @@ def compute_whs(dataset, distance, linkage, data_folder):
         )
         whs = float(p.stdout.strip())
     except Exception as e:
-        print(f"Cannot compute WHS for {dataset} with {distance} - {linkage}: {repr(e)} ({p.stderr})")
+        print(f"Cannot compute WHS for {dataset} with {distance} - {linkage}: "
+              f"{repr(e)} ({p.stderr if p else ''})")
         whs = np.nan
     return whs
 
@@ -65,7 +67,7 @@ def main(data_folder):
     distances = list(distance_functions.keys())
     # distances = ("lorentzian",)
     # linkages = LINKAGES
-    linkages = ("single", "complet", "average", "weighted")
+    linkages = ("single", "complete", "average", "weighted")
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
     # datasets = datasets[:2]
@@ -77,6 +79,7 @@ def main(data_folder):
         f.write("dataset,distance,linkage,runtime,ARI,whs\n")
 
     for distance in distances:
+        print(f"\n\n======\n{distance}\n======")
         for dataset in tqdm(datasets):
             for linkage in linkages:
                 try:
