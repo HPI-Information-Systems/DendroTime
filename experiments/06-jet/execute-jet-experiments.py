@@ -17,6 +17,7 @@ from download_datasets import DATA_FOLDER, select_aeon_datasets, select_edeniss_
 from jet_wrapper import distance_functions, run_jet
 
 RESULT_FOLDER = Path("results")
+LINKAGES = ("single", "complete", "average", "weighted", "ward")
 
 
 def parse_args(args):
@@ -29,10 +30,10 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-def compute_whs(dataset, distance, data_folder):
-    result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}.csv"
+def compute_whs(dataset, distance, linkage, data_folder):
+    result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}-{linkage}.csv"
     target_path = (
-        data_folder.parent / "ground-truth" / dataset / f"hierarchy-{distance}-ward.csv"
+        data_folder.parent / "ground-truth" / dataset / f"hierarchy-{distance}-{linkage}.csv"
     )
 
     cmd = [
@@ -47,15 +48,13 @@ def compute_whs(dataset, distance, data_folder):
         target_path.absolute().as_posix(),
     ]
     try:
-        whs = float(
-            subprocess.check_output(
-                " ".join(cmd), shell=True, stderr=subprocess.DEVNULL
-            )
-            .decode("utf-8")
-            .strip()
+        p = subprocess.run(
+            " ".join(cmd), shell=True, check=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, encoding="utf-8"
         )
+        whs = float(p.stdout.strip())
     except Exception as e:
-        print(f"Cannot compute WHS for {dataset} with {distance}: {e}")
+        print(f"Cannot compute WHS for {dataset} with {distance} - {linkage}: {repr(e)} ({p.stderr})")
         whs = np.nan
     return whs
 
@@ -63,43 +62,48 @@ def compute_whs(dataset, distance, data_folder):
 def main(data_folder):
     n_jobs = check_n_jobs(psutil.cpu_count(logical=False))
     print(f"Using {n_jobs} jobs")
-    # distances = list(distance_functions.keys())
-    distances = ("lorentzian",)
+    distances = list(distance_functions.keys())
+    # distances = ("lorentzian",)
+    # linkages = LINKAGES
+    linkages = ("single", "complet", "average", "weighted")
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
+    # datasets = datasets[:2]
 
     (RESULT_FOLDER / "hierarchies").mkdir(exist_ok=True, parents=True)
     aggregated_result_file = RESULT_FOLDER / "results.csv"
     print(f"Storing results in {aggregated_result_file}")
     with open(aggregated_result_file, "w") as f:
-        f.write("dataset,distance,runtime,ARI,whs\n")
+        f.write("dataset,distance,linkage,runtime,ARI,whs\n")
 
-    for dataset in tqdm(datasets):
-        for distance in distances:
-            try:
-                h, runtime, ari = run_jet(
-                    dataset=dataset,
-                    distance=distance,
-                    n_jobs=n_jobs,
-                    data_folder=data_folder,
-                )
+    for distance in distances:
+        for dataset in tqdm(datasets):
+            for linkage in linkages:
+                try:
+                    h, runtime, ari = run_jet(
+                        data_folder,
+                        dataset,
+                        distance=distance,
+                        linkage=linkage,
+                        n_jobs=n_jobs,
+                    )
 
-                np.savetxt(
-                    RESULT_FOLDER
-                    / "hierarchies"
-                    / f"hierarchy-{dataset}-{distance}.csv",
-                    h,
-                    delimiter=",",
-                )
-            except Exception as e:
-                print(f"Error for {dataset} with {distance}: {e}")
-                runtime = np.nan
-                ari = np.nan
+                    np.savetxt(
+                        RESULT_FOLDER
+                        / "hierarchies"
+                        / f"hierarchy-{dataset}-{distance}-{linkage}.csv",
+                        h,
+                        delimiter=",",
+                    )
+                except Exception as e:
+                    print(f"Error for {dataset} with {distance} {linkage}: {e}")
+                    runtime = np.nan
+                    ari = np.nan
 
-            whs = compute_whs(dataset, distance, data_folder)
+                whs = compute_whs(dataset, distance, linkage, data_folder)
 
-            with open(aggregated_result_file, "a") as f:
-                f.write(f"{dataset},{distance},{runtime},{ari},{whs}\n")
+                with open(aggregated_result_file, "a") as f:
+                    f.write(f"{dataset},{distance},{linkage},{runtime},{ari},{whs}\n")
 
 
 if __name__ == "__main__":

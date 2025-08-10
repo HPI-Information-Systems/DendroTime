@@ -1,18 +1,11 @@
 #!/usr/bin/env python
-import sys
-import argparse
 import time
-import psutil
 
 import numpy as np
-
-from pathlib import Path
-from numba import njit
-
 from aeon.datasets import load_classification, load_from_ts_file
-from aeon.utils.validation import check_n_jobs
-
 from jet import JET, JETMetric
+from jet_clustering_overwrite import LinkageClustering
+from numba import njit
 from sklearn.metrics import adjusted_rand_score
 
 _eps = np.finfo(np.float64).eps
@@ -174,7 +167,7 @@ def load_dataset(dataset, data_folder):
     return X, y, n_clusters
 
 
-def run_jet(dataset, distance, n_jobs, data_folder):
+def run_jet(data_folder, dataset, distance="sbd", linkage="ward", n_jobs=1):
     verbose = False
 
     X, y, n_clusters = load_dataset(dataset, data_folder)
@@ -187,10 +180,18 @@ def run_jet(dataset, distance, n_jobs, data_folder):
         metric=distance_functions[distance],
         c=1.0,
     )
+    if linkage != "ward":
+        # overwrite internal clustering implementation to allow for other linkages than
+        # ward linkage
+        jet._ward_clustering = LinkageClustering(
+            n_clusters=jet.n_clusters,
+            linkage=linkage,
+            n_jobs=jet.n_jobs,
+            verbose=jet.verbose,
+        )
     jet.fit(X)
     h = jet._ward_clustering._linkage_matrix
     t1 = time.time()
-
 
     runtime = int((t1 - t0) * 1000)
     ari = adjusted_rand_score(y, jet.predict(X))

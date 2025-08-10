@@ -50,10 +50,10 @@ def main(data_folder, dataset, distance, n_jobs):
 
     try:
         h, runtime, ari = run_jet(
-            dataset=dataset,
+            data_folder,
+            dataset,
             distance=distance,
             n_jobs=n_jobs,
-            data_folder=data_folder,
         )
         print(
             f"JET took {runtime:.2f} seconds to process {dataset} with {distance}: "
