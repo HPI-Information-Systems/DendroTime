@@ -210,18 +210,6 @@ def distance_pairs(
     return np.array(distances)
 
 
-def z_matrix(
-    series: Union[np.ndarray, List[np.ndarray]], distance_name: str = "euclidean", **kwargs: Any
-) -> np.ndarray:
-    n_jobs = kwargs.get("n_jobs", 1)
-    z = Parallel(n_jobs=n_jobs)(
-        delayed(distance_functions[distance_name])(series[i], series[j])  # only 1d metrics so far
-        for i in range(len(series) - 1)
-        for j in range(i + 1, len(series))
-    )
-    return np.array(z).flatten()
-
-
 def matrix_other(
     series: Union[np.ndarray, List[np.ndarray]],
     other: Union[np.ndarray, List[np.ndarray]],

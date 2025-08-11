@@ -4,13 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-from distances import distance_pairs, matrix_other, z_matrix
+from distances import distance_pairs, matrix_other
 from numba import njit
-from scipy.cluster.hierarchy import cut_tree, dendrogram
+from scipy.cluster.hierarchy import cut_tree
 from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
@@ -120,6 +119,7 @@ class HappieClust(Clustering):
 
     def __post_init__(self) -> None:
         super().__init__()
+        self._rng = np.random.default_rng(self.random_state)
 
     def _cluster_transform(self, X: List[np.ndarray], **kwargs: Any) -> np.ndarray:
         linkings = self._calculate_linkings(X)
@@ -134,11 +134,11 @@ class HappieClust(Clustering):
             raise ValueError("n_clusters must be specified for HappieClust to cut the tree.")
 
     def _choose_pivots(self, X: List[np.ndarray]) -> List[int]:
-        pivots = np.random.choice(len(X), self.n_pivots, replace=False).tolist()
+        pivots = self._rng.choice(len(X), self.n_pivots, replace=False).tolist()
         return pivots
 
     def _estimate_epsilon(self, pivot_distances: np.ndarray) -> float:
-        random_pairs = np.random.choice(pivot_distances.shape[0], (pivot_distances.shape[0], 2))
+        random_pairs = self._rng.choice(pivot_distances.shape[0], (pivot_distances.shape[0], 2))
         random_pairs = self._remove_self_pairs(random_pairs)
         pseudo_distances = distance_pairs(
             pivot_distances,
@@ -192,7 +192,7 @@ class HappieClust(Clustering):
         # calculate distances of additional random pairs
         n = len(X)
         m = int(self.m * (n * (n - 1)) / 2)
-        random_pairs = np.random.choice(len(X), (int((1 - self.s) * m), 2))
+        random_pairs = self._rng.choice(len(X), (int((1 - self.s) * m), 2))
         random_pairs = self._remove_self_pairs(random_pairs)
         random_distances = distance_pairs(
             X,
@@ -223,13 +223,20 @@ class HappieClust(Clustering):
         return [(i, j) for i, j in pairs if i != j]
 
 
-if __name__ == "__main__":
-    clustering = HappieClust(metric="sbd", n_clusters=2, n_jobs=-1, verbose=True)
-    z_matrix = clustering._calculate_linkings([np.random.rand(10) for _ in range(100)])
+def _test_happieclust():
+    import matplotlib.pyplot as plt
+    from scipy.cluster.hierarchy import dendrogram
+
+    clustering = HappieClust(metric="sbd", n_clusters=2, n_jobs=-1, verbose=True, random_state=42)
+    z_matrix = clustering._calculate_linkings([clustering._rng.rand(10) for _ in range(100)])
     print(z_matrix.shape)
     dendrogram(z_matrix)
 
-    labels = clustering.execute(data=[np.random.rand(10) for _ in range(100)])
+    labels = clustering.execute(data=[clustering._rng.rand(10) for _ in range(100)])
     print(labels)
 
     plt.show()
+
+
+if __name__ == "__main__":
+    _test_happieclust()

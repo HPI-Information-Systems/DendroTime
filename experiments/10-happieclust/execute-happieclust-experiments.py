@@ -13,6 +13,7 @@ from aeon.utils.validation import check_n_jobs
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from download_datasets import DATA_FOLDER, select_aeon_datasets, select_edeniss_datasets
+from plt_commons import linkages, distances
 
 from happieclust_wrapper import run_happieclust
 
@@ -61,9 +62,7 @@ def compute_whs(dataset, distance, linkage, data_folder):
 def main(data_folder):
     n_jobs = check_n_jobs(psutil.cpu_count(logical=False))
     print(f"Using {n_jobs} jobs")
-    distances = ("euclidean", "lorentzian", "sbd", "dtw", "msm", "kdtw")
     # distances = ("euclidean",)
-    linkages = ("single", "complete", "average", "weighted", "ward")
     # linkages = ("ward",)
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
@@ -95,7 +94,7 @@ def main(data_folder):
                         delimiter=",",
                     )
                 except Exception as e:
-                    print(f"Error for {dataset} with {distance}: {e}")
+                    print(f"Error for {dataset} with {distance} - {linkage}: {repr(e)}")
                     runtime = np.nan
                     ari = np.nan
 

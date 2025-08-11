@@ -37,6 +37,7 @@ def run_happieclust(dataset, distance, linkage, n_jobs, data_folder):
         method=linkage,
         metric=distance,
         verbose=verbose,
+        random_state=42,
     )
     h = happieclust._calculate_linkings(X)
     t1 = time.time()
