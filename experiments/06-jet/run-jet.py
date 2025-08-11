@@ -10,6 +10,7 @@ from aeon.utils.validation import check_n_jobs
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from download_datasets import DATA_FOLDER
+from plt_commons import linkages
 
 from jet_wrapper import distance_functions, run_jet
 
@@ -37,6 +38,13 @@ def parse_args(args):
         help="Distance function to use",
     )
     parser.add_argument(
+        "--linkage",
+        type=str,
+        default="ward",
+        choices=linkages,
+        help="Linkage method to use",
+    )
+    parser.add_argument(
         "--n_jobs",
         type=int,
         default=DEFAULT_N_JOBS,
@@ -45,7 +53,7 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
-def main(data_folder, dataset, distance, n_jobs):
+def main(data_folder, result_path, dataset, distance, linkage, n_jobs):
     print(f"Using {n_jobs} jobs")
 
     try:
@@ -53,10 +61,11 @@ def main(data_folder, dataset, distance, n_jobs):
             data_folder,
             dataset,
             distance=distance,
+            linkage=linkage,
             n_jobs=n_jobs,
         )
         print(
-            f"JET took {runtime:.2f} seconds to process {dataset} with {distance}: "
+            f"JET took {runtime:.2f} seconds to process {dataset} with {distance} - {linkage}: "
             f"{ari=:.2f}"
         )
 
@@ -72,9 +81,10 @@ if __name__ == "__main__":
     data_folder = args.datafolder if args.datafolder else DATA_FOLDER
     dataset = args.dataset
     distance = args.distance
+    linkage = args.linkage
     n_jobs = args.n_jobs
 
-    result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}.csv"
+    result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}-{linkage}.csv"
     result_path.parent.mkdir(exist_ok=True, parents=True)
 
-    main(data_folder, dataset, distance, n_jobs)
+    main(data_folder, result_path, dataset, distance, linkage, n_jobs)

@@ -93,6 +93,7 @@ distance_name_mapping = {
     "sbd": "\\gls{sbd}",
     "kdtw": "\\gls{kdtw}",
 }
+distances = tuple(distance_name_mapping.keys())
 measure_name_mapping = {
     "ari": "ARI",
     "ariAt": "ARI@k",

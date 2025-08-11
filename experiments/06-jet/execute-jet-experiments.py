@@ -13,11 +13,11 @@ from aeon.utils.validation import check_n_jobs
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from download_datasets import DATA_FOLDER, select_aeon_datasets, select_edeniss_datasets
+from plt_commons import linkages
 
 from jet_wrapper import distance_functions, run_jet
 
 RESULT_FOLDER = Path("results")
-LINKAGES = ("single", "complete", "average", "weighted", "ward")
 
 
 def parse_args(args):
@@ -66,8 +66,6 @@ def main(data_folder):
     print(f"Using {n_jobs} jobs")
     distances = list(distance_functions.keys())
     # distances = ("lorentzian",)
-    # linkages = LINKAGES
-    linkages = ("single", "complete", "average", "weighted")
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
     # datasets = datasets[:2]
@@ -99,7 +97,7 @@ def main(data_folder):
                         delimiter=",",
                     )
                 except Exception as e:
-                    print(f"Error for {dataset} with {distance} {linkage}: {e}")
+                    print(f"Error for {dataset} with {distance} - {linkage}: {e}")
                     runtime = np.nan
                     ari = np.nan
 
