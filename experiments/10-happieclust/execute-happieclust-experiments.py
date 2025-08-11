@@ -47,6 +47,7 @@ def compute_whs(dataset, distance, linkage, data_folder):
         "--target",
         target_path.absolute().as_posix(),
     ]
+    p = None
     try:
         p = subprocess.run(
             " ".join(cmd), shell=True, check=True, stdout=subprocess.PIPE,
@@ -54,7 +55,8 @@ def compute_whs(dataset, distance, linkage, data_folder):
         )
         whs = float(p.stdout.strip())
     except Exception as e:
-        print(f"Cannot compute WHS for {dataset} with {distance} - {linkage}: {repr(e)} ({p.stderr})")
+        print(f"Cannot compute WHS for {dataset} with {distance} - {linkage}: "
+              f"{repr(e)} ({p.stderr if p else ''})")
         whs = np.nan
     return whs
 
