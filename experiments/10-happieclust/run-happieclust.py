@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+import sys
+import argparse
+import psutil
+
+import numpy as np
+
+from pathlib import Path
+
+from aeon.utils.validation import check_n_jobs
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from download_datasets import DATA_FOLDER
+from plt_commons import linkages, distances
+
+from happieclust_wrapper import run_happieclust
+
+RESULT_FOLDER = Path("results")
+DEFAULT_N_JOBS = check_n_jobs(psutil.cpu_count(logical=False))
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(description="Execute JET.")
+    parser.add_argument(
+        "--datafolder",
+        type=str,
+        help="Overwrite the folder, where the datasets are stored",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        help="Target dataset",
+    )
+    parser.add_argument(
+        "--distance",
+        type=str,
+        default="sbd",
+        choices=distances,
+        help="Distance function to use",
+    )
+    parser.add_argument(
+        "--linkage",
+        type=str,
+        default="ward",
+        choices=linkages,
+        help="Linkage method to use",
+    )
+    parser.add_argument(
+        "--n_jobs",
+        type=int,
+        default=DEFAULT_N_JOBS,
+        help="Number of jobs to use for parallel processing",
+    )
+    return parser.parse_args(args)
+
+
+
+def main(data_folder, result_path, dataset, distance, linkage, n_jobs):
+    print(f"Using {n_jobs} jobs")
+
+    try:
+        h, runtime, ari = run_happieclust(
+            dataset=dataset,
+            distance=distance,
+            linkage=linkage,
+            n_jobs=n_jobs,
+            data_folder=data_folder,
+        )
+        print(
+            f"HappieClust took {runtime:.2f} seconds to process {dataset} with {distance} - {linkage}: "
+            f"{ari=:.2f}"
+        )
+
+        print(f"Storing hierarchy at {result_path}")
+        np.savetxt(result_path, h, delimiter=",")
+    except Exception as e:
+        print(f"Error for {dataset} with {distance} - {linkage}: {repr(e)}")
+        runtime = np.nan
+        raise e
+
+
+if __name__ == "__main__":
+    args = parse_args(sys.argv[1:])
+    data_folder = args.datafolder if args.datafolder else DATA_FOLDER
+    dataset = args.dataset
+    distance = args.distance
+    linkage = args.linkage
+    n_jobs = args.n_jobs
+
+    result_path = RESULT_FOLDER / "hierarchies" / f"hierarchy-{dataset}-{distance}-{linkage}.csv"
+    result_path.parent.mkdir(exist_ok=True, parents=True)
+
+    main(data_folder, result_path, dataset, distance, linkage, n_jobs)

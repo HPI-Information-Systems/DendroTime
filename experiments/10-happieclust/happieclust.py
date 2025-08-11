@@ -206,6 +206,28 @@ class HappieClust(Clustering):
             distance_graph.add_edge(u, v, distance=distance)
         return distance_graph
 
+    def _connect_unconnected_nodes(self, X: List[np.ndarray], distance_graph: nx.Graph) -> nx.Graph:
+        # calculate distances of unconnected nodes to a random other node to complete the graph
+        n = len(X)
+        unconnected_nodes = {node for node in range(n) if not distance_graph[node]}
+        node_pairs = []
+        for node in unconnected_nodes:
+            partner = self._rng.choice(n)
+            while partner in unconnected_nodes:
+                partner = self._rng.choice(n)
+            node_pairs.append((node, partner))
+
+        missing_distances = distance_pairs(
+            X,
+            node_pairs,
+            distance_name=self.metric,
+            verbose=self.verbose,
+            n_jobs=self.n_jobs,
+        )
+        for (u, v), distance in zip(node_pairs, missing_distances):
+            distance_graph.add_edge(u, v, distance=distance)
+        return distance_graph
+
     def _calculate_linkings(self, X: List[np.ndarray]) -> np.ndarray:
         pivots = self._choose_pivots(X)
         distance_graph = self._generate_graph(X, pivots)
@@ -215,6 +237,8 @@ class HappieClust(Clustering):
         # print(f"edges: {distance_graph.number_of_edges()} after close pairs | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
         distance_graph = self._calculate_distances_of_random_pairs(X, distance_graph)
         # print(f"edges: {distance_graph.number_of_edges()} after random pairs | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
+        distance_graph = self._connect_unconnected_nodes(X, distance_graph)
+        # print(f"edges: {distance_graph.number_of_edges()} after connecting unconnected nodes | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
 
         z_matrix = _approximate_hierarchical_clustering(X, distance_graph, self.method, self.verbose)
         return z_matrix
