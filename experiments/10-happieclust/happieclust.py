@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Any, List, Optional, Tuple
 
 import networkx as nx
@@ -206,16 +207,10 @@ class HappieClust(Clustering):
             distance_graph.add_edge(u, v, distance=distance)
         return distance_graph
 
-    def _connect_unconnected_nodes(self, X: List[np.ndarray], distance_graph: nx.Graph) -> nx.Graph:
-        # calculate distances of unconnected nodes to a random other node to complete the graph
-        n = len(X)
-        unconnected_nodes = {node for node in range(n) if not distance_graph[node]}
-        node_pairs = []
-        for node in unconnected_nodes:
-            partner = self._rng.choice(n)
-            while partner in unconnected_nodes:
-                partner = self._rng.choice(n)
-            node_pairs.append((node, partner))
+    def _connect_unconnected_components(self, X: List[np.ndarray], distance_graph: nx.Graph) -> nx.Graph:
+        # calculate distances between random nodes of unconnected components
+        nodes = [self._rng.choice(list(c)) for c in nx.connected_components(distance_graph)]
+        node_pairs = list(combinations(nodes, 2))
 
         missing_distances = distance_pairs(
             X,
@@ -237,7 +232,7 @@ class HappieClust(Clustering):
         # print(f"edges: {distance_graph.number_of_edges()} after close pairs | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
         distance_graph = self._calculate_distances_of_random_pairs(X, distance_graph)
         # print(f"edges: {distance_graph.number_of_edges()} after random pairs | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
-        distance_graph = self._connect_unconnected_nodes(X, distance_graph)
+        distance_graph = self._connect_unconnected_components(X, distance_graph)
         # print(f"edges: {distance_graph.number_of_edges()} after connecting unconnected nodes | {distance_graph.number_of_edges() / (len(X)*(len(X)-1)/2)}")
 
         z_matrix = _approximate_hierarchical_clustering(X, distance_graph, self.method, self.verbose)
