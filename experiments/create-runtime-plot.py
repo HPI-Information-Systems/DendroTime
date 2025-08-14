@@ -86,10 +86,7 @@ def main(
     # load results from jet execution
     df_jet = pd.read_csv("06-jet/results/results.csv")
     df_jet["strategy"] = "JET"
-    # df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
     df_jet.replace(-1, np.nan, inplace=True)
-    # JET does only support ward linkage:
-    df_jet["linkage"] = "ward"
 
     # load results from parallel execution
     df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
@@ -189,7 +186,7 @@ def main(
     #     & (df["linkage"].isin(linkages))
     # ]
 
-    dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["dataset"].count()
+    dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["whs"].count()
     print(f"Distances: {distances}")
     print(f"Linkages: {linkages}")
     with pd.option_context("display.max_rows", None, "display.max_columns", None):
@@ -226,8 +223,8 @@ def main(
         for j in range(axs.shape[1]):
             # helper grid line:
             axs[i, j].axvline(x=1, color="lightgray", ls="--", lw=1)
-            axs[i, j].axhline(y=0.8, color="lightgray", ls="--", lw=1)
-            axs[i, j].tick_params(labelbottom=False)
+            axs[i, j].axhline(y=0.8, color="lightgray", ls="--", lw=1, label="80% WHS")
+            # axs[i, j].tick_params(labelbottom=False)
             axs[i, j].set_ylim(-0.05, 1.1)
             axs[i, j].set_yticks([0.0, 0.5, 1.0])
             axs[i, j].set_yticklabels([])
@@ -247,30 +244,32 @@ def main(
     # add plots
     handles, labels = [], []
     for j, distance in enumerate(distances):
-        # aggregate WHS and runtime over datasets to get a single point for JET
-        # JET only supports ward linkage, so broadcast to all linkages
-        df_jet = df[
-            (df["linkage"] == "ward")
-            & (df["distance"] == distance)
-            & (df["strategy"] == "JET")
-        ]
-        df_jet = df_jet[["whs", "runtime"]].agg(["mean", "median", "std"], axis=0)
-
-        # get maximum runtime for scaling and extending strategy lines to right
-        jet_whs = df_jet.loc["mean", "whs"]
-        jet_runtime = df_jet.loc["mean", "runtime"]
-        # same across all linkages, so we just need axis ticks once
+        # same across all linkages:
         max_other_runtime = (
             df[(df["distance"] == distance) & (df["strategy"] != "JET")]
                 .groupby(["strategy", "linkage", "whs"])["runtime"]
                 .mean()
                 .max()
         )
-        max_runtime = max(jet_runtime, max_other_runtime)
+        max_jet_runtime = (
+            df[(df["distance"] == distance) & (df["strategy"] == "JET")]
+                .groupby(["linkage"])["runtime"]
+                .mean()
+                .max()
+        )
+        max_runtime = max(max_jet_runtime, max_other_runtime)
 
         for i, linkage in enumerate(linkages):
             ax = axs[i, j]
             ax_jet = ax
+
+            # aggregate WHS and runtime over datasets to get a single point for JET
+            df_jet = df[
+                (df["linkage"] == linkage)
+                & (df["distance"] == distance)
+                & (df["strategy"] == "JET")
+            ]
+            df_jet = df_jet[["whs", "runtime"]].agg(["mean", "std"], axis=0)
 
             # compute mean and std runtime for each strategy over the datasets
             df_filtered = df[
@@ -284,6 +283,10 @@ def main(
                 .reset_index()
                 .set_index("strategy")
             )
+
+            # get maximum runtime for scaling and extending strategy lines to right
+            jet_whs = df_jet.loc["mean", "whs"]
+            jet_runtime = df_jet.loc["mean", "runtime"]
 
             # cut axis, where JET runtime is large into two
             break_point = max(max_other_runtime, 2.1)
@@ -345,14 +348,16 @@ def main(
                 ax_jet.set_xlim(break_point*1.1, 1.1*max_runtime)
                 ax_jet.set_xticks([jet_runtime])
                 ax_jet.set_xticklabels([f"{jet_runtime:.1f}"])
+                # ax_jet.set_xticks([max_runtime])
+                # ax_jet.set_xticklabels([f"{max_runtime:.1f}"])
                 ax_jet.tick_params(labelbottom=False)
                 ax_jet.spines["left"].set_visible(False)
                 ax_jet.spines["top"].set_visible(False)
-                ax_jet.axhline(y=0.8, color="lightgray", ls="--", lw=1)
+                ax_jet.axhline(y=0.8, color="lightgray", ls="--", lw=1, label="80% WHS")
 
-                if i == len(linkages) - 1:
-                    ax_default.tick_params(labelbottom=True)
-                    ax_jet.tick_params(labelbottom=True)
+                # if i == len(linkages) - 1:
+                ax_default.tick_params(labelbottom=True)
+                ax_jet.tick_params(labelbottom=True)
 
                 # add slanted lines to indicate the break
                 d = .75  # proportion of vertical to horizontal extent of the slanted line
@@ -436,7 +441,6 @@ def main(
                             alpha=0.1,
                         )
 
-
             # add plot for parallel
             strategy = "parallel"
             color = colors[strategy]
@@ -490,10 +494,16 @@ def main(
             if i == 0 and j == 0:
                 handles, labels = ax.get_legend_handles_labels()
                 if break_axis:
-                    # add JET to the legend
+                    # add JET to the legend, but keep helper lines last and avoid duplicates
+                    try:
+                        existing_jet_index = labels.index(strategy_name("JET"))
+                        handles = [h for i, h in enumerate(handles) if i != existing_jet_index]
+                        labels = [l for i, l in enumerate(labels) if i != existing_jet_index]
+                    except ValueError:
+                        pass
                     jet_handles, jet_labels = ax_jet.get_legend_handles_labels()
-                    handles.extend(jet_handles)
-                    labels.extend(jet_labels)
+                    handles.extend(jet_handles[::-1])
+                    labels.extend(jet_labels[::-1])
 
     # add legend
     if alternative_legend:
