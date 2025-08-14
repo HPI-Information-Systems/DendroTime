@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-
-import pandas as pd
-import matplotlib.pyplot as plt
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
 sys.path.append(str(Path(__file__).parent.parent))
-from plt_commons import measure_name_mapping, colors, extract_measures_from_config
+from plt_commons import (colors, distances, extract_measures_from_config,
+                         linkages, measure_name_mapping, strategy_name)
 
 
 def parse_args(args):
@@ -23,14 +24,14 @@ def parse_args(args):
         "--distance",
         type=str,
         default="msm",
-        choices=["dtw", "msm", "sbd", "euclidean"],
+        choices=distances,
         help="Distance measure",
     )
     parser.add_argument(
         "--linkage",
         type=str,
         default="average",
-        choices=["single", "complete", "average", "weighted"],
+        choices=linkages,
         help="Linkage method",
     )
     parser.add_argument(
@@ -57,6 +58,12 @@ def parse_args(args):
         action="store_true",
         help="Include ARI in the plot.",
     )
+    parser.add_argument(
+        "-n",
+        "--display-strategy-name",
+        action="store_true",
+        help="Display the strategy name as titles in the plot.",
+    )
 
     return parser.parse_args(args)
 
@@ -65,6 +72,8 @@ def main(sys_args):
     args = parse_args(sys_args)
     use_runtime = args.use_runtime
     include_ari = args.include_ari
+    display_strategy_name = args.display_strategy_name
+
     if args.resultfile is not None:
         results_file_left = Path(args.resultfile)
         results_file_right = None
@@ -95,9 +104,15 @@ def main(sys_args):
 
     # plot left
     plot_results(results_file_left, use_runtime, include_ari, ax=axs[0])
+    if display_strategy_name:
+        axs[0].set_title(strategy_name(strategy_left))
+
     # plot right
     if results_file_right is not None:
         plot_results(results_file_right, use_runtime, include_ari, ax=axs[1])
+        if display_strategy_name:
+            axs[1].set_title(strategy_name(strategy_right))
+
     axs[0].set_ylabel("Quality")
     axs[0].set_ylim(0.0, 1.05)
 
