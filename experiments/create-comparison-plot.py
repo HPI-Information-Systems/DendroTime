@@ -161,9 +161,8 @@ def main(sys_args):
         print("  loading data for JET and parallel baselines ...")
         # load results from jet execution
         df_jet = pd.read_csv("06-jet/results/results.csv")
-        df_jet["distance"] = np.tile(["sbd", "msm", "dtw"], df_jet.shape[0] // 3)
         df_jet.replace(-1, np.nan, inplace=True)
-        df_jet = df_jet.set_index(["dataset", "distance"])
+        df_jet = df_jet.set_index(["dataset", "distance", "linkage"])
 
         # load results from parallel execution
         df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
@@ -180,8 +179,8 @@ def main(sys_args):
                     {
                         "strategy": "JET",
                         "experiment": experiment_config,
-                        "runtime": df_jet.loc[(dataset, distance), "runtime"] / 1000,
-                        "whs": df_jet.loc[(dataset, distance), "whs"],
+                        "runtime": df_jet.loc[(dataset, distance, linkage), "runtime"] / 1000,
+                        "whs": df_jet.loc[(dataset, distance, linkage), "whs"],
                     },
                     {
                         "strategy": "parallel",
