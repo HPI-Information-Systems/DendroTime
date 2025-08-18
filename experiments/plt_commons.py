@@ -19,6 +19,7 @@ colors["shortestTs"] = cm(6)
 colors["serial"] = cm(0)
 colors["parallel"] = cm(1)
 colors["JET"] = "blue"
+colors["HappieClust"] = cm(5)
 # measures
 colors["hierarchy-quality"] = cm(2)
 colors["cluster-quality"] = cm(4)
@@ -34,6 +35,7 @@ markers = defaultdict(lambda: ".")
 markers["serial"] = "o"
 markers["parallel"] = "s"
 markers["JET"] = "D"
+markers["HappieClust"] = "o"
 markers["fcfs"] = "X"
 markers["preClustering"] = "P"
 markers["pre_clustering"] = "P"

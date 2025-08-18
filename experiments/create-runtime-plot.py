@@ -64,6 +64,11 @@ def parse_args():
         action="store_true",
         help="Plot legend above the plot instead of on the right",
     )
+    parser.add_argument(
+        "--noclip-approx",
+        action="store_true",
+        help="Disable clipping for approximated runstrategies within their subaxis",
+    )
     return parser.parse_args()
 
 
@@ -75,6 +80,7 @@ def main(
     extend_strategy_runtimes=False,
     correct_dendrotime_runtime=False,
     alternative_legend=False,
+    noclip_approx=False,
 ):
     # load results from serial execution
     # df_serial = pd.read_csv("01-serial-hac/results/aggregated-runtimes.csv")
@@ -87,6 +93,15 @@ def main(
     df_jet = pd.read_csv("06-jet/results/results.csv")
     df_jet["strategy"] = "JET"
     df_jet.replace(-1, np.nan, inplace=True)
+
+    # load results from HappieClust execution
+    try:
+        df_hc = pd.read_csv("10-happieclust/results/results.csv")
+        df_hc["strategy"] = "HappieClust"
+        df_hc.replace(-1, np.nan, inplace=True)
+    except Exception:
+        print("No results for HappieClust found!")
+        df_hc = pd.DataFrame()
 
     # load results from parallel execution
     df_parallel = pd.read_csv("07-parallel-hac/results/aggregated-runtimes.csv")
@@ -156,7 +171,7 @@ def main(
         df_dendrotime["whs"].str.replace("runtime_", "").astype(float)
     )
 
-    df = pd.concat([df_jet, df_dendrotime, df_parallel], ignore_index=True)
+    df = pd.concat([df_jet, df_hc, df_dendrotime, df_parallel], ignore_index=True)
     df["runtime"] = df["runtime"] / 1000  # convert to seconds
 
     # only consider datasets with parallel runtime >= 5 minutes
@@ -186,12 +201,20 @@ def main(
     #     & (df["linkage"].isin(linkages))
     # ]
 
-    dataset_count = df[(df["whs"] == 1.0) | (df["strategy"] == "JET")].groupby(["strategy", "distance", "linkage"])["whs"].count()
+    dataset_count = df[(df["whs"] == 1.0) | (df["strategy"].isin(["JET", "HappieClust"]))]
+    dataset_count = (
+        dataset_count
+            .groupby(["strategy", "distance", "linkage"])["whs"]
+            .count()
+            .reset_index()
+            .pivot(index=["distance", "linkage"], columns="strategy", values="whs")
+            .rename(columns=strategy_name)
+    )
     print(f"Distances: {distances}")
     print(f"Linkages: {linkages}")
-    with pd.option_context("display.max_rows", None, "display.max_columns", None):
-        print(f"Processed datasets: {dataset_count}")
-    print(df[(df["dataset"] == "ACSF1") & (df["whs"] == 1.0)].sort_values(["strategy", "distance", "linkage"]))
+    print("Processed datasets")
+    with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 240):
+        print(dataset_count)
 
     # use right y ticks and labels for this plot
     plt.rcParams["ytick.right"] = plt.rcParams["ytick.labelright"] = True
@@ -245,37 +268,39 @@ def main(
     handles, labels = [], []
     for j, distance in enumerate(distances):
         # same across all linkages:
+        max_approx_runtime = (
+            df[(df["distance"] == distance) & (df["strategy"].isin(["JET", "HappieClust"]))]
+                .groupby(["strategy", "linkage"])["runtime"]
+                .mean()
+                .max()
+        )
         max_other_runtime = (
-            df[(df["distance"] == distance) & (df["strategy"] != "JET")]
+            df[(df["distance"] == distance) & (~df["strategy"].isin(["JET", "HappieClust"]))]
                 .groupby(["strategy", "linkage", "whs"])["runtime"]
                 .mean()
                 .max()
         )
-        max_jet_runtime = (
-            df[(df["distance"] == distance) & (df["strategy"] == "JET")]
-                .groupby(["linkage"])["runtime"]
-                .mean()
-                .max()
-        )
-        max_runtime = max(max_jet_runtime, max_other_runtime)
+        max_runtime = max(max_approx_runtime, max_other_runtime)
 
         for i, linkage in enumerate(linkages):
             ax = axs[i, j]
             ax_jet = ax
 
-            # aggregate WHS and runtime over datasets to get a single point for JET
-            df_jet = df[
-                (df["linkage"] == linkage)
-                & (df["distance"] == distance)
-                & (df["strategy"] == "JET")
-            ]
-            df_jet = df_jet[["whs", "runtime"]].agg(["mean", "std"], axis=0)
+            # aggregate WHS and runtime over datasets to get a single point for approximate algos
+            df_approx = (
+                df[
+                    (df["linkage"] == linkage)
+                    & (df["distance"] == distance)
+                    & (df["strategy"].isin(["JET", "HappieClust"]))
+                ].groupby(["strategy"])[["whs", "runtime"]]
+                .agg(["mean", "std"])
+            )
 
             # compute mean and std runtime for each strategy over the datasets
             df_filtered = df[
                 (df["linkage"] == linkage)
                 & (df["distance"] == distance)
-                & (df["strategy"] != "JET")
+                & (~df["strategy"].isin(["JET", "HappieClust"]))
             ]
             df_filtered = (
                 df_filtered.groupby(["strategy", "whs"])[["runtime"]]
@@ -284,13 +309,11 @@ def main(
                 .set_index("strategy")
             )
 
-            # get maximum runtime for scaling and extending strategy lines to right
-            jet_whs = df_jet.loc["mean", "whs"]
-            jet_runtime = df_jet.loc["mean", "runtime"]
-
             # cut axis, where JET runtime is large into two
+            min_approx_runtime = df_approx[("runtime", "mean")].min()
+            max_approx_runtime = df_approx[("runtime", "mean")].max()
             break_point = max(max_other_runtime, 2.1)
-            break_axis = jet_runtime > break_point
+            break_axis = max_approx_runtime > break_point
             if break_axis:
                 # we get the gridspec of the axis, remove the axis, add a subgridspec to
                 # it, and then add two new axes to it
@@ -311,7 +334,7 @@ def main(
 
                 # reconfigure the default axis
                 ax_default.set_xlim(-0.1, break_point)
-                ax_default.set_xticks([0.0, 1.0, 2.0])
+                ax_default.set_xticks([0.0, 1.0])
                 ax_default.tick_params(labelbottom=False)
                 ax_default.set_ylim(-0.05, 1.1)
                 ax_default.set_yticks([])
@@ -345,9 +368,9 @@ def main(
                     ax_jet.tick_params(labelright=False, labelleft=False)
 
                 # adjust y-axis limits to show JET point (zooms)
-                ax_jet.set_xlim(break_point*1.1, 1.1*max_runtime)
-                ax_jet.set_xticks([jet_runtime])
-                ax_jet.set_xticklabels([f"{jet_runtime:.1f}"])
+                ax_jet.set_xlim(break_point, 1.1*max_runtime)
+                ax_jet.set_xticks([min_approx_runtime])
+                ax_jet.set_xticklabels([f"{min_approx_runtime:.1f}"])
                 # ax_jet.set_xticks([max_runtime])
                 # ax_jet.set_xticklabels([f"{max_runtime:.1f}"])
                 ax_jet.tick_params(labelbottom=False)
@@ -400,7 +423,7 @@ def main(
                     label=f"DendroTime {strategy_name(strategy)}",
                     marker=marker,
                     zorder=2.5,
-                    clip_on=False
+                    clip_on=not noclip_approx
                 )
                 if not disable_variances:
                     ax.fill_betweenx(
@@ -453,15 +476,17 @@ def main(
                 zorder=2.5,
             )
 
-            # add plot for JET
+            # add plot for JET and HappieClust
             strategy = "JET"
+            jet_runtime = df_approx.loc[strategy, ("runtime", "mean")]
+            jet_whs = df_approx.loc[strategy, ("whs", "mean")]
             color = colors[strategy]
             if show_jet_variance:
                 ax_jet.errorbar(
                     jet_runtime,
                     jet_whs,
-                    xerr=df_jet.loc["std", "runtime"],
-                    yerr=df_jet.loc["std", "whs"],
+                    xerr=df_approx.loc[strategy, ("runtime", "std")],
+                    yerr=df_approx.loc[strategy, ("whs", "std")],
                     label=strategy_name(strategy),
                     color=color,
                     marker=markers[strategy],
@@ -473,8 +498,8 @@ def main(
                     ax.errorbar(
                         jet_runtime,
                         jet_whs,
-                        xerr=df_jet.loc["std", "runtime"],
-                        yerr=df_jet.loc["std", "whs"],
+                        xerr=df_approx.loc[strategy, ("runtime", "std")],
+                        yerr=df_approx.loc[strategy, ("whs", "std")],
                         label=strategy_name(strategy),
                         color=color,
                         marker=markers[strategy],
@@ -490,7 +515,51 @@ def main(
                     color=color,
                     marker=markers[strategy],
                     zorder=2.5,
+                    clip_on=not noclip_approx,
                 )
+
+            strategy = "HappieClust"
+            if strategy in df_approx.index:
+                hc_runtime = df_approx.loc[strategy, ("runtime", "mean")]
+                hc_whs = df_approx.loc[strategy, ("whs", "mean")]
+                color = colors[strategy]
+                if show_jet_variance:
+                    ax_jet.errorbar(
+                        hc_runtime,
+                        hc_whs,
+                        xerr=df_approx.loc[strategy, ("runtime", "std")],
+                        yerr=df_approx.loc[strategy, ("whs", "std")],
+                        label=strategy_name(strategy),
+                        color=color,
+                        marker=markers[strategy],
+                        lw=2,
+                        elinewidth=1,
+                        capsize=2,
+                    )
+                    if break_axis:
+                        ax.errorbar(
+                            hc_runtime,
+                            hc_whs,
+                            xerr=df_approx.loc[strategy, ("runtime", "std")],
+                            yerr=df_approx.loc[strategy, ("whs", "std")],
+                            label=strategy_name(strategy),
+                            color=color,
+                            marker=markers[strategy],
+                            lw=2,
+                            elinewidth=1,
+                            capsize=2,
+                        )
+                else:
+                    ax_jet.scatter(
+                        hc_runtime,
+                        hc_whs,
+                        label=strategy_name(strategy),
+                        color=color,
+                        marker=markers[strategy],
+                        zorder=2.5,
+                        clip_on=False,
+                    )
+
             if i == 0 and j == 0:
                 handles, labels = ax.get_legend_handles_labels()
                 if break_axis:
@@ -547,4 +616,5 @@ if __name__ == "__main__":
         correct_dendrotime_runtime=args.correct_dendrotime_runtime,
         extend_strategy_runtimes=args.extend_strategy_runtimes,
         alternative_legend=args.alternative_legend,
+        noclip_approx=args.noclip_approx,
     )
