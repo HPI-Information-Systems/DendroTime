@@ -104,7 +104,7 @@ measure_name_mapping = {
     "hierarchySimilarity": "HierarchySimilarity",
     "hierarchyQuality": "WHS",
     "weightedHierarchySimilarity": "WHS",
-    "labelChangesAt": "#CumulativeClusterChanges@k",
+    "labelChangesAt": "#CumClusterChanges@k",
 }
 baseline_strategies = ["serial", "parallel", "JET"]
 dendrotime_strategies = ["fcfs", "approx_distance_ascending", "pre_clustering"]

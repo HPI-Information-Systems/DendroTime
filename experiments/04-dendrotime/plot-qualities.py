@@ -171,10 +171,6 @@ def plot_results(results_file, use_runtime=False, include_ari=False, ax=None):
     if not include_ari and "cluster-quality" in df.columns:
         df = df.drop(columns=["cluster-quality"])
 
-    aucs = df.sum(axis=0) / df.shape[0]
-    print("AUCs")
-    print(aucs)
-
     # ax.set_title(f"{dataset}: {strategy_name(strategy)} strategy with {distance.upper()} and {linkage}")
     ax.grid(True, which="major", axis="y", ls=":", lw=1)
     ax.axvline(
@@ -201,6 +197,24 @@ def plot_results(results_file, use_runtime=False, include_ari=False, ax=None):
             step="post",
             color=colors["hierarchy-quality"],
         )
+
+        # Compute WHS-R-AUC
+        aucs = df.sum(axis=0) / df.shape[0]
+        runtimes = pd.Series(df.index)
+        runtime_auc = (
+            df["hierarchy-quality"].values * runtimes.diff().shift(-1)
+        ).sum() / runtimes.max()
+        print(f"Simple AUC={aucs['hierarchy-quality']:0.2f}")
+        print(f"{'Runtime' if use_runtime else 'Step'} AUC={runtime_auc:0.2f}")
+        ax.text(
+            0.95 * runtimes.max(),
+            0.1,
+            f"WHS-R-AUC: {runtime_auc:.2f}",
+            fontweight="bold",
+            color=colors["hierarchy-quality"],
+            ha="right"
+        )
+
         df = df.drop(columns=["hierarchy-quality"])
 
     for measurement in df.columns:
