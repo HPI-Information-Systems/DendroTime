@@ -12,7 +12,7 @@ let "mem_jobs = TOTAL_MEM / required_mem"
 n_jobs=$((mem_jobs < N ? mem_jobs : N))
 echo "Running $n_jobs jobs in parallel"
 
-distances=( "euclidean" "dtw" "msm" "sbd" )
+distances=( "euclidean" "lorentzian" "sbd" "dtw" "msm" "kdtw" )
 linkages=( "single" "complete" "average" "weighted" "ward")
 # download datasets
 datasets=$(python ../download_datasets.py --all)

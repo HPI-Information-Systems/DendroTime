@@ -64,11 +64,8 @@ def compute_whs(dataset, distance, linkage, data_folder):
 def main(data_folder):
     n_jobs = check_n_jobs(psutil.cpu_count(logical=False))
     print(f"Using {n_jobs} jobs")
-    # distances = ("euclidean",)
-    # linkages = ("ward",)
     datasets = select_aeon_datasets(download_all=True, sorted=True)
     datasets = datasets + select_edeniss_datasets(data_folder)
-    # datasets = datasets[:2]
 
     (RESULT_FOLDER / "hierarchies").mkdir(exist_ok=True, parents=True)
     aggregated_result_file = RESULT_FOLDER / "results.csv"

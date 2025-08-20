@@ -2,25 +2,10 @@
 
 set -eo pipefail  # trace exit code of failed piped commands
 
-distances=( "euclidean" "dtw" "msm" "sbd" )
-linkages=( "single" "complete" "average" "weighted" )
+distances=( "euclidean" "lorentzian" "sbd" "dtw" "msm" "kdtw" )
+linkages=( "single" "complete" "average" "weighted" "ward" )
 # download datasets
-# datasets=$(python ../download_datasets.py --all --sorted)
-datasets="edeniss20182020_co2_anomalies
-edeniss20182020_ec_anomalies
-edeniss20182020_ics_anomalies
-edeniss20182020_level_anomalies
-edeniss20182020_par_anomalies
-edeniss20182020_ph_anomalies
-edeniss20182020_pressure_anomalies
-edeniss20182020_rh_anomalies
-edeniss20182020_temp_anomalies
-edeniss20182020_valve_anomalies
-edeniss20182020_volume_anomalies
-edeniss20182020_vpd_anomalie
-Crop
-ElectricDevices
-StarLightCurves"
+datasets=$(python ../download_datasets.py --all --sorted)
 
 # run experiments in n_jobs subprocesses
 for dataset in $datasets; do
@@ -40,8 +25,8 @@ for dataset in $datasets; do
 done
 
 # aggregate runtime results
-# python aggregate-runtimes.py
+python aggregate-runtimes.py
 
 # create tar file
-# tar -czf 07-parallel-hac-results.tar.gz results/*
-# echo "Results are stored in 07-parallel-hac-results.tar.gz"
+tar -czf 07-parallel-hac-results.tar.gz results/*
+echo "Results are stored in 07-parallel-hac-results.tar.gz"
