@@ -232,6 +232,19 @@ dendrotime {
         minkowsky {
             p = 2
         }
+        lorentzian {
+            normalize = no
+        }
+        kdtw {
+            gamma = 1.0
+            epsilon = 1e-20
+            # Input normalization is necessary to ensure numerical stability of the distance measure. Just disable it if
+            # you know what you are doing.
+            normalize-input = yes
+            # Distance normalization is expensive because it involves computing the O(n²) self-distance for both input
+            # time series x and y. This means that the distance calculation is executed three times.
+            normalize-distance = yes
+        }
         # Absolute number of points of each time series that are used to approximate the pairwise distance.
         approx-length = 20
     }

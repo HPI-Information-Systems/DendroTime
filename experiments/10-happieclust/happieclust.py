@@ -1,3 +1,5 @@
+# the implementation of happieclust is based on:
+# https://github.com/HPI-Information-Systems/tidewater/blob/main/tidewater/transformers/clusterings/happie_clust.py
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

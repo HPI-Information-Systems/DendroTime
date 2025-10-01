@@ -76,6 +76,7 @@ The following table provides an overview about the most important contents in th
 | _Folders_                                              |                                                             |
 | [`docs`](./docs)                                       | Hosts doc files and resources                               |
 | [`experiments`](./experiments)                         | Paper experiment scripts for reproducibility                |
+| [`results`](./results)                                 | Aggregated results from the experiments                     |
 | [`scripts`](./scripts)                                 | Collection of various Scala and Python scripts              |
 | _Files_                                                |                                                             |
 | [`build.sbt`](./build.sbt)                             | SBT build configuration                                     |
@@ -95,7 +96,7 @@ The following three are the most important ones:
   The final step (inter-pre-cluster) computes the exact dissimilarities of all inter-pre-cluster pairs.
   We compute the dissimilarities between time series from close pre-clusters before those between far-apart pre-clusters.
 
-We compare DendroTime with two baseline algorithms:
+We compare DendroTime with three baseline algorithms:
 
 - **PARALLEL** HAC:
   This baseline is a multithreaded Scala implementation of traditional linkage-based HAC.
@@ -109,15 +110,29 @@ We compare DendroTime with two baseline algorithms:
   There is also a SERIAL baseline that does not use any parallelism: `--serial`.
 
 - [**JET**](https://github.com/HPI-Information-Systems/jet):
-  JET is an approximated algorithm for hierarchical clustering of time series anomalies.
+  JET is an approximate algorithm for hierarchical clustering of time series anomalies.
   It is implemented in Python, and we execute it with Python version 3.9.21.
   After computing a coarse-grained pre-clustering of the time series using the very efficient BIRCH algorithm, it computes the exact dissimilarities just for intra-pre-cluster time series and between the pre-cluster medoids.
   The dissimilarity computations are executed in parallel.
-  You can execute JET from the `experiments/06-jet/` repository:
+  You can execute JET from the `experiments/06-jet/` folder:
 
   ```bash
   cd experiments/06-jet
   python run-jet.py --datafolder ../../data/datasets --dataset <dataset-name>
+  ```
+
+- [**HappieClust**](./experiments/10-happieclust/happieclust.py):
+  HappieClust is another approximate algorithm for hierarchical clustering of time series.
+  It is also implemented in Python, and we execute it with Python version 3.9.21.
+  Our implementation is based on
+  [the implementation of the JET paper](https://github.com/HPI-Information-Systems/tidewater/blob/main/tidewater/transformers/clusterings/happie_clust.py).
+  HappieClust computes pseudo-distances in a low-dimensional pivot-space to estimate the time series dissimilarities and construct the stepwise dendrogram afterwward.
+  All dissimilarity computations are executed in parallel.
+  You can run HappieClust from the `experiments/10-happieclust/` folder:
+
+  ```bash
+  cd experiments/10-happieclust
+  python run-happieclust.py --datafolder ../../data/datasets --dataset <dataset-name>
   ```
 
 We perform the experiments on 123 univariate datasets without missing values from [the UCR time series classification archive](https://www.timeseriesclassification.com/dataset.php) and 12 univariate anomaly datasets extracted from greenhouse telemetry of the EDENISS project.
@@ -128,10 +143,10 @@ The UCR datasets are hosted publicly and can be downloaded with the [`download_d
 
 > Horizontal axis shows relative runtime w.r.t the PARALLEL baseline runtime and vertical axis shows dendrogram similarity w.r.t to the exact dendrogram (= quality).
 
-### DendroTime vs. JET
+### DendroTime vs. JET and HappieClust
 
-Although JET is an approximate approach for calculating fast HAC sketches, it is on average slower than DendroTime.
-For larger datasets, JET's Python overhead diminishes and it is indeed faster.
+Although JET and HappieClust are approximate approaches for calculating fast HAC sketches, they are on average slower than DendroTime.
+For larger datasets and excessively costly dissimilarity measures (i.a. KDTW), their Python overheads diminish and they are indeed faster.
 Nevertheless, DendroTime achieves for all datasets at least similar quality after the same runtime.
 
 ### DendroTime vs. PARALLEL
@@ -143,7 +158,9 @@ Despite DendroTime continuously producing approximate results, its progressive s
 
 When using this software please cite our paper:
 
-> tbd
+> Sebastian Schmidl, Ferdinand Rewicki, Felix Naumann, Thorsten Papenbrock:
+> DendroTime: Progressive Hierarchical Clustering for Variable-Length Time Series.
+> Proceedings of the International Conference on Extending Database Technology (EDBT), 2026.
 
 ## Installation
 
@@ -230,8 +247,9 @@ DendroTime's configuration options are described in [_DendroTime configuration_]
 ## Experiments & Reproducibility
 
 The configuration of DendroTime and the baselines used for the experiments in the paper can be found in the [`experiments`-folder](./experiments/).
-Note that we do not publish the results of the experiments in this Github-Repository due to their size.
-Please contact us directly for the experiments' result backups.
+Note that we do not publish all results of the experiments in this Github-Repository due to their size.
+The [`results`-folder](./results/) contains only the aggregated quality and runtimes measuresments of the main experiments.
+Please contact us directly for the experiments' full result backups.
 
 ## License
 
